@@ -1,22 +1,3 @@
 # Use LLD linker for faster linking (especially big static libs like onnxruntime)
 [target.x86_64-pc-windows-msvc]
 linker = "rust-lld"
-
-# whisper-rs-sys 用 CMake 编译 whisper.cpp，默认 /MD（动态 CRT）；
-# 而 sherpa-onnx 的 Windows 预编译库是 /MT（静态 CRT），两者混链会触发
-# /failifmismatch: RuntimeLibrary 不匹配。统一为 /MT（MultiThreaded）。
-# 这里同时覆盖 CMAKE_MSVC_RUNTIME_LIBRARY 与各配置的 C/CXX_FLAGS（显式 /MT），
-# 因为前者依赖 CMP0091 策略（cmake_minimum_required >= 3.15 才生效），
-# 显式 flags 兜底保证任何情况下都是 /MT。
-# whisper-rs-sys build.rs 会把 WHISPER_/CMAKE_ 环境变量透传给 CMake。
-# 仅对 MSVC 构建生效，macOS/Linux 不受影响。
-[env]
-CMAKE_MSVC_RUNTIME_LIBRARY = "MultiThreaded"
-CMAKE_C_FLAGS_DEBUG = "/MTd /Zi /Ob0 /Od /RTC1"
-CMAKE_C_FLAGS_RELEASE = "/MT /O2 /Ob2 /DNDEBUG"
-CMAKE_C_FLAGS_MINSIZEREL = "/MT /O1 /Ob1 /DNDEBUG"
-CMAKE_C_FLAGS_RELWITHDEBINFO = "/MT /Zi /O2 /Ob1 /DNDEBUG"
-CMAKE_CXX_FLAGS_DEBUG = "/MTd /Zi /Ob0 /Od /RTC1"
-CMAKE_CXX_FLAGS_RELEASE = "/MT /O2 /Ob2 /DNDEBUG"
-CMAKE_CXX_FLAGS_MINSIZEREL = "/MT /O1 /Ob1 /DNDEBUG"
-CMAKE_CXX_FLAGS_RELWITHDEBINFO = "/MT /Zi /O2 /Ob1 /DNDEBUG"
