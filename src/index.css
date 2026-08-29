@@ -71,44 +71,37 @@ button, a, input, select, textarea {
 }
 
 /* ── 主控台水滴气泡卡片（Workbench）────────────────────────── */
-/* 布局：卡片散布在圆形场景内（.wb-scene 相对定位，.wb-pos 负责位置）。
-   每张卡片通过内联变量定制：--br/--br2/--br3 三态水滴形状（形态蠕动动画）、
+/* 布局：黄金比例矩形场景（660×408 ≈ 1.618），气泡不规则散落，
+   每颗气泡通过 .wb-pos 定位（含旋转与尺寸），.wb-card 负责浮动与形态蠕动。
+   卡片内联变量：--w 尺寸 / --rot 旋转 / --br/--br2/--br3 三态水滴形状 /
    --tbg 浅色底 / --tcolor 图标与描边色 / --hb 边框色、
    --delay/--dur 浮动相位与周期、--mdelay/--mdur 形态蠕动相位与周期。 */
 .wb-scene {
   position: relative;
-  width: 620px;
-  height: 580px;
+  width: 660px;   /* 黄金比例：660 / 408 ≈ 1.618 */
+  height: 408px;
   margin: 0 auto;
   flex-shrink: 0;
 }
-/* 圆形范围示意（极淡的虚线圆，可去掉） */
-.wb-scene::before {
-  content: "";
-  position: absolute;
-  inset: 46px;
-  border-radius: 50%;
-  border: 1px dashed rgba(15, 23, 42, 0.09);
-  pointer-events: none;
-}
 .wb-pos {
   position: absolute;
-  width: 156px;
-  height: 156px;
+  width: var(--w, 156px);
+  height: var(--w, 156px);
+  transform: rotate(var(--rot, 0deg));
   transition: transform 0.2s ease;
 }
-.wb-pos:hover { transform: scale(1.07); }
-.wb-pos:active { transform: scale(0.94); }
+.wb-pos:hover { transform: rotate(var(--rot, 0deg)) scale(1.07); }
+.wb-pos:active { transform: rotate(var(--rot, 0deg)) scale(0.94); }
 
 .wb-card {
   position: relative;
-  width: 156px;
-  height: 156px;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 14px;
   background: linear-gradient(165deg, var(--tbg) 0%, rgba(255, 255, 255, 0.92) 78%);
   border: 1.6px solid var(--hb, rgba(15, 23, 42, 0.1));
   border-radius: var(--br, 50% 50% 50% 50% / 50% 50% 50% 50%);
