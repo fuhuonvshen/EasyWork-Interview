@@ -168,6 +168,7 @@ pub fn interview_system_prompt() -> String {
 - 候选人指用户本人（"我"），面试官指提问方。
 - 语言简洁专业，中文输出。
 "#
+    .to_string()
 }
 
 /// 面试纪要用户提示词
