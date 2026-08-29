@@ -39,9 +39,7 @@ once_cell = "1"
 whisper-rs = "0.16"
 
 # SenseVoice transcription (sherpa-onnx)
-# 注意：Windows 预编译库必须用 /MD（动态 CRT）与 whisper.cpp 一致（/MT 混链会
-# /failifmismatch 且运行时实测错误）。CI 通过 SHERPA_ONNX_ARCHIVE_DIR 喂 v1.13.3 的
-# MD 资产（见 build.yml）；升版本前需确认新版本仍有 MD 预编译。
+# 与 EasyWork 保持一致：不做 CRT 干预，sherpa-onnx-sys 构建脚本自动下载预编译库
 sherpa-onnx = "1.13"
 
 # Model download
