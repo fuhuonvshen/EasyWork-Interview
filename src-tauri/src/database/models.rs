@@ -124,11 +124,11 @@ pub struct AgentConversationSummary {
     pub ref_id: Option<String>,
 }
 
-/// 面试题库条目（interview_questions 表）
+/// 面试题库条目（interview_questions 表）— AI 从面试转写中提取的面试官问题
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct InterviewQuestion {
     pub id: String,
-    pub category: String,   // "java" | "算法" | "数据库" | "HR" | "项目" ...
+    pub category: String,   // "算法" | "数据库" | "前端" | "项目" | "HR" ...
     pub difficulty: String, // "easy" | "medium" | "hard"
     pub question: String,
     pub expected_answer: Option<String>,

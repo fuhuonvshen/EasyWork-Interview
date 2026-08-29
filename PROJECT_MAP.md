@@ -65,7 +65,7 @@
 
 > `agent_conversations.type` 字段决定角色：通用助手 / 模拟面试官 / 复盘分析师 / 简历顾问。
 > 模拟面试与复盘结束输出 ```` ```assessment ```` JSON → 自动落库 `interview_assessments` 并回写面试评分。
-> 新工具：`interview_summary`（读面试转写/纪要）、`question_bank`（题库 CRUD）；面试角色对话默认屏蔽 email 工具。
+> 新工具：`interview_summary`（读面试转写/纪要）、`question_bank`（题库 CRUD，AI 提取面试官问题）；面试角色对话默认屏蔽 email 工具。
 
 #### 前端
 
@@ -154,7 +154,7 @@ reports               — 周报/月报（求职复盘报告）
 agent_conversations   — Agent 对话（含 type 角色、ref_id 关联）
 agent_messages        — 对话消息（含 tool_calls）
 agent_todos           — 待办事项（含 priority/deadline/source）
-interview_questions   — 面试题库（category/difficulty/expected_answer）
+interview_questions   — 面试题库（AI 从面试转写提取的面试官问题：category/difficulty/expected_answer）
 interview_assessments — 面试评估（dimensions 五维 JSON/score/summary，FK→meetings）
 settings              — 设置键值对
 ```

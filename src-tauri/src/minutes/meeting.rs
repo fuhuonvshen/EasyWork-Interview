@@ -397,7 +397,7 @@ pub async fn get_interview_assessment(
         .map_err(|e| format!("查询面试评估失败: {}", e))
 }
 
-// ── 面试题库命令 ─────────────────────────────────────────────────
+// ── 面试题库命令（AI 提取的面试官问题）───────────────────────────
 
 #[tauri::command]
 pub async fn interview_question_create(

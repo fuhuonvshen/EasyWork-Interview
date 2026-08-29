@@ -54,8 +54,8 @@ const CARDS = [
   {
     key: "mock",
     icon: Target,
-    title: "题库与模拟",
-    desc: "模拟面试 · 题库 · 押题",
+    title: "模拟面试",
+    desc: "按岗位出题 · 逐题点评 · 评分报告",
     gradient: "from-fuchsia-400 to-pink-500",
     glow: "shadow-fuchsia-500/30",
     action: "mock",

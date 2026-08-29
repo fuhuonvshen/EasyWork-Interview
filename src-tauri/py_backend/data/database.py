@@ -91,7 +91,7 @@ class Database:
             "  created_at TEXT NOT NULL"
             ")"
         )
-        # 面试题库表（防御性兜底）
+        # 面试题库表（AI 从面试转写提取的面试官问题）
         await self._conn.execute(
             "CREATE TABLE IF NOT EXISTS interview_questions ("
             "  id TEXT PRIMARY KEY,"

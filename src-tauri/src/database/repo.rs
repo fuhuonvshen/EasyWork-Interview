@@ -67,7 +67,7 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
     sqlx::query("ALTER TABLE agent_conversations ADD COLUMN ref_id TEXT")
         .execute(pool).await.ok();
 
-    // 面试题库
+    // 面试题库（AI 从面试转写中提取面试官问题，供复习）
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS interview_questions (
             id               TEXT PRIMARY KEY,
@@ -1159,7 +1159,7 @@ pub async fn get_interview_assessment(pool: &SqlitePool, interview_id: &str) -> 
     Ok(row)
 }
 
-/// 面试题库 CRUD
+/// 面试题库 CRUD（AI 从面试转写提取的问题）
 pub async fn insert_interview_question(pool: &SqlitePool, q: &InterviewQuestion) -> Result<()> {
     sqlx::query(
         "INSERT INTO interview_questions (id, category, difficulty, question, expected_answer, created_at)
