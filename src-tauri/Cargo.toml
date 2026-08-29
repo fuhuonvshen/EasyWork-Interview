@@ -39,10 +39,10 @@ once_cell = "1"
 whisper-rs = "0.16"
 
 # SenseVoice transcription (sherpa-onnx)
-# 注意：1.13.x 起 Windows 预编译库改为 /MT（静态 CRT），与本项目 whisper.cpp 的 /MD
-# 混链会触发 /failifmismatch: RuntimeLibrary。1.12.x 是最后一个 /MD（动态）预编译线，
-# 全链路必须保持 /MD（用户实测 /MT 运行时错误）。勿再升回 1.13.x。
-sherpa-onnx = "1.12"
+# 注意：Windows 预编译库必须用 /MD（动态 CRT）与 whisper.cpp 一致（/MT 混链会
+# /failifmismatch 且运行时实测错误）。CI 通过 SHERPA_ONNX_ARCHIVE_DIR 喂 v1.13.3 的
+# MD 资产（见 build.yml）；升版本前需确认新版本仍有 MD 预编译。
+sherpa-onnx = "1.13"
 
 # Model download
 reqwest = { version = "0.12", features = ["stream", "json", "system-proxy"] }
