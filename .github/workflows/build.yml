@@ -115,19 +115,97 @@ jobs:
           path: ${{ matrix.installer_paths }}
           retention-days: 30
 
-      # ── 打 tag：构建 + 自动发布 Release（各平台安装包 + update.json）──
+      # ── 打 tag：构建 + 签名 + 发布 Release（与 EasyWork publish.yml 同款）──
+      # 注意：不要用 tauri-action 创建 tag/release —— tag 已由 git push 创建，
+      # tauri-action 会因"tag 已存在"报错。这里改为构建后直接上传资产。
       # 若在仓库 Secrets 配置了 TAURI_SIGNING_PRIVATE_KEY（tauri signer generate 生成），
       # 安装包将带签名，应用内自动更新（updater）可用；未配置则仅发布安装包。
       # macOS 的自动更新还需 Apple Developer 证书签名（APPLE_* secrets），否则请手动安装。
-      - name: Build & Release (tag)
+      - name: Build Tauri app (tag)
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: tauri-apps/tauri-action@v0
+        run: npm run tauri:build
+
+      - name: Sign installer
+        if: startsWith(github.ref, 'refs/tags/v') && secrets.TAURI_SIGNING_PRIVATE_KEY != ''
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TSK: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TSPW: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            installer=$(ls src-tauri/target/release/bundle/msi/*.msi | head -1)
+          else
+            installer=$(ls src-tauri/target/release/bundle/dmg/*.dmg | head -1)
+          fi
+          # Strip PEM headers, keep raw base64
+          raw_key=$(grep -v '^-----' <<< "$TSK" | tr -d '\n')
+          # tauri signer 自动生成 <installer>.sig；其 stdout 是提示消息而非签名，
+          # 不能 echo 回写 .sig（会污染签名导致应用内更新校验失败）
+          npx tauri signer sign \
+            --private-key "$raw_key" \
+            --password "$TSPW" \
+            "$installer"
+
+      - name: Upload Release Assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
         with:
-          tagName: v__VERSION__
-          releaseName: "EasyWork v__VERSION__"
-          releaseBody: "自动构建：请下载对应平台的安装包安装。"
-          releaseDraft: true
-          prerelease: false
+          files: |
+            src-tauri/target/release/bundle/*/*
+
+  update-json:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --dir /tmp/release-assets
+
+      - name: Generate update.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="$GITHUB_REF_NAME" VERSION="${TAG#v}"
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Build JSON with jq (pre-installed on ubuntu)
+          jq -n \
+            --arg v "$VERSION" \
+            --arg d "$DATE" \
+            --arg win_installer "$(basename /tmp/release-assets/*.msi 2>/dev/null || echo '')" \
+            --arg win_sig "$(cat /tmp/release-assets/*.msi.sig 2>/dev/null || echo '')" \
+            --arg mac_installer "$(basename /tmp/release-assets/*.dmg 2>/dev/null || echo '')" \
+            --arg mac_sig "$(cat /tmp/release-assets/*.dmg.sig 2>/dev/null || echo '')" \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg tag "$TAG" \
+            '{
+              version: $v,
+              notes: "",
+              pub_date: $d,
+              platforms: {
+                "windows-x86_64": {
+                  url: "https://github.com/\($repo)/releases/download/\($tag)/\($win_installer)",
+                  signature: $win_sig
+                }
+              }
+            }
+            | if $mac_installer != "" and $mac_sig != "" then
+              .platforms["darwin-aarch64"] = {
+                url: "https://github.com/\($repo)/releases/download/\($tag)/\($mac_installer)",
+                signature: $mac_sig
+              }
+            else . end' > update.json
+
+      - name: Upload update.json to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: update.json
