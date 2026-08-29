@@ -443,6 +443,8 @@ pub async fn interview_question_create(
         difficulty: if difficulty.is_empty() { "medium".into() } else { difficulty },
         question,
         expected_answer,
+        source_meeting_id: None,
+        in_bank: true,
         created_at: chrono::Local::now().to_rfc3339(),
     };
     crate::database::repo::insert_interview_question(&db.0, &q)
