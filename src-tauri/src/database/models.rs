@@ -5,7 +5,8 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-/// A meeting record.
+/// A meeting record. `kind` distinguishes 面试 (interview) from 会议 (meeting);
+/// interview-specific fields (company/position/stage/score) are optional.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Meeting {
     pub id: String,
@@ -15,6 +16,11 @@ pub struct Meeting {
     pub wav_path: String,
     pub schedule_id: Option<String>,
     pub pinned: bool,
+    pub kind: String,         // "meeting" | "interview"
+    pub company: Option<String>,
+    pub position: Option<String>,
+    pub stage: Option<String>, // "phone" | "online" | "onsite" | "mock" | "offer"
+    pub score: Option<i64>,    // AI 评估总分 0-100
 }
 
 /// Transcript linked to a meeting.
@@ -38,6 +44,7 @@ pub struct Minutes {
 }
 
 /// A scheduled meeting (calendar entry with optional Zoom link).
+/// `stage` carries the interview stage for interview schedules.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct ScheduledMeeting {
     pub id: String,
@@ -46,6 +53,7 @@ pub struct ScheduledMeeting {
     pub start_time: String,
     pub end_time: String,
     pub created_at: String,
+    pub stage: String, // "apply" | "phone" | "online" | "onsite" | "offer"
 }
 
 /// Summary row for the sidebar list.
@@ -57,6 +65,11 @@ pub struct MeetingSummary {
     pub has_minutes: bool,
     pub first_line: Option<String>,
     pub pinned: bool,
+    pub kind: String,
+    pub company: Option<String>,
+    pub position: Option<String>,
+    pub stage: Option<String>,
+    pub score: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -83,6 +96,9 @@ pub struct AgentConversation {
     pub title: String,
     pub summary: String,
     pub created_at: String,
+    #[serde(rename = "type")]
+    pub kind: String,        // "general" | "mock" | "review" | "resume"
+    pub ref_id: Option<String>, // 关联面试/简历 ID（上下文注入）
 }
 
 /// Agent conversation message.
@@ -103,6 +119,31 @@ pub struct AgentConversationSummary {
     pub title: String,
     pub created_at: String,
     pub last_message: Option<String>,
+    #[serde(rename = "type")]
+    pub kind: String,        // "general" | "mock" | "review" | "resume"
+    pub ref_id: Option<String>,
+}
+
+/// 面试题库条目（interview_questions 表）
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct InterviewQuestion {
+    pub id: String,
+    pub category: String,   // "java" | "算法" | "数据库" | "HR" | "项目" ...
+    pub difficulty: String, // "easy" | "medium" | "hard"
+    pub question: String,
+    pub expected_answer: Option<String>,
+    pub created_at: String,
+}
+
+/// 面试评估（interview_assessments 表）— AI 结构化输出落库
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct InterviewAssessment {
+    pub id: String,
+    pub interview_id: String, // FK → meetings.id
+    pub dimensions: String,   // JSON {专业技能,沟通表达,逻辑思维,岗位匹配,潜力}
+    pub score: Option<i64>,
+    pub summary: Option<String>,
+    pub created_at: String,
 }
 
 /// A todo/task item.
@@ -125,4 +166,9 @@ pub struct MeetingDetail {
     pub title: String,
     pub content: String,
     pub wav_path: String,
+    pub kind: String,
+    pub company: Option<String>,
+    pub position: Option<String>,
+    pub stage: Option<String>,
+    pub score: Option<i64>,
 }

@@ -45,6 +45,59 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
         .await
         .ok();
 
+    // ── 面试语义迁移（Phase 1：EasyWork → 面试助手）──
+    // kind: "meeting"(存量/会议) | "interview"(面试记录)
+    sqlx::query("ALTER TABLE meetings ADD COLUMN kind TEXT NOT NULL DEFAULT 'meeting'")
+        .execute(pool).await.ok();
+    sqlx::query("ALTER TABLE meetings ADD COLUMN company TEXT")
+        .execute(pool).await.ok();
+    sqlx::query("ALTER TABLE meetings ADD COLUMN position TEXT")
+        .execute(pool).await.ok();
+    // stage: "phone" | "online" | "onsite" | "mock" | "offer"
+    sqlx::query("ALTER TABLE meetings ADD COLUMN stage TEXT")
+        .execute(pool).await.ok();
+    sqlx::query("ALTER TABLE meetings ADD COLUMN score INTEGER")
+        .execute(pool).await.ok();
+    // 日程阶段: "apply" | "phone" | "online" | "onsite" | "offer"
+    sqlx::query("ALTER TABLE scheduled_meetings ADD COLUMN stage TEXT NOT NULL DEFAULT 'apply'")
+        .execute(pool).await.ok();
+    // 对话角色: "general" | "mock" | "review" | "resume"；ref_id 关联面试/简历
+    sqlx::query("ALTER TABLE agent_conversations ADD COLUMN type TEXT NOT NULL DEFAULT 'general'")
+        .execute(pool).await.ok();
+    sqlx::query("ALTER TABLE agent_conversations ADD COLUMN ref_id TEXT")
+        .execute(pool).await.ok();
+
+    // 面试题库
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS interview_questions (
+            id               TEXT PRIMARY KEY,
+            category         TEXT NOT NULL,
+            difficulty       TEXT NOT NULL DEFAULT 'medium',
+            question         TEXT NOT NULL,
+            expected_answer  TEXT,
+            created_at       TEXT NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await
+    .context("创建 interview_questions 表失败")?;
+
+    // 面试评估（AI 结构化输出）
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS interview_assessments (
+            id           TEXT PRIMARY KEY,
+            interview_id TEXT NOT NULL,
+            dimensions   TEXT NOT NULL DEFAULT '{}',
+            score        INTEGER,
+            summary      TEXT,
+            created_at   TEXT NOT NULL,
+            FOREIGN KEY (interview_id) REFERENCES meetings(id)
+        )",
+    )
+    .execute(pool)
+    .await
+    .context("创建 interview_assessments 表失败")?;
+
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS transcripts (
             id          TEXT PRIMARY KEY,
@@ -174,8 +227,8 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
 
 pub async fn insert_meeting(pool: &SqlitePool, m: &Meeting) -> Result<()> {
     sqlx::query(
-        "INSERT INTO meetings (id, title, created_at, duration_secs, wav_path, schedule_id, pinned)
-         VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO meetings (id, title, created_at, duration_secs, wav_path, schedule_id, pinned, kind, company, position, stage, score)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&m.id)
     .bind(&m.title)
@@ -184,6 +237,11 @@ pub async fn insert_meeting(pool: &SqlitePool, m: &Meeting) -> Result<()> {
     .bind(&m.wav_path)
     .bind(&m.schedule_id)
     .bind(m.pinned as i32)
+    .bind(&m.kind)
+    .bind(&m.company)
+    .bind(&m.position)
+    .bind(&m.stage)
+    .bind(m.score)
     .execute(pool)
     .await
     .context("插入 meeting 失败")?;
@@ -213,7 +271,13 @@ pub async fn list_meetings(pool: &SqlitePool) -> Result<Vec<MeetingSummary>> {
             m.title,
             m.created_at,
             CASE WHEN min.id IS NOT NULL THEN 1 ELSE 0 END AS has_minutes,
-            SUBSTR(min.content, 1, 200) AS first_line
+            SUBSTR(min.content, 1, 200) AS first_line,
+            m.pinned,
+            m.kind,
+            m.company,
+            m.position,
+            m.stage,
+            m.score
          FROM meetings m
          LEFT JOIN minutes min ON min.meeting_id = m.id
          ORDER BY m.created_at DESC",
@@ -242,7 +306,8 @@ pub async fn list_meetings_paginated(
         let rows = sqlx::query_as::<_, MeetingSummary>(
             "SELECT m.id, m.title, m.created_at, m.pinned,
                     CASE WHEN min.id IS NOT NULL THEN 1 ELSE 0 END AS has_minutes,
-                    SUBSTR(min.content, 1, 200) AS first_line
+                    SUBSTR(min.content, 1, 200) AS first_line,
+                    m.kind, m.company, m.position, m.stage, m.score
              FROM meetings m
              LEFT JOIN minutes min ON min.meeting_id = m.id
              WHERE date(m.created_at) >= date(?) AND date(m.created_at) <= date(?)
@@ -261,7 +326,8 @@ pub async fn list_meetings_paginated(
         let rows = sqlx::query_as::<_, MeetingSummary>(
             "SELECT m.id, m.title, m.created_at, m.pinned,
                     CASE WHEN min.id IS NOT NULL THEN 1 ELSE 0 END AS has_minutes,
-                    SUBSTR(min.content, 1, 200) AS first_line
+                    SUBSTR(min.content, 1, 200) AS first_line,
+                    m.kind, m.company, m.position, m.stage, m.score
              FROM meetings m
              LEFT JOIN minutes min ON min.meeting_id = m.id
              ORDER BY m.pinned DESC, m.created_at DESC
@@ -283,7 +349,13 @@ pub async fn search_meetings(pool: &SqlitePool, query: &str) -> Result<Vec<Meeti
             m.title,
             m.created_at,
             CASE WHEN min.id IS NOT NULL THEN 1 ELSE 0 END AS has_minutes,
-            SUBSTR(min.content, 1, 200) AS first_line
+            SUBSTR(min.content, 1, 200) AS first_line,
+            m.pinned,
+            m.kind,
+            m.company,
+            m.position,
+            m.stage,
+            m.score
          FROM meetings m
          LEFT JOIN minutes min ON min.meeting_id = m.id
          WHERE m.title LIKE ? ESCAPE '\\' OR min.content LIKE ? ESCAPE '\\'
@@ -320,7 +392,8 @@ pub async fn search_meetings_paginated(
         let rows = sqlx::query_as::<_, MeetingSummary>(
             "SELECT m.id, m.title, m.created_at, m.pinned,
                     CASE WHEN min.id IS NOT NULL THEN 1 ELSE 0 END AS has_minutes,
-                    SUBSTR(min.content, 1, 200) AS first_line
+                    SUBSTR(min.content, 1, 200) AS first_line,
+                    m.kind, m.company, m.position, m.stage, m.score
              FROM meetings m
              LEFT JOIN minutes min ON min.meeting_id = m.id
              WHERE (m.title LIKE ? ESCAPE '\\' OR min.content LIKE ? ESCAPE '\\')
@@ -345,7 +418,8 @@ pub async fn search_meetings_paginated(
         let rows = sqlx::query_as::<_, MeetingSummary>(
             "SELECT m.id, m.title, m.created_at, m.pinned,
                     CASE WHEN min.id IS NOT NULL THEN 1 ELSE 0 END AS has_minutes,
-                    SUBSTR(min.content, 1, 200) AS first_line
+                    SUBSTR(min.content, 1, 200) AS first_line,
+                    m.kind, m.company, m.position, m.stage, m.score
              FROM meetings m
              LEFT JOIN minutes min ON min.meeting_id = m.id
              WHERE m.title LIKE ? ESCAPE '\\' OR min.content LIKE ? ESCAPE '\\'
@@ -594,8 +668,8 @@ pub async fn update_minutes(pool: &SqlitePool, meeting_id: &str, content: &str) 
 }
 
 pub async fn get_meeting_detail(pool: &SqlitePool, meeting_id: &str) -> Result<Option<super::models::MeetingDetail>> {
-    let row: Option<(String, String, Option<String>, String)> = sqlx::query_as(
-        "SELECT m.title, m.id, min.content, m.wav_path FROM meetings m \
+    let row: Option<(String, String, Option<String>, String, String, Option<String>, Option<String>, Option<String>, Option<i64>)> = sqlx::query_as(
+        "SELECT m.title, m.id, min.content, m.wav_path, m.kind, m.company, m.position, m.stage, m.score FROM meetings m \
          LEFT JOIN minutes min ON min.meeting_id = m.id \
          WHERE m.id = ?"
     )
@@ -603,11 +677,16 @@ pub async fn get_meeting_detail(pool: &SqlitePool, meeting_id: &str) -> Result<O
     .fetch_optional(pool)
     .await
     .context("查询会议失败")?;
-    Ok(row.map(|(title, id, content, wav_path)| super::models::MeetingDetail {
+    Ok(row.map(|(title, id, content, wav_path, kind, company, position, stage, score)| super::models::MeetingDetail {
         id,
         title,
         content: content.unwrap_or_default(),
         wav_path,
+        kind,
+        company,
+        position,
+        stage,
+        score,
     }))
 }
 
@@ -646,8 +725,8 @@ pub async fn list_meetings_in_range(
 
 pub async fn insert_scheduled_meeting(pool: &SqlitePool, m: &ScheduledMeeting) -> Result<()> {
     sqlx::query(
-        "INSERT INTO scheduled_meetings (id, title, zoom_url, start_time, end_time, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO scheduled_meetings (id, title, zoom_url, start_time, end_time, created_at, stage)
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&m.id)
     .bind(&m.title)
@@ -655,6 +734,7 @@ pub async fn insert_scheduled_meeting(pool: &SqlitePool, m: &ScheduledMeeting) -
     .bind(&m.start_time)
     .bind(&m.end_time)
     .bind(&m.created_at)
+    .bind(&m.stage)
     .execute(pool)
     .await
     .context("插入 scheduled_meeting 失败")?;
@@ -693,12 +773,13 @@ pub async fn list_scheduled_meetings(pool: &SqlitePool) -> Result<Vec<ScheduledM
 
 pub async fn update_scheduled_meeting(pool: &SqlitePool, m: &ScheduledMeeting) -> Result<()> {
     sqlx::query(
-        "UPDATE scheduled_meetings SET title = ?, zoom_url = ?, start_time = ?, end_time = ? WHERE id = ?",
+        "UPDATE scheduled_meetings SET title = ?, zoom_url = ?, start_time = ?, end_time = ?, stage = ? WHERE id = ?",
     )
     .bind(&m.title)
     .bind(&m.zoom_url)
     .bind(&m.start_time)
     .bind(&m.end_time)
+    .bind(&m.stage)
     .bind(&m.id)
     .execute(pool)
     .await
@@ -778,21 +859,40 @@ use super::models::{AgentConversation, AgentConversationSummary, AgentMessage};
 
 pub async fn agent_create_conversation(pool: &SqlitePool, conv: &AgentConversation) -> Result<()> {
     sqlx::query(
-        "INSERT INTO agent_conversations (id, title, summary, created_at) VALUES (?, ?, ?, ?)"
+        "INSERT INTO agent_conversations (id, title, summary, created_at, type, ref_id) VALUES (?, ?, ?, ?, ?, ?)"
     )
         .bind(&conv.id)
         .bind(&conv.title)
         .bind(&conv.summary)
         .bind(&conv.created_at)
+        .bind(&conv.kind)
+        .bind(&conv.ref_id)
         .execute(pool)
         .await
         .context("创建对话失败")?;
     Ok(())
 }
 
+/// 更新对话的角色/关联（创建后设置 type 与 ref_id）
+pub async fn agent_update_conversation_meta(
+    pool: &SqlitePool,
+    id: &str,
+    conv_type: &str,
+    ref_id: Option<&str>,
+) -> Result<()> {
+    sqlx::query("UPDATE agent_conversations SET type = ?, ref_id = ? WHERE id = ?")
+        .bind(conv_type)
+        .bind(ref_id)
+        .bind(id)
+        .execute(pool)
+        .await
+        .context("更新对话角色失败")?;
+    Ok(())
+}
+
 pub async fn agent_list_conversations(pool: &SqlitePool) -> Result<Vec<AgentConversationSummary>> {
     sqlx::query_as::<_, AgentConversationSummary>(
-        "SELECT ac.id, ac.title, ac.created_at,
+        "SELECT ac.id, ac.title, ac.created_at, ac.type, ac.ref_id,
                 (SELECT SUBSTR(am.content, 1, 100) FROM agent_messages am
                  WHERE am.conversation_id = ac.id AND am.role = 'user'
                  ORDER BY am.created_at DESC LIMIT 1) AS last_message
@@ -986,5 +1086,128 @@ pub async fn todo_delete(pool: &SqlitePool, id: &str) -> Result<()> {
     sqlx::query("DELETE FROM agent_todos WHERE id = ?")
         .bind(id).execute(pool).await
         .context("删除待办失败")?;
+    Ok(())
+}
+
+// ── 面试（Interview）相关 ─────────────────────────────────────────
+
+use super::models::{InterviewAssessment, InterviewQuestion};
+
+/// 将一条 meeting 标记为面试记录并写入面试元信息。
+/// 传 None 的字段保持不变（不覆盖已有值）。
+pub async fn update_meeting_interview_info(
+    pool: &SqlitePool,
+    meeting_id: &str,
+    company: Option<&str>,
+    position: Option<&str>,
+    stage: Option<&str>,
+) -> Result<()> {
+    sqlx::query(
+        "UPDATE meetings SET kind = 'interview',
+             company = COALESCE(?, company),
+             position = COALESCE(?, position),
+             stage = COALESCE(?, stage)
+         WHERE id = ?",
+    )
+    .bind(company)
+    .bind(position)
+    .bind(stage)
+    .bind(meeting_id)
+    .execute(pool)
+    .await
+    .context("更新面试信息失败")?;
+    Ok(())
+}
+
+/// 更新面试评分（meetings.score）
+pub async fn update_meeting_score(pool: &SqlitePool, meeting_id: &str, score: Option<i64>) -> Result<()> {
+    sqlx::query("UPDATE meetings SET score = ? WHERE id = ?")
+        .bind(score)
+        .bind(meeting_id)
+        .execute(pool)
+        .await
+        .context("更新面试评分失败")?;
+    Ok(())
+}
+
+/// 保存面试评估（AI 结构化输出），同一面试重复保存时覆盖旧评估
+pub async fn save_interview_assessment(pool: &SqlitePool, a: &InterviewAssessment) -> Result<()> {
+    sqlx::query(
+        "INSERT OR REPLACE INTO interview_assessments (id, interview_id, dimensions, score, summary, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&a.id)
+    .bind(&a.interview_id)
+    .bind(&a.dimensions)
+    .bind(a.score)
+    .bind(&a.summary)
+    .bind(&a.created_at)
+    .execute(pool)
+    .await
+    .context("保存面试评估失败")?;
+    Ok(())
+}
+
+pub async fn get_interview_assessment(pool: &SqlitePool, interview_id: &str) -> Result<Option<InterviewAssessment>> {
+    let row = sqlx::query_as::<_, InterviewAssessment>(
+        "SELECT * FROM interview_assessments WHERE interview_id = ? ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(interview_id)
+    .fetch_optional(pool)
+    .await
+    .context("查询面试评估失败")?;
+    Ok(row)
+}
+
+/// 面试题库 CRUD
+pub async fn insert_interview_question(pool: &SqlitePool, q: &InterviewQuestion) -> Result<()> {
+    sqlx::query(
+        "INSERT INTO interview_questions (id, category, difficulty, question, expected_answer, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&q.id)
+    .bind(&q.category)
+    .bind(&q.difficulty)
+    .bind(&q.question)
+    .bind(&q.expected_answer)
+    .bind(&q.created_at)
+    .execute(pool)
+    .await
+    .context("插入面试题失败")?;
+    Ok(())
+}
+
+pub async fn list_interview_questions(
+    pool: &SqlitePool,
+    category: Option<&str>,
+    limit: i64,
+) -> Result<Vec<InterviewQuestion>> {
+    let rows = if let Some(cat) = category {
+        sqlx::query_as::<_, InterviewQuestion>(
+            "SELECT * FROM interview_questions WHERE category = ? ORDER BY created_at DESC LIMIT ?",
+        )
+        .bind(cat)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+        .context("查询面试题失败")?
+    } else {
+        sqlx::query_as::<_, InterviewQuestion>(
+            "SELECT * FROM interview_questions ORDER BY created_at DESC LIMIT ?",
+        )
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+        .context("查询面试题失败")?
+    };
+    Ok(rows)
+}
+
+pub async fn delete_interview_question(pool: &SqlitePool, id: &str) -> Result<()> {
+    sqlx::query("DELETE FROM interview_questions WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await
+        .context("删除面试题失败")?;
     Ok(())
 }

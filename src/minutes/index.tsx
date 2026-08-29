@@ -17,12 +17,14 @@ export default function MinutesApp({
   initialTab,
   onBack,
   onNavigateRecording,
+  onReview,
 }: {
   prefillTitle: string;
   scheduleId: string | null;
   initialTab: MinutesTab;
   onBack: () => void;
   onNavigateRecording: (title: string, scheduleId?: string) => void;
+  onReview?: (meetingId: string, title: string) => void;
 }) {
   const [tab, setTab] = useState<MinutesTab>(initialTab);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -72,7 +74,7 @@ export default function MinutesApp({
           />
         )}
         {tab === "history" && selectedId && (
-          <HistoryDetail meetingId={selectedId} onBack={() => setSelectedId(null)} />
+          <HistoryDetail meetingId={selectedId} onBack={() => setSelectedId(null)} onReview={onReview} />
         )}
         {tab === "history" && !selectedId && historySubTab === "meetings" && (
           <MeetingListView
@@ -83,9 +85,9 @@ export default function MinutesApp({
         {tab === "history" && !selectedId && historySubTab !== "meetings" && (
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
             <div className="px-8 py-4 bg-white">
-              <p className="text-xs font-medium text-gray-400 uppercase tracking-wider pointer-events-none">工作报告</p>
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-wider pointer-events-none">求职复盘</p>
               <h2 className="text-2xl font-semibold text-gray-900 mt-1 flex items-center min-h-[38px]">
-                {historySubTab === "week" ? "周报" : "月报"}
+                {historySubTab === "week" ? "复盘周报" : "复盘月报"}
               </h2>
             </div>
             <ReportList

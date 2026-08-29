@@ -10,6 +10,7 @@ pub async fn add_scheduled_meeting(
     zoom_url: String,
     start_time: String,
     end_time: String,
+    stage: Option<String>,
     db: State<'_, DbState>,
 ) -> Result<String, String> {
     let id = uuid::Uuid::new_v4().to_string();
@@ -22,6 +23,7 @@ pub async fn add_scheduled_meeting(
         start_time,
         end_time,
         created_at: now,
+        stage: stage.unwrap_or_else(|| "apply".into()),
     };
     crate::database::repo::insert_scheduled_meeting(&db.0, &m)
         .await
@@ -45,6 +47,7 @@ pub async fn update_scheduled_meeting(
     zoom_url: String,
     start_time: String,
     end_time: String,
+    stage: Option<String>,
     db: State<'_, DbState>,
 ) -> Result<(), String> {
     let m = ScheduledMeeting {
@@ -54,6 +57,7 @@ pub async fn update_scheduled_meeting(
         start_time,
         end_time,
         created_at: String::new(),
+        stage: stage.unwrap_or_else(|| "apply".into()),
     };
     crate::database::repo::update_scheduled_meeting(&db.0, &m)
         .await

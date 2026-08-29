@@ -13,6 +13,30 @@ export interface MeetingRow {
   has_minutes: boolean;
   first_line: string | null;
   pinned: boolean;
+  // 面试语义（Phase 1 新增）
+  kind: string;              // "meeting" | "interview"
+  company: string | null;
+  position: string | null;
+  stage: string | null;      // "phone" | "online" | "onsite" | "mock" | "offer"
+  score: number | null;      // AI 评估总分 0-100
+}
+
+export interface InterviewAssessment {
+  id: string;
+  interview_id: string;
+  dimensions: string;        // JSON {专业技能,沟通表达,逻辑思维,岗位匹配,发展潜力}
+  score: number | null;
+  summary: string | null;
+  created_at: string;
+}
+
+export interface InterviewQuestion {
+  id: string;
+  category: string;
+  difficulty: string;        // "easy" | "medium" | "hard"
+  question: string;
+  expected_answer: string | null;
+  created_at: string;
 }
 
 export interface ScheduledMeeting {
@@ -22,6 +46,7 @@ export interface ScheduledMeeting {
   start_time: string;
   end_time: string;
   created_at: string;
+  stage: string;             // "apply" | "phone" | "online" | "onsite" | "offer"
 }
 
 export type ModelStatus =
@@ -44,11 +69,15 @@ export interface ModelInfo {
 export type MinutesTab = "today" | "history" | "schedule" | "reports";
 
 // Agent types
+export type AgentConversationType = "general" | "mock" | "review" | "resume";
+
 export interface AgentConversationSummary {
   id: string;
   title: string;
   created_at: string;
   last_message: string | null;
+  type: AgentConversationType;  // 角色类型
+  ref_id: string | null;        // 关联面试/简历 ID
 }
 
 export interface ReportItem {

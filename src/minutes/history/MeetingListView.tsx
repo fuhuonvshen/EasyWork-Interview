@@ -1,4 +1,4 @@
-// EasyWork - Meeting list view (search, filter, paginate, manage, delete)
+// EasyWork - Interview/meeting list view (search, filter, paginate, manage, delete)
 import { useState, useEffect, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { FileText, ChevronRight, Search, X, Pin, Trash2, Loader2, CalendarDays } from "lucide-react";
@@ -6,6 +6,7 @@ import type { MeetingRow } from "../../types";
 import { ERRORS, toUserError } from "../../errors";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { showToast } from "../../components/Toast";
+import { STAGE_LABELS } from "./HistoryDetail";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 const DEFAULT_PAGE_SIZE = PAGE_SIZE_OPTIONS[0];
@@ -139,13 +140,13 @@ export default function MeetingListView({
       <div className="px-8 py-4 bg-white min-w-0">
         <p className="text-xs font-medium text-gray-400 uppercase tracking-wider pointer-events-none">搜索与浏览</p>
         <div className="flex items-center gap-3 mt-1">
-          <h2 className="text-2xl font-semibold text-gray-900 flex-shrink-0">会议记录</h2>
+          <h2 className="text-2xl font-semibold text-gray-900 flex-shrink-0">面试记录</h2>
           <button onClick={() => { setIsManageMode((v) => !v); setSelectedIds(new Set()); }}
             className={`ml-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex-shrink-0 ${isManageMode ? "bg-brand-100 text-brand-700" : "text-gray-500 hover:bg-gray-100"}`}>
             管理
           </button>
           <div className="flex-1 relative min-w-0">
-            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} aria-label="搜索会议"
+            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} aria-label="搜索面试记录"
               placeholder="搜索标题或内容..."
               className="w-full pl-9 pr-4 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 focus:bg-white transition-colors" />
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -196,7 +197,7 @@ export default function MeetingListView({
             <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
               <FileText size={26} className="text-gray-300" />
             </div>
-            <p className="text-sm text-gray-400 pointer-events-none">{searchQuery ? "未找到匹配的会议" : "暂无会议记录"}</p>
+            <p className="text-sm text-gray-400 pointer-events-none">{searchQuery ? "未找到匹配的记录" : "暂无面试记录"}</p>
           </div>
         )}
         <div className="space-y-2" role="list">
@@ -210,9 +211,24 @@ export default function MeetingListView({
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-gray-900 truncate">{m.title}</p>
                   {m.pinned && <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-medium flex-shrink-0">已置顶</span>}
+                  {m.kind === "interview" && m.score != null && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex-shrink-0">
+                      {m.score} 分
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 mt-1">
                   <p className="text-xs text-gray-400 flex-shrink-0">{m.created_at.slice(0, 10)}</p>
+                  {m.kind === "interview" && (m.company || m.position) && (
+                    <p className="text-xs text-gray-500 flex-shrink-0 truncate max-w-[180px]">
+                      {m.company || ""}{m.company && m.position ? " · " : ""}{m.position || ""}
+                    </p>
+                  )}
+                  {m.kind === "interview" && m.stage && STAGE_LABELS[m.stage] && (
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border flex-shrink-0 ${STAGE_LABELS[m.stage].cls}`}>
+                      {STAGE_LABELS[m.stage].label}
+                    </span>
+                  )}
                   {m.first_line && <p className="text-xs text-gray-400 truncate">{m.first_line}</p>}
                 </div>
               </button>

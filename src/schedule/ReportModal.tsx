@@ -29,7 +29,7 @@ export default function ReportModal({ report, loading, onClose }: Props) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <Sparkles size={18} className="text-brand-500" />
-            <h2 className="text-lg font-semibold text-gray-900">工作报告</h2>
+            <h2 className="text-lg font-semibold text-gray-900">求职复盘报告</h2>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">

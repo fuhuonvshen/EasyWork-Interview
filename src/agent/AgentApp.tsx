@@ -1,21 +1,48 @@
-// EasyWork - Agent main layout (sidebar + chat / todo)
-import { useState, useEffect, useCallback } from "react";
+// EasyWork - 面试助手 main layout (role picker + grouped sidebar + chat / todo)
+import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import AgentSidebar from "./AgentSidebar";
+import { X, Sparkles, Loader } from "lucide-react";
+import AgentSidebar, { ROLE_META } from "./AgentSidebar";
 import AgentChat from "./AgentChat";
 import AgentTodo from "./AgentTodo";
-import type { AgentConversationSummary, TodoItem } from "../types";
+import type { AgentConversationSummary, AgentConversationType, TodoItem } from "../types";
 import { ERRORS, toUserError } from "../errors";
 import { showToast } from "../components/Toast";
 
-export default function AgentApp({ onBack, initStatus }: { onBack: () => void; initStatus?: { status: string; message: string } | null }) {
+interface PendingPrompt {
+  convId: string;
+  message: string;
+}
+
+// 角色选择卡片（新建对话）
+const ROLE_OPTIONS: { type: AgentConversationType; title: string; desc: string; iconBg: string }[] = [
+  { type: "mock", title: "模拟面试官", desc: "按目标岗位出题、逐题点评，结束后生成维度评分报告", iconBg: "bg-violet-100" },
+  { type: "review", title: "复盘分析师", desc: "基于面试转写深度复盘，输出亮点、不足与改进建议", iconBg: "bg-emerald-100" },
+  { type: "resume", title: "简历顾问", desc: "解析简历，按目标 JD 逐节优化，输出匹配度分析", iconBg: "bg-amber-100" },
+  { type: "general", title: "通用助手", desc: "面试相关任何问答：岗位调研、面经、薪资谈判", iconBg: "bg-sky-100" },
+];
+
+export default function AgentApp({
+  onBack,
+  initStatus,
+  pendingPrompt,
+}: {
+  onBack: () => void;
+  initStatus?: { status: string; message: string } | null;
+  pendingPrompt?: PendingPrompt | null;
+}) {
   const [conversations, setConversations] = useState<AgentConversationSummary[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [agentSubView, setAgentSubView] = useState<"chat" | "todo">("chat");
   const [todos, setTodos] = useState<TodoItem[]>([]);
-  // Lazy-load LLM server when entering Agent (local backend only)
+  const [showRolePicker, setShowRolePicker] = useState(false);
+  const [creating, setCreating] = useState(false);
+  // 带上下文唤起：进入后自动发送的首条消息
+  const [initialPrompt, setInitialPrompt] = useState<string | null>(null);
+  const handledPendingRef = useRef<string | null>(null);
+
   const [llmLoading, setLlmLoading] = useState(true);
   const [llmStatus, setLlmStatus] = useState<string>("");
 
@@ -45,6 +72,17 @@ export default function AgentApp({ onBack, initStatus }: { onBack: () => void; i
   }, []);
 
   useEffect(() => { loadConversations(); }, []);
+  useEffect(() => { loadTodos(); }, []);
+
+  // 处理外部唤起（复盘/简历/模拟入口）：选中对话 + 设置待发消息
+  useEffect(() => {
+    if (!pendingPrompt) return;
+    if (handledPendingRef.current === pendingPrompt.convId) return;
+    handledPendingRef.current = pendingPrompt.convId;
+    setActiveId(pendingPrompt.convId);
+    setAgentSubView("chat");
+    setInitialPrompt(pendingPrompt.message);
+  }, [pendingPrompt]);
 
   // Lazy-start LLM server when entering Agent (local mode only)
   useEffect(() => {
@@ -59,7 +97,6 @@ export default function AgentApp({ onBack, initStatus }: { onBack: () => void; i
         setLlmStatus("error");
         setLlmLoading(false);
       });
-    // Poll server status until ready when loading
     const interval = setInterval(async () => {
       try {
         const s = await invoke<{ healthy: boolean }>("llm_server_status");
@@ -73,20 +110,25 @@ export default function AgentApp({ onBack, initStatus }: { onBack: () => void; i
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => { loadTodos(); }, []);
-
-  const handleNew = async () => {
+  const handlePickRole = async (type: AgentConversationType) => {
+    setCreating(true);
     try {
-      const id = await invoke<string>("agent_create_conversation");
+      const id = await invoke<string>("agent_create_conversation", { convType: type });
       setActiveId(id);
       setAgentSubView("chat");
+      setShowRolePicker(false);
       loadConversations();
-    } catch (e) { console.error(e); showToast("创建对话失败", "error"); }
+    } catch (e) {
+      console.error(e);
+      showToast("创建对话失败", "error");
+    }
+    setCreating(false);
   };
 
   const handleSelect = (id: string) => {
     setActiveId(id);
     setAgentSubView("chat");
+    setInitialPrompt(null);
   };
 
   const handleDelete = async (id: string) => {
@@ -118,7 +160,6 @@ export default function AgentApp({ onBack, initStatus }: { onBack: () => void; i
     } catch (e) { console.error(e); showToast("删除待办失败", "error"); }
   };
 
-  // After chat sends a message, refresh todos (todo may have been created by agent)
   const handleConversationUpdate = () => {
     loadConversations();
     loadTodos();
@@ -132,7 +173,6 @@ export default function AgentApp({ onBack, initStatus }: { onBack: () => void; i
     );
   }
 
-  // Show init error prominently when agent sidecar failed to start
   if (initStatus?.status === "error" && !activeId && conversations.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-4 px-8">
@@ -140,20 +180,13 @@ export default function AgentApp({ onBack, initStatus }: { onBack: () => void; i
           <p className="text-sm font-medium text-red-800 mb-1">Agent 服务未启动</p>
           <p className="text-xs text-red-600 whitespace-pre-wrap">{initStatus.message}</p>
         </div>
-        <p className="text-xs text-gray-400 mt-2">
-          请检查日志文件或重新安装应用。日志路径：在文件资源管理器输入 %LOCALAPPDATA%\easywork\easywork.log
-        </p>
-        <button
-          onClick={onBack}
-          className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-        >
+        <button onClick={onBack} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">
           返回工作台
         </button>
       </div>
     );
   }
 
-  // LLM server is starting up (local model lazy-load)
   if (llmLoading && llmStatus === "loading") {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-3 px-8">
@@ -164,45 +197,22 @@ export default function AgentApp({ onBack, initStatus }: { onBack: () => void; i
     );
   }
 
-  // Loading done but conversations failed and init hasn't reported error yet
-  // → agent is probably still starting up
-  if (!loading && !activeId && conversations.length === 0 && loadError && !initStatus) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center gap-4 px-8">
-        <div className="w-full max-w-md rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center">
-          <p className="text-sm font-medium text-emerald-800 mb-1">Agent 正在启动...</p>
-          <p className="text-xs text-emerald-600 mt-1">首次启动需要几秒钟，请稍候</p>
-        </div>
-        <button
-          onClick={() => { setLoading(true); loadConversations(); }}
-          className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition-colors"
-        >
-          重试
-        </button>
-        <button
-          onClick={onBack}
-          className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-        >
-          返回工作台
-        </button>
-      </div>
-    );
-  }
-
   if (!activeId && conversations.length === 0 && agentSubView === "chat") {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-4">
-        <p className="text-sm text-gray-400">暂无对话</p>
+        <div className="text-center space-y-3">
+          <div className="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+            <Sparkles size={28} className="text-white" />
+          </div>
+          <p className="text-sm text-gray-500">选择角色，开始一场面试之旅</p>
+        </div>
         <button
-          onClick={handleNew}
-          className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition-colors"
+          onClick={() => setShowRolePicker(true)}
+          className="px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 transition-colors"
         >
-          开始新对话
+          新建对话 · 选角色
         </button>
-        <button
-          onClick={onBack}
-          className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-        >
+        <button onClick={onBack} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">
           返回工作台
         </button>
       </div>
@@ -217,7 +227,7 @@ export default function AgentApp({ onBack, initStatus }: { onBack: () => void; i
         activeSubView={agentSubView}
         todos={todos}
         onSelect={handleSelect}
-        onNew={handleNew}
+        onNew={() => setShowRolePicker(true)}
         onDelete={handleDelete}
         onRename={handleRename}
         onBack={onBack}
@@ -227,7 +237,13 @@ export default function AgentApp({ onBack, initStatus }: { onBack: () => void; i
       />
       <div className="flex-1 flex flex-col min-w-0 rounded-lg bg-white overflow-hidden">
         {agentSubView === "chat" && activeId ? (
-          <AgentChat conversationId={activeId} onConversationUpdate={handleConversationUpdate} />
+          <AgentChat
+            conversationId={activeId}
+            onConversationUpdate={handleConversationUpdate}
+            conversationType={conversations.find((c) => c.id === activeId)?.type || "general"}
+            initialPrompt={initialPrompt}
+            onPromptConsumed={() => setInitialPrompt(null)}
+          />
         ) : agentSubView === "chat" ? (
           <div className="flex-1 flex items-center justify-center">
             <p className="text-sm text-gray-400">选择一个对话或创建新对话</p>
@@ -236,6 +252,49 @@ export default function AgentApp({ onBack, initStatus }: { onBack: () => void; i
           <AgentTodo todos={todos} onRefresh={loadTodos} onToggle={handleTodoToggle} onDelete={handleTodoDelete} />
         )}
       </div>
+
+      {/* 角色选择弹窗 */}
+      {showRolePicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-[640px] max-w-[calc(100vw-48px)] p-6" style={{ animation: "dsh-pop .2s ease" }}>
+            <style>{`@keyframes dsh-pop { from { transform: translateY(12px) scale(.97); opacity: 0 } to { transform: none; opacity: 1 } }`}</style>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Sparkles size={18} className="text-emerald-500" />
+                新建对话 · 选择角色
+              </h3>
+              <button onClick={() => setShowRolePicker(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mb-5">不同角色拥有专属的流程、提示词与工具面</p>
+            <div className="grid grid-cols-2 gap-3">
+              {ROLE_OPTIONS.map((r) => {
+                const meta = ROLE_META[r.type];
+                return (
+                  <button
+                    key={r.type}
+                    onClick={() => handlePickRole(r.type)}
+                    disabled={creating}
+                    className="text-left border border-gray-100 rounded-2xl p-4 hover:border-emerald-300 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-0.5 transition-all disabled:opacity-50"
+                  >
+                    <span className={`w-10 h-10 rounded-xl ${r.iconBg} flex items-center justify-center text-lg mb-2.5`}>
+                      {meta.icon}
+                    </span>
+                    <p className="text-sm font-bold text-gray-900">{r.title}</p>
+                    <p className="text-xs text-gray-400 mt-1 leading-relaxed">{r.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+            {creating && (
+              <div className="flex items-center justify-center gap-2 mt-5 text-xs text-gray-400">
+                <Loader size={13} className="animate-spin" /> 正在创建对话...
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -39,6 +39,11 @@ export default function TodayView({
   const [liveTranscripts, setLiveTranscripts] = useState<{ speaker: string; text: string }[]>([]);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [meetingType, setMeetingType] = useState("其他");
+  // ── 面试语义（Phase 1）：默认面试模式，可切换回会议模式 ──
+  const [isInterview, setIsInterview] = useState(true);
+  const [company, setCompany] = useState("");
+  const [position, setPosition] = useState("");
+  const [stage, setStage] = useState("online");
   const [elapsed, setElapsed] = useState(0);
   const dragStartXRef = useRef(0);
   const dragStartYRef = useRef(0);
@@ -166,11 +171,15 @@ export default function TodayView({
 
       const raw = await invoke<string>("generate_minutes", {
         wavPath: path,
-        meetingTitle: meetingLabel || "导入的会议",
+        meetingTitle: meetingLabel || (isInterview ? "导入的面试" : "导入的会议"),
         liveText: null,
         liveTranscriptJson: null,
         scheduleId: null,
         meetingType: meetingType,
+        isInterview: isInterview,
+        company: isInterview ? (company || null) : null,
+        position: isInterview ? (position || null) : null,
+        stage: isInterview ? (stage || null) : null,
       });
       let result: { meetingId: string; content: string };
       try {
@@ -195,7 +204,7 @@ export default function TodayView({
       setGenerating(false);
       onGeneratingChange(false);
     }
-  }, [meetingLabel, onMeetingCreated, onGeneratingChange, meetingType]);
+  }, [meetingLabel, onMeetingCreated, onGeneratingChange, meetingType, isInterview, company, position, stage]);
 
   const handleStopClick = useCallback(() => {
     setShowStopConfirm(true);
@@ -216,11 +225,15 @@ export default function TodayView({
 
       const raw = await invoke<string>("generate_minutes", {
         wavPath: path,
-        meetingTitle: meetingLabel || "未命名会议",
+        meetingTitle: meetingLabel || (isInterview ? "未命名面试" : "未命名会议"),
         liveText: liveText || null,
         liveTranscriptJson: JSON.stringify(liveTranscripts) || null,
         scheduleId: scheduleId || null,
         meetingType: meetingType,
+        isInterview: isInterview,
+        company: isInterview ? (company || null) : null,
+        position: isInterview ? (position || null) : null,
+        stage: isInterview ? (stage || null) : null,
       });
       let result: { meetingId: string; content: string };
       try {
@@ -251,7 +264,7 @@ export default function TodayView({
       setGenerating(false);
       onGeneratingChange(false);
     }
-  }, [meetingLabel, scheduleId, onMeetingCreated, onRecordingChange, onGeneratingChange, liveTranscripts, meetingType]);
+  }, [meetingLabel, scheduleId, onMeetingCreated, onRecordingChange, onGeneratingChange, liveTranscripts, meetingType, isInterview, company, position, stage]);
 
   // ── Recording mode: full-screen transcript view ──
   if (recording || generating) {
@@ -264,7 +277,7 @@ export default function TodayView({
               <span className="relative inline-flex w-2.5 h-2.5 rounded-full bg-red-500" />
             </span>
             <div>
-              <h2 className="text-sm font-semibold text-gray-900">{meetingLabel || "会议录音中"}</h2>
+              <h2 className="text-sm font-semibold text-gray-900">{meetingLabel || (isInterview ? "面试录音中" : "会议录音中")}</h2>
               <p className="text-[11px] text-gray-400 pointer-events-none">
                 {generating ? "正在生成纪要..." : `${formatElapsed(elapsed)} · ${liveTranscripts.length} 条转写`}
               </p>
@@ -352,7 +365,7 @@ export default function TodayView({
               year: "numeric", month: "long", day: "numeric", weekday: "long",
             })}
           </p>
-          <h2 className="text-2xl font-semibold text-gray-900 mt-1">今日会议</h2>
+          <h2 className="text-2xl font-semibold text-gray-900 mt-1">面试记录</h2>
         </header>
         <div className="flex-1 flex items-center justify-center px-8 py-8">
           <div className="w-full max-w-md space-y-6">
@@ -374,31 +387,104 @@ export default function TodayView({
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">会议名称</label>
-            <input
-              type="text"
-              value={meetingLabel}
-              onChange={(e) => setMeetingLabel(e.target.value)}
-              placeholder="例如：周例会"
-              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 focus:bg-white"
-            />
+          {/* 模式切换：面试记录（默认）/ 会议记录 */}
+          <div className="flex rounded-xl bg-gray-100 p-1">
+            <button
+              onClick={() => setIsInterview(true)}
+              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-colors ${isInterview ? "bg-white text-brand-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              🎯 面试记录
+            </button>
+            <button
+              onClick={() => setIsInterview(false)}
+              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-colors ${!isInterview ? "bg-white text-brand-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              📋 会议记录
+            </button>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">会议类型</label>
-            <Select
-              value={meetingType}
-              options={[
-                { value: "其他", label: "通用" },
-                { value: "周会", label: "周会" },
-                { value: "培训", label: "培训" },
-                { value: "项目评审", label: "项目评审" },
-                { value: "面试", label: "面试" },
-              ]}
-              onChange={setMeetingType}
-            />
-          </div>
+          {isInterview ? (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">公司</label>
+                  <input
+                    type="text"
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                    placeholder="例如：XX科技"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">岗位</label>
+                  <input
+                    type="text"
+                    value={position}
+                    onChange={(e) => setPosition(e.target.value)}
+                    placeholder="例如：前端工程师"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 focus:bg-white"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">面试阶段</label>
+                <Select
+                  value={stage}
+                  options={[
+                    { value: "phone", label: "电话面" },
+                    { value: "online", label: "线上面" },
+                    { value: "onsite", label: "现场面" },
+                    { value: "mock", label: "模拟面试" },
+                    { value: "offer", label: "Offer 沟通" },
+                  ]}
+                  onChange={setStage}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">会议名称</label>
+                <input
+                  type="text"
+                  value={meetingLabel}
+                  onChange={(e) => setMeetingLabel(e.target.value)}
+                  placeholder="例如：周例会"
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 focus:bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">会议类型</label>
+                <Select
+                  value={meetingType}
+                  options={[
+                    { value: "其他", label: "通用" },
+                    { value: "周会", label: "周会" },
+                    { value: "培训", label: "培训" },
+                    { value: "项目评审", label: "项目评审" },
+                  ]}
+                  onChange={setMeetingType}
+                />
+              </div>
+            </>
+          )}
+
+          {isInterview && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">记录名称（可留空自动生成）</label>
+              <input
+                type="text"
+                value={meetingLabel}
+                onChange={(e) => setMeetingLabel(e.target.value)}
+                placeholder={`${company || "公司"}-${position || "岗位"}-面试`}
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 focus:bg-white"
+              />
+              <p className="mt-2 text-[11px] text-gray-400 leading-relaxed">
+                ⚠️ 录制真实面试前请征得对方同意。系统仅在本机处理音频与转写，数据不出设备。
+              </p>
+            </div>
+          )}
 
           <button
             onClick={startRecording}

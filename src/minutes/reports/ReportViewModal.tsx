@@ -35,14 +35,14 @@ export default function ReportViewModal({
     <div
       ref={containerRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
-      role="dialog" aria-modal="true" aria-label="工作报告"
+      role="dialog" aria-modal="true" aria-label="求职复盘报告"
       onKeyDown={handleKeyDown}
     >
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[85vh] mx-4 flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <Sparkles size={18} className="text-brand-500" />
-            <h2 className="text-lg font-semibold text-gray-900">工作报告</h2>
+            <h2 className="text-lg font-semibold text-gray-900">求职复盘报告</h2>
           </div>
           <div className="flex items-center gap-2">
             <ExportDropdown content={content} />

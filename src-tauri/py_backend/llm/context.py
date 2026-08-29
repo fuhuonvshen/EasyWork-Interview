@@ -16,14 +16,21 @@ from .client import llm_chat
 logger = logging.getLogger("agent.context")
 
 
-def _build_system_messages(system_prompt: str, long_term_memories: str, summary: str) -> list[dict]:
-    """Merge system prompt + memories + summary into a SINGLE system message.
+def _build_system_messages(
+    system_prompt: str,
+    long_term_memories: str,
+    summary: str,
+    context_block: str = "",
+) -> list[dict]:
+    """Merge system prompt + memories + summary + domain context into a SINGLE system message.
 
     llama.cpp's --reasoning-format (deepseek) fails with 400
     "System message must be at the beginning" when a request carries
     multiple consecutive system messages, so never emit more than one.
     """
     parts = [system_prompt]
+    if context_block.strip():
+        parts.append(context_block)
     if long_term_memories.strip():
         parts.append(
             "以下是从历史对话中提取的与当前话题相关的背景记忆（仅供参考）：\n"
@@ -48,15 +55,17 @@ async def build_context(
     new_user_message: str,
     system_prompt: str,
     long_term_memories: str,
+    context_block: str = "",
 ) -> list[dict]:
     """Build the full message array for the LLM chat request.
 
     Handles everything internally:
     1. Loads conversation history from DB
     2. Injects long-term memories and existing summary
-    3. Checks if compression is needed
-    4. If so, calls LLM to compress, persists the new summary
-    5. Returns the final message array ready for the chat request
+    3. Optionally injects a domain context block (e.g. 面试转写摘要 for review 复盘)
+    4. Checks if compression is needed
+    5. If so, calls LLM to compress, persists the new summary
+    6. Returns the final message array ready for the chat request
 
     The caller just does:  messages = await build_context(...)
     """
@@ -83,9 +92,9 @@ async def build_context(
                 pass
         history.append({"role": msg["role"], "content": content})
 
-    # 单条 system（记忆/摘要合并）——llama.cpp --reasoning-format 下多条
+    # 单条 system（记忆/摘要/领域上下文合并）——llama.cpp --reasoning-format 下多条
     # system 消息会触发 "System message must be at the beginning" 400
-    messages = _build_system_messages(system_prompt, long_term_memories, existing_summary)
+    messages = _build_system_messages(system_prompt, long_term_memories, existing_summary, context_block)
 
     # Add history + current user message
     messages.extend(history)
@@ -121,7 +130,7 @@ async def build_context(
         summary_text = existing_summary or ""
 
     # Rebuild with summary + recent messages (single system message)
-    messages = _build_system_messages(system_prompt, long_term_memories, summary_text)
+    messages = _build_system_messages(system_prompt, long_term_memories, summary_text, context_block)
 
     messages.extend(recent)
     messages.append({"role": "user", "content": new_user_message})

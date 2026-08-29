@@ -101,15 +101,41 @@ pub async fn agent_list_conversations(
 }
 
 /// Create a new conversation, returns its id.
+/// `conv_type`: "general" | "mock" | "review" | "resume"
+/// `ref_id`: 关联面试记录 ID（review 类型注入上下文用）
 #[tauri::command]
 pub async fn agent_create_conversation(
+    conv_type: Option<String>,
+    ref_id: Option<String>,
     sidecar: State<'_, AgentSidecarState>,
 ) -> Result<String, String> {
-    let resp: serde_json::Value = sidecar.0.post("/create_conversation", &serde_json::json!({})).await?;
+    let resp: serde_json::Value = sidecar.0
+        .post("/create_conversation", &serde_json::json!({
+            "type": conv_type.unwrap_or_else(|| "general".into()),
+            "ref_id": ref_id,
+        }))
+        .await?;
     resp["id"]
         .as_str()
         .map(|s| s.to_string())
         .ok_or_else(|| "响应缺少 id 字段".to_string())
+}
+
+/// 更新对话的角色类型与关联 ID（如将通用对话标记为复盘类型并绑定面试）
+#[tauri::command]
+pub async fn agent_update_conversation_meta(
+    id: String,
+    conv_type: Option<String>,
+    ref_id: Option<String>,
+    sidecar: State<'_, AgentSidecarState>,
+) -> Result<(), String> {
+    let body = serde_json::json!({
+        "id": id,
+        "type": conv_type.unwrap_or_else(|| "general".into()),
+        "ref_id": ref_id,
+    });
+    let _: serde_json::Value = sidecar.0.post("/update_conversation_meta", &body).await?;
+    Ok(())
 }
 
 /// Delete a conversation and its messages.

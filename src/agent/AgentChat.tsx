@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
-import { Send, Loader, Paperclip, Upload, ChevronDown } from "lucide-react";
+import { Send, Loader, Paperclip, Upload, ChevronDown, Timer, Flag } from "lucide-react";
 import Markdown from "../components/Markdown";
 import { showToast } from "../components/Toast";
 import { ERRORS, toUserError } from "../errors";
@@ -12,6 +12,9 @@ import type { AgentMessage, AgentStreamEvent } from "../types";
 interface Props {
   conversationId: string;
   onConversationUpdate: () => void;
+  conversationType?: string;             // "general" | "mock" | "review" | "resume"
+  initialPrompt?: string | null;         // 带上下文唤起：首次加载自动发送
+  onPromptConsumed?: () => void;
 }
 
 // DeepSeek 风格的可折叠过程块（执行计划 / 思考过程，灰色小字）
@@ -40,7 +43,7 @@ function MessageCollapsible({ title, icon, content }: { title: string; icon: str
   );
 }
 
-export default function AgentChat({ conversationId, onConversationUpdate }: Props) {
+export default function AgentChat({ conversationId, onConversationUpdate, conversationType = "general", initialPrompt, onPromptConsumed }: Props) {
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -50,10 +53,25 @@ export default function AgentChat({ conversationId, onConversationUpdate }: Prop
   const [thinkingCollapsed, setThinkingCollapsed] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isMock = conversationType === "mock";
+  // 模拟面试计时
+  const [mockSeconds, setMockSeconds] = useState(0);
+  const autoSentRef = useRef<string | null>(null);
 
   const loadMessages = useCallback(() => {
     invoke<AgentMessage[]>("agent_get_messages", { conversationId })
-      .then(setMessages)
+      .then((list) => {
+        setMessages(list);
+        // 带上下文唤起：消息为空时自动发送首条消息（如"请复盘这场面试"）
+        if (initialPrompt && list.length === 0 && autoSentRef.current !== initialPrompt) {
+          autoSentRef.current = initialPrompt;
+          setInput(initialPrompt);
+          setTimeout(() => {
+            handleSend(initialPrompt);
+            onPromptConsumed?.();
+          }, 300);
+        }
+      })
       .catch((e) => {
         console.error(e);
         setMessages((prev) => prev.length === 0 ? [{
@@ -62,7 +80,8 @@ export default function AgentChat({ conversationId, onConversationUpdate }: Prop
           created_at: new Date().toISOString(),
         }] : prev);
       });
-  }, [conversationId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, initialPrompt]);
 
   useEffect(() => { loadMessages(); }, [loadMessages]);
 
@@ -74,7 +93,23 @@ export default function AgentChat({ conversationId, onConversationUpdate }: Prop
   useEffect(() => {
     setStream(null);
     setThinkingCollapsed(false);
+    setMockSeconds(0);
+    autoSentRef.current = null;
   }, [conversationId]);
+
+  // 模拟面试计时（mock 对话）
+  useEffect(() => {
+    if (!isMock) return;
+    setMockSeconds(0);
+    const t = setInterval(() => setMockSeconds((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [isMock, conversationId]);
+
+  const formatMockTime = (total: number) => {
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  };
 
   // ── Drag & drop file handling ──
   useEffect(() => {
@@ -151,8 +186,8 @@ export default function AgentChat({ conversationId, onConversationUpdate }: Prop
   };
 
   // ── Send message ──
-  const handleSend = async () => {
-    const text = input.trim();
+  const handleSend = async (overrideText?: string) => {
+    const text = (overrideText ?? input).trim();
     if (!text || sending) return;
     setInput("");
     setSending(true);
@@ -227,11 +262,42 @@ export default function AgentChat({ conversationId, onConversationUpdate }: Prop
 
       {/* Message list */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
+        {/* 模拟面试横幅 */}
+        {isMock && (
+          <div className="max-w-3xl mx-auto mb-5">
+            <div className="flex items-center gap-3 flex-wrap bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-100 rounded-2xl px-4 py-3">
+              <span className="relative flex w-2.5 h-2.5">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-fuchsia-400 animate-ping opacity-75" />
+                <span className="relative inline-flex w-2.5 h-2.5 rounded-full bg-fuchsia-500" />
+              </span>
+              <span className="text-sm font-semibold text-violet-900 flex items-center gap-1.5">
+                <Flag size={14} className="text-violet-500" />
+                模拟面试进行中
+              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-white text-violet-700 border border-violet-200">
+                <Timer size={12} />
+                {formatMockTime(mockSeconds)}
+              </span>
+              <span className="text-[11px] text-violet-400">一次一题 · 结束后 AI 生成评分报告</span>
+              <button
+                onClick={() => handleSend("结束面试，请生成评估报告")}
+                disabled={sending}
+                className="ml-auto px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:opacity-90 disabled:opacity-50 transition-all"
+              >
+                结束面试
+              </button>
+            </div>
+          </div>
+        )}
         {messages.length === 0 && !dragOver && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center space-y-2">
-              <p className="text-sm text-gray-400">开始对话吧</p>
-              <p className="text-xs text-gray-300">拖拽 Excel/CSV 文件到窗口即可上传</p>
+              <p className="text-sm text-gray-400">
+                {isMock ? "面试官已就位，等待你的回答…" : "开始对话吧"}
+              </p>
+              <p className="text-xs text-gray-300">
+                {isMock ? "回答后 AI 逐题点评，可随时点击「结束面试」" : "拖拽 Excel/CSV 文件到窗口即可上传"}
+              </p>
             </div>
           </div>
         )}
@@ -404,12 +470,12 @@ export default function AgentChat({ conversationId, onConversationUpdate }: Prop
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) handleSend(); }}
-            placeholder="输入你的问题... (Enter 发送)"
+            placeholder={isMock ? "输入你的回答... (Enter 提交)" : "输入你的问题... (Enter 发送)"}
             disabled={sending}
             className="flex-1 px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:border-emerald-400 focus:bg-white disabled:opacity-50 transition-colors"
           />
           <button
-            onClick={handleSend}
+            onClick={() => handleSend()}
             disabled={!input.trim() || sending}
             className="p-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >

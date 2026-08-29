@@ -1,11 +1,19 @@
-// EasyWork - Create / edit scheduled meeting form modal
+// EasyWork - Create / edit scheduled meeting form modal (with interview stage)
 import { useState, useId } from "react";
 import type { ScheduledMeeting } from "../types";
+
+export const STAGE_OPTIONS = [
+  { value: "apply", label: "投递" },
+  { value: "phone", label: "电话面" },
+  { value: "online", label: "线上面" },
+  { value: "onsite", label: "现场面" },
+  { value: "offer", label: "Offer" },
+];
 
 interface Props {
   editingMeeting: ScheduledMeeting | null;
   initialDate?: string;
-  onSubmit: (data: { title: string; zoomUrl: string; date: string; time: string }) => void;
+  onSubmit: (data: { title: string; zoomUrl: string; date: string; time: string; stage: string }) => void;
   onCancel: () => void;
 }
 
@@ -15,12 +23,13 @@ export default function ScheduleForm({ editingMeeting, initialDate, onSubmit, on
   const [zoomUrl, setZoomUrl] = useState(editingMeeting?.zoom_url ?? "");
   const [date, setDate] = useState(editingMeeting?.start_time.slice(0, 10) ?? initialDate ?? "");
   const [time, setTime] = useState(editingMeeting?.start_time.slice(11, 16) ?? "");
+  const [stage, setStage] = useState(editingMeeting?.stage || "online");
 
   const canSubmit = title.trim() && date && time;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
-    onSubmit({ title: title.trim(), zoomUrl: zoomUrl.trim(), date, time });
+    onSubmit({ title: title.trim(), zoomUrl: zoomUrl.trim(), date, time, stage });
   };
 
   return (
@@ -29,10 +38,17 @@ export default function ScheduleForm({ editingMeeting, initialDate, onSubmit, on
         <h2 className="text-lg font-semibold text-gray-900 mb-4">{editingMeeting ? "编辑日程" : "新建日程"}</h2>
         <div className="space-y-3">
           <div>
-            <label htmlFor={`${uid}-title`} className="block text-xs font-medium text-gray-500 mb-1">会议标题</label>
-            <input id={`${uid}-title`} type="text" placeholder="会议标题" value={title}
+            <label htmlFor={`${uid}-title`} className="block text-xs font-medium text-gray-500 mb-1">标题</label>
+            <input id={`${uid}-title`} type="text" placeholder="例如：XX科技 前端一面" value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+          </div>
+          <div>
+            <label htmlFor={`${uid}-stage`} className="block text-xs font-medium text-gray-500 mb-1">阶段</label>
+            <select id={`${uid}-stage`} value={stage} onChange={(e) => setStage(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-300">
+              {STAGE_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
           </div>
           <div>
             <label htmlFor={`${uid}-zoom`} className="block text-xs font-medium text-gray-500 mb-1">会议链接</label>

@@ -1,7 +1,7 @@
-// EasyWork - History Detail (view/edit meeting minutes + title + transcript)
+// EasyWork - History Detail (view/edit interview/meeting minutes + title + transcript)
 import { useState, useEffect, useRef } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
-import { ArrowLeft, Loader, Pencil, Check, X, MessageSquareText, PlayCircle, Trash2 } from "lucide-react";
+import { ArrowLeft, Loader, Pencil, Check, X, MessageSquareText, PlayCircle, Trash2, Sparkles } from "lucide-react";
 import Markdown from "../../components/Markdown";
 import ExportDropdown from "../../components/ExportDropdown";
 import ConfirmDialog from "../../components/ConfirmDialog";
@@ -13,7 +13,21 @@ interface MeetingDetail {
   title: string;
   content: string;
   wav_path?: string;
+  kind?: string;
+  company?: string | null;
+  position?: string | null;
+  stage?: string | null;
+  score?: number | null;
 }
+
+// 面试阶段 → 展示文案与颜色
+export const STAGE_LABELS: Record<string, { label: string; cls: string }> = {
+  phone: { label: "电话面", cls: "bg-sky-50 text-sky-700 border-sky-200" },
+  online: { label: "线上面", cls: "bg-violet-50 text-violet-700 border-violet-200" },
+  onsite: { label: "现场面", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  mock: { label: "模拟面试", cls: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" },
+  offer: { label: "Offer", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+};
 
 interface TranscriptChunk {
   speaker: string;
@@ -33,7 +47,11 @@ function formatTime(secs: number): string {
   return `${m}:${String(s % 60).padStart(2, "0")}`;
 }
 
-export default function HistoryDetail({ meetingId, onBack }: { meetingId: string; onBack: () => void }) {
+export default function HistoryDetail({ meetingId, onBack, onReview }: {
+  meetingId: string;
+  onBack: () => void;
+  onReview?: (meetingId: string, title: string) => void;
+}) {
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -53,8 +71,8 @@ export default function HistoryDetail({ meetingId, onBack }: { meetingId: string
     { bg: "#90A4AE", text: "#1A2A30" },
   ];
   const getSpeakerStyle = (speaker: string) => {
-    if (speaker === "我") return { bg: "#DBEAFE", text: "#1D4ED8" };
-    if (speaker === "发言人") return { bg: "#F3F4F6", text: "#4B5563" };
+    if (speaker === "我" || speaker === "候选人" || speaker === "求职者") return { bg: "#DBEAFE", text: "#1D4ED8" };
+    if (speaker === "发言人" || speaker === "面试官") return { bg: "#F3F4F6", text: "#4B5563" };
     const n = parseInt(speaker.replace("参会者_", ""), 10);
     if (isNaN(n)) return { bg: "#F3F4F6", text: "#4B5563" };
     return speakerColors[(n - 1) % speakerColors.length];
@@ -202,7 +220,7 @@ export default function HistoryDetail({ meetingId, onBack }: { meetingId: string
               </div>
             ) : (
               <div className="flex items-center gap-2 group">
-                <h2 className="text-xl font-semibold text-gray-900 truncate">{detail?.title || "会议纪要"}</h2>
+                <h2 className="text-xl font-semibold text-gray-900 truncate">{detail?.title || (detail?.kind === "interview" ? "面试纪要" : "会议纪要")}</h2>
                 {!loading && detail && (
                   <button
                     onClick={() => { setEditingTitle(true); setEditTitle(detail.title); }}
@@ -215,12 +233,37 @@ export default function HistoryDetail({ meetingId, onBack }: { meetingId: string
               </div>
             )}
             {!editingTitle && (
-              <p className="text-sm text-gray-400 mt-0.5">AI 生成的会议摘要</p>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {detail?.kind === "interview" && detail.company && (
+                  <span className="text-sm text-gray-500 font-medium">{detail.company}{detail.position ? ` · ${detail.position}` : ""}</span>
+                )}
+                {detail?.stage && STAGE_LABELS[detail.stage] && (
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${STAGE_LABELS[detail.stage].cls}`}>
+                    {STAGE_LABELS[detail.stage].label}
+                  </span>
+                )}
+                {detail?.score != null && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
+                    评分 {detail.score}
+                  </span>
+                )}
+                <p className="text-sm text-gray-400">{detail?.kind === "interview" ? "AI 生成的面试复盘" : "AI 生成的会议摘要"}</p>
+              </div>
             )}
           </div>
         </div>
         {!loading && detail && !editing && (
           <div className="flex items-center gap-2">
+            {detail.kind === "interview" && onReview && (
+              <button
+                onClick={() => onReview(detail.id, detail.title)}
+                className="px-4 py-2 text-sm font-medium text-fuchsia-700 bg-fuchsia-50 rounded-lg hover:bg-fuchsia-100 transition-colors flex items-center gap-1.5"
+                title="创建复盘对话并注入本场面试上下文"
+              >
+                <Sparkles size={15} />
+                让 AI 深度复盘
+              </button>
+            )}
             <ExportDropdown content={detail.content} />
             <button
               onClick={loadTranscript}

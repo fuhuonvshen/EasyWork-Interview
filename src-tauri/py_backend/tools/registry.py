@@ -13,6 +13,13 @@ from .handlers import HANDLERS, SCHEMAS as HANDLER_SCHEMAS
 
 logger = logging.getLogger("agent.skills")
 
+# 面试角色对话默认屏蔽的工具（相关性低）
+TOOL_BLOCKLIST: dict[str, set[str]] = {
+    "mock": {"email"},
+    "review": {"email"},
+    "resume": {"email"},
+}
+
 
 class SkillRegistry:
     """Holds registered skills and provides tool definitions + execution."""
@@ -21,8 +28,11 @@ class SkillRegistry:
         self.skills = skills  # list of {"name": str, "description": str}
         self.base_dir = base_dir
 
-    def get_tool_definitions(self) -> list[dict]:
+    def get_tool_definitions(self, conv_type: str = "general") -> list[dict]:
         """Build tool definitions for the LLM API.
+
+        `conv_type` filters out irrelevant tools for role conversations
+        (e.g. email is hidden in mock/review/resume contexts).
 
         Note: SKILL.md frontmatter description is only a human-readable fallback.
         When a HANDLER_SCHEMA exists, its description is what the LLM actually sees.
@@ -32,10 +42,13 @@ class SkillRegistry:
         Otherwise generate a default schema with a generic 'task' parameter.
         Also includes handler-only tools that lack a SKILL.md.
         """
+        blocked = TOOL_BLOCKLIST.get(conv_type, set())
         seen: set[str] = set()
         result = []
         for s in self.skills:
             name = s["name"]
+            if name in blocked:
+                continue
             seen.add(name)
             # Prefer handler-provided schema for precise parameter definitions
             if name in HANDLER_SCHEMAS:
@@ -67,6 +80,8 @@ class SkillRegistry:
 
         # Include handler-only tools (SCHEMA without SKILL.md)
         for name, schema in HANDLER_SCHEMAS.items():
+            if name in blocked:
+                continue
             if name not in seen:
                 result.append(schema)
                 seen.add(name)

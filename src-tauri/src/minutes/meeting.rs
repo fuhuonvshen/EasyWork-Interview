@@ -12,6 +12,10 @@ pub async fn generate_minutes(
     live_transcript_json: Option<String>,  // JSON array of {speaker, text} chunks
     schedule_id: Option<String>,
     meeting_type: Option<String>,
+    is_interview: Option<bool>,
+    company: Option<String>,
+    position: Option<String>,
+    stage: Option<String>,
     whisper_state: State<'_, WhisperState>,
     sensevoice_state: State<'_, SenseVoiceState>,
     db: State<'_, DbState>,
@@ -107,10 +111,20 @@ pub async fn generate_minutes(
     log::info!("Combined transcript: {} chars", full_transcript.len());
 
     // 2. Generate minutes via local LLM
-    let meeting_type = meeting_type.as_deref().unwrap_or("其他");
-    let minutes = crate::summary::gen::generate_minutes(&full_transcript, &meeting_title, meeting_type, &llm_state.0)
+    let is_interview = is_interview.unwrap_or(false);
+    let meeting_type = meeting_type.as_deref().unwrap_or(if is_interview { "面试" } else { "其他" });
+    let minutes = if is_interview {
+        crate::summary::gen::generate_interview_minutes(
+            &full_transcript, &meeting_title, company.as_deref().unwrap_or(""), position.as_deref().unwrap_or(""),
+            &llm_state.0,
+        )
         .await
-        .map_err(|e| format!("纪要生成失败: {}", e))?;
+        .map_err(|e| format!("面试纪要生成失败: {}", e))?
+    } else {
+        crate::summary::gen::generate_minutes(&full_transcript, &meeting_title, meeting_type, &llm_state.0)
+            .await
+            .map_err(|e| format!("纪要生成失败: {}", e))?
+    };
 
     // 3. Save to database
     let meeting_id = uuid::Uuid::new_v4().to_string();
@@ -125,6 +139,11 @@ pub async fn generate_minutes(
         wav_path,
         schedule_id: schedule_id.clone(),
         pinned: false,
+        kind: if is_interview { "interview".into() } else { "meeting".into() },
+        company,
+        position,
+        stage,
+        score: None,
     };
     crate::database::repo::insert_meeting(&db.0, &meeting)
         .await
@@ -318,4 +337,107 @@ pub async fn update_meeting_title(
     crate::database::repo::update_meeting_title(&db.0, &meeting_id, &title)
         .await
         .map_err(|e| format!("更新会议标题失败: {}", e))
+}
+
+// ── 面试（Interview）命令 ─────────────────────────────────────────
+
+/// 把已有 meeting 标记为面试记录并写入公司/岗位/阶段
+#[tauri::command]
+pub async fn update_meeting_interview_info(
+    meeting_id: String,
+    company: Option<String>,
+    position: Option<String>,
+    stage: Option<String>,
+    db: State<'_, DbState>,
+) -> Result<(), String> {
+    crate::database::repo::update_meeting_interview_info(
+        &db.0, &meeting_id, company.as_deref(), position.as_deref(), stage.as_deref(),
+    )
+    .await
+    .map_err(|e| format!("更新面试信息失败: {}", e))
+}
+
+/// 保存 AI 面试评估（结构化维度 JSON + 总分 + 总结）
+#[tauri::command]
+pub async fn save_interview_assessment(
+    interview_id: String,
+    dimensions: String,
+    score: Option<i64>,
+    summary: Option<String>,
+    db: State<'_, DbState>,
+) -> Result<(), String> {
+    use crate::database::models::InterviewAssessment;
+    let now = chrono::Local::now().to_rfc3339();
+    let a = InterviewAssessment {
+        id: uuid::Uuid::new_v4().to_string(),
+        interview_id,
+        dimensions,
+        score,
+        summary,
+        created_at: now,
+    };
+    crate::database::repo::save_interview_assessment(&db.0, &a)
+        .await
+        .map_err(|e| format!("保存面试评估失败: {}", e))?;
+    if let Some(s) = a.score {
+        crate::database::repo::update_meeting_score(&db.0, &a.interview_id, Some(s))
+            .await
+            .map_err(|e| format!("更新面试评分失败: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_interview_assessment(
+    interview_id: String,
+    db: State<'_, DbState>,
+) -> Result<Option<crate::database::models::InterviewAssessment>, String> {
+    crate::database::repo::get_interview_assessment(&db.0, &interview_id)
+        .await
+        .map_err(|e| format!("查询面试评估失败: {}", e))
+}
+
+// ── 面试题库命令 ─────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn interview_question_create(
+    category: String,
+    difficulty: String,
+    question: String,
+    expected_answer: Option<String>,
+    db: State<'_, DbState>,
+) -> Result<(), String> {
+    use crate::database::models::InterviewQuestion;
+    let q = InterviewQuestion {
+        id: uuid::Uuid::new_v4().to_string(),
+        category,
+        difficulty: if difficulty.is_empty() { "medium".into() } else { difficulty },
+        question,
+        expected_answer,
+        created_at: chrono::Local::now().to_rfc3339(),
+    };
+    crate::database::repo::insert_interview_question(&db.0, &q)
+        .await
+        .map_err(|e| format!("保存面试题失败: {}", e))
+}
+
+#[tauri::command]
+pub async fn interview_question_list(
+    category: Option<String>,
+    limit: Option<i64>,
+    db: State<'_, DbState>,
+) -> Result<Vec<crate::database::models::InterviewQuestion>, String> {
+    crate::database::repo::list_interview_questions(&db.0, category.as_deref(), limit.unwrap_or(200))
+        .await
+        .map_err(|e| format!("查询面试题失败: {}", e))
+}
+
+#[tauri::command]
+pub async fn interview_question_delete(
+    id: String,
+    db: State<'_, DbState>,
+) -> Result<(), String> {
+    crate::database::repo::delete_interview_question(&db.0, &id)
+        .await
+        .map_err(|e| format!("删除面试题失败: {}", e))
 }

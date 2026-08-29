@@ -52,8 +52,9 @@ export function useSchedule(onReportsChanged: () => void) {
     zoomUrl: string;
     date: string;
     time: string;
+    stage: string;
   }) => {
-    const { title, zoomUrl, date, time } = data;
+    const { title, zoomUrl, date, time, stage } = data;
     if (!title || !date || !time) return;
     const startTime = `${date}T${time}:00`;
 
@@ -65,6 +66,7 @@ export function useSchedule(onReportsChanged: () => void) {
           zoomUrl,
           startTime,
           endTime: "",
+          stage,
         });
         setShowForm(false);
         setEditingMeeting(null);
@@ -75,7 +77,7 @@ export function useSchedule(onReportsChanged: () => void) {
     } else {
       try {
         await invoke<string>("add_scheduled_meeting", {
-          title, zoomUrl, startTime, endTime: "",
+          title, zoomUrl, startTime, endTime: "", stage,
         });
       } catch (e: unknown) {
         showToast(toUserError(ERRORS.CREATE_SCHEDULE, e), "error");

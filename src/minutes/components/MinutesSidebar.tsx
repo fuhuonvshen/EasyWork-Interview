@@ -1,12 +1,12 @@
-// EasyWork - Minutes app sidebar
+// EasyWork - Interview app sidebar
 import { ArrowLeft } from "lucide-react";
 import { CalendarDays, FileText, Clock } from "lucide-react";
 import type { MinutesTab } from "../../types";
 
 const TABS: { key: MinutesTab; icon: typeof CalendarDays; label: string }[] = [
-  { key: "today", icon: CalendarDays, label: "今日会议" },
-  { key: "history", icon: FileText, label: "历史纪要" },
-  { key: "schedule", icon: Clock, label: "日程" },
+  { key: "today", icon: CalendarDays, label: "面试记录" },
+  { key: "history", icon: FileText, label: "历史复盘" },
+  { key: "schedule", icon: Clock, label: "面试日程" },
 ];
 
 export default function MinutesSidebar({
@@ -38,7 +38,7 @@ export default function MinutesSidebar({
           <ArrowLeft size={14} />
           返回工作台
         </button>
-        <h1 className="text-xl font-bold text-gray-900">会议纪要</h1>
+        <h1 className="text-xl font-bold text-gray-900">面试记录</h1>
       </div>
 
       <nav className="flex-1 px-2 py-2 space-y-1 overflow-y-auto">
@@ -69,7 +69,7 @@ export default function MinutesSidebar({
                       historySubTab === "meetings" ? "text-brand-700 bg-brand-50" : "text-gray-500 hover:bg-gray-50"
                     }`}
                   >
-                    会议记录
+                    面试记录
                   </button>
                   <button
                     onClick={() => onHistorySubTabChange("week")}
@@ -77,7 +77,7 @@ export default function MinutesSidebar({
                       historySubTab === "week" ? "text-brand-700 bg-brand-50" : "text-gray-500 hover:bg-gray-50"
                     }`}
                   >
-                    周报
+                    复盘周报
                   </button>
                   <button
                     onClick={() => onHistorySubTabChange("month")}
@@ -85,7 +85,7 @@ export default function MinutesSidebar({
                       historySubTab === "month" ? "text-brand-700 bg-brand-50" : "text-gray-500 hover:bg-gray-50"
                     }`}
                   >
-                    月报
+                    复盘月报
                   </button>
                 </div>
               )}

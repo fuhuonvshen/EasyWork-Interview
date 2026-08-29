@@ -1,8 +1,8 @@
-# EasyWork 项目地图
+# EasyWork 面试助手 项目地图
 
 > 三层架构：React 前端 → Rust/Tauri 后端 + Python Agent 侧边服务 → SQLite 数据库
 >
-> 更新说明：本文档与当前代码同步（2026-08）。
+> 更新说明：本文档与当前代码同步（改造后：面试语义迁移 + Agent 角色化，Phase 1/2 已完成）。
 
 ---
 
@@ -10,16 +10,19 @@
 
 | 文件 | 说明 |
 |------|------|
-| [App.tsx](src/App.tsx) | 顶层视图切换：workbench / minutes / agent / feedback 四视图 + 会议提醒弹窗(ReminderModal) + 托盘导航事件(tray-navigate) + 更新检查 |
+| [App.tsx](src/App.tsx) | 顶层视图切换：workbench / minutes(面试记录) / agent / feedback 四视图 + 会议提醒弹窗(ReminderModal) + 托盘导航事件(tray-navigate) + 更新检查；含「带上下文唤起」(agentPending: 复盘/简历/模拟入口自动创建角色对话) |
 | [main.tsx](src/main.tsx) | React 入口 |
 | [main.rs](src-tauri/src/main.rs) | Rust 入口（release 模式禁止控制台窗口 + 启动 Tauri） |
 | [lib.rs](src-tauri/src/lib.rs) | Tauri 应用主入口：模块声明、状态注册、`generate_handler!` 命令注册、系统托盘(build_tray)、后台初始化编排(init_background)、退出清理(cleanup_child_process)、Silero VAD 模型下载(ensure_vad_model) |
 
 ---
 
-## 一、会议系统
+## 一、面试记录系统（原会议系统，语义迁移）
 
-### 录制 → 转写 → AI 纪要 → 查看/编辑/导出
+### 录制 → 转写 → AI 面试复盘 → 查看/编辑/导出
+
+> `meetings` 表新增 `kind`（meeting/interview）、`company`、`position`、`stage`、`score` 字段；
+> `generate_minutes` 支持面试模式（`is_interview`），走独立的求职者视角面试复盘模板。
 
 #### 前端
 
@@ -28,7 +31,7 @@
 | [minutes/index.tsx](src/minutes/index.tsx) | MinutesApp 主布局：MinutesSidebar + 内容区；today / history / schedule 三 tab；history 子标签 meetings / week / month；报告查看弹窗 |
 | [minutes/components/MinutesSidebar.tsx](src/minutes/components/MinutesSidebar.tsx) | 会议模块侧边栏导航 |
 | [minutes/components/MeetingModelCheck.tsx](src/minutes/components/MeetingModelCheck.tsx) | 进入会议模块时检查 VAD + 声纹模型就绪状态，未就绪显示下载进度 |
-| [minutes/recording/TodayView.tsx](src/minutes/recording/TodayView.tsx) | 录制面板：选设备 → 填标题/类型 → 开始/停止录制 → 实时转写展示 → 导入已有音频文件 → 生成纪要弹窗(会议总结/转写记录) |
+| [minutes/recording/TodayView.tsx](src/minutes/recording/TodayView.tsx) | 录制面板：默认面试模式（公司/岗位/阶段 + 合规提示），可切换会议模式；选设备 → 开始/停止录制 → 实时转写展示 → 导入已有音频文件 → 生成面试复盘弹窗 |
 | [minutes/history/MeetingListView.tsx](src/minutes/history/MeetingListView.tsx) | 历史会议列表：搜索 + 筛选 + 分页 + 置顶 + 管理模式批量删除 |
 | [minutes/history/HistoryDetail.tsx](src/minutes/history/HistoryDetail.tsx) | 查看/编辑单条纪要 + 导出下拉(ExportDropdown: md/docx/pdf/png) |
 | [minutes/reports/ReportList.tsx](src/minutes/reports/ReportList.tsx) | 周报/月报列表 |
@@ -44,7 +47,7 @@
 
 | 文件 | 说明 |
 |------|------|
-| [minutes/meeting.rs](src-tauri/src/minutes/meeting.rs) | `generate_minutes`(转写+LLM纪要), `list_meetings`(分页搜索), `get_meeting`, `get_meeting_minutes`, `get_meeting_transcript`, `update_meeting_minutes`, `update_meeting_title`, `delete_meeting/s`, `delete_meeting_audio`, `toggle_pin_meeting` |
+| [minutes/meeting.rs](src-tauri/src/minutes/meeting.rs) | `generate_minutes`(转写+LLM纪要，支持面试模式), `list_meetings`(分页搜索), `get_meeting`, `get_meeting_minutes`, `get_meeting_transcript`, `update_meeting_minutes`, `update_meeting_title`, `delete_meeting/s`, `delete_meeting_audio`, `toggle_pin_meeting`；**面试命令**：`update_meeting_interview_info`(公司/岗位/阶段), `save_interview_assessment`, `get_interview_assessment`, `interview_question_create/list/delete`(题库) |
 | [minutes/schedule.rs](src-tauri/src/minutes/schedule.rs) | `add/list/update/delete_scheduled_meeting`, `find_meeting_by_schedule` |
 | [minutes/reminder.rs](src-tauri/src/minutes/reminder.rs) | `get_pending_reminder`, `dismiss_reminder`（配合 mod.rs 的 30s 轮询 spawn_reminder） |
 | [minutes/report.rs](src-tauri/src/minutes/report.rs) | `generate_report`(周/月), `list_reports`, `delete_report`, `export_report`(转发 Python) |
@@ -56,25 +59,29 @@
 
 ---
 
-## 二、AI 办公助手 (Agent)
+## 二、AI 面试助手 (Agent)
 
-### 对话式 AI + 待办管理（流式响应）
+### 角色化对话（general / mock / review / resume）+ 待办管理（流式响应）
+
+> `agent_conversations.type` 字段决定角色：通用助手 / 模拟面试官 / 复盘分析师 / 简历顾问。
+> 模拟面试与复盘结束输出 ```` ```assessment ```` JSON → 自动落库 `interview_assessments` 并回写面试评分。
+> 新工具：`interview_summary`（读面试转写/纪要）、`question_bank`（题库 CRUD）；面试角色对话默认屏蔽 email 工具。
 
 #### 前端
 
 | 文件 | 说明 |
 |------|------|
-| [agent/AgentApp.tsx](src/agent/AgentApp.tsx) | 主布局：对话/待办 tab 切换(agentSubView)，列表加载，CRUD 透传，LLM 就绪状态监听(init-status) |
-| [agent/AgentSidebar.tsx](src/agent/AgentSidebar.tsx) | 左侧边栏：对话列表(新建/重命名/删除) + 待办列表(checkbox/优先级徽标/截止日期/待办数量角标) |
-| [agent/AgentChat.tsx](src/agent/AgentChat.tsx) | 聊天区域：消息气泡(含 plan/thinking/tool 流式事件) + 输入框(Enter 发送) + 文件拖拽/选择上传(Excel/CSV/TXT) |
+| [agent/AgentApp.tsx](src/agent/AgentApp.tsx) | 主布局：对话/待办 tab 切换(agentSubView)，列表加载，CRUD 透传，LLM 就绪状态监听(init-status)；**角色选择弹窗**（新建对话选角色）+ 外部唤起(pendingPrompt)自动发首条消息 |
+| [agent/AgentSidebar.tsx](src/agent/AgentSidebar.tsx) | 左侧边栏：对话按角色分组（模拟面试/复盘分析/简历顾问/通用助手）+ 待办列表(checkbox/优先级徽标/截止日期/待办数量角标)；新建对话入口 |
+| [agent/AgentChat.tsx](src/agent/AgentChat.tsx) | 聊天区域：消息气泡(含 plan/thinking/tool 流式事件) + 输入框(Enter 发送) + 文件拖拽/选择上传(Excel/CSV/TXT)；**mock 模式**（面试横幅/计时器/结束面试按钮）+ 带上下文唤起自动发送 |
 | [agent/AgentTodo.tsx](src/agent/AgentTodo.tsx) | 待办完整视图：待完成/已完成分组 + 新建表单(标题/截止日期/优先级) + 空状态提示 |
-| [agent/memories/MEMORY.md](src/agent/memories/MEMORY.md) | Agent 长期记忆文件（由 Python 侧维护） |
+| [agent/memories/MEMORY.md](src/agent/memories/MEMORY.md) | Agent 长期记忆文件（求职档案：目标岗位/偏好/决策/静态背景，由 Python 侧维护） |
 
 #### 后端 (Rust)
 
 | 文件 | 说明 |
 |------|------|
-| [agent/commands.rs](src-tauri/src/agent/commands.rs) | `agent_chat`(流式), `agent_chat_stream`, `agent_attach_file`, `agent_attach_content`, `agent_list/create/delete/rename_conversation`, `agent_get_messages` + `todo_create/list/update_status/delete` |
+| [agent/commands.rs](src-tauri/src/agent/commands.rs) | `agent_chat`(流式), `agent_chat_stream`, `agent_attach_file`, `agent_attach_content`, `agent_list/create/delete/rename_conversation`（创建支持角色 type/ref_id）, `agent_update_conversation_meta`, `agent_get_messages` + `todo_create/list/update_status/delete` |
 | [agent/sidecar.rs](src-tauri/src/agent/sidecar.rs) | Python FastAPI sidecar 进程管理：动态端口(默认 9876)、开发/发布双路径查找(binaries/easywork-agent)、HTTP 代理 |
 | [agent/mod.rs](src-tauri/src/agent/mod.rs) | 模块组织 + `init()` 初始化 sidecar |
 
@@ -85,14 +92,14 @@
 | [main.py](src-tauri/py_backend/main.py) | FastAPI 入口：日志(request_id)、lifespan、路由注册、skill 注册表加载、记忆文件确保 |
 | [routes.py](src-tauri/py_backend/routes.py) | API 路由：/chat(ReAct+Plan-then-Execute), /attach_file, /export_report + Docker 镜像检查 |
 | [config.py](src-tauri/py_backend/config.py) | 配置：AGENT_PORT, DB_PATH, LOG_FILE, MEMORIES_DIR 等 |
-| [llm/chat.py](src-tauri/py_backend/llm/chat.py) | 对话主逻辑（ReAct + Plan-then-Execute + Skill 系统 + 流式事件） |
+| [llm/chat.py](src-tauri/py_backend/llm/chat.py) | 对话主逻辑（ReAct + Plan-then-Execute + Skill 系统 + 流式事件）；**按对话角色分支**（mock 模拟面试 / review 注入面试上下文）；`_extract_assessment` 解析 ```` ```assessment ```` 落库，mock 结束自动创建面试记录 |
 | [llm/client.py](src-tauri/py_backend/llm/client.py) | LLM API 通信（OpenAI 兼容 / Ollama） |
-| [llm/context.py](src-tauri/py_backend/llm/context.py) | 对话上下文构建 |
-| [llm/prompt.py](src-tauri/py_backend/llm/prompt.py) | 系统提示词 |
+| [llm/context.py](src-tauri/py_backend/llm/context.py) | 对话上下文构建（支持注入面试背景 context_block） |
+| [llm/prompt.py](src-tauri/py_backend/llm/prompt.py) | 系统提示词（**面试助手人设**）+ 分角色提示词（mock_prompt/review_prompt/resume_prompt） |
 | [llm/memory.py](src-tauri/py_backend/llm/memory.py) | 短期对话摘要 + 长期记忆文件(MEMORY.md) |
 | [data/database.py](src-tauri/py_backend/data/database.py)、[db_config.py](src-tauri/py_backend/data/db_config.py)、[models.py](src-tauri/py_backend/data/models.py) | Python 侧 SQLite 访问（aiosqlite，共享 easywork.db） |
-| [tools/registry.py](src-tauri/py_backend/tools/registry.py) | Skill/工具注册表（从 SKILL.md / handlers 加载） |
-| [tools/handlers/](src-tauri/py_backend/tools/handlers/) | 工具实现：email(发邮件), execute_python(沙箱执行), todo(待办), xlsx(Excel 处理) |
+| [tools/registry.py](src-tauri/py_backend/tools/registry.py) | Skill/工具注册表（从 SKILL.md / handlers 加载；**按对话角色过滤工具面**） |
+| [tools/handlers/](src-tauri/py_backend/tools/handlers/) | 工具实现：email(发邮件), execute_python(沙箱执行), todo(待办), xlsx(Excel 处理), **interview_summary(读面试转写/纪要)**, **question_bank(题库 CRUD)** |
 | [tools/sandbox.py](src-tauri/py_backend/tools/sandbox.py) | Docker 沙箱执行 |
 | [tools/file_preview.py](src-tauri/py_backend/tools/file_preview.py)、[executor.py](src-tauri/py_backend/tools/executor.py)、[email.py](src-tauri/py_backend/tools/email.py) | 文件预览 / 工具执行编排 / 邮件工具 |
 | [Dockerfile](src-tauri/py_backend/Dockerfile) | 沙箱镜像 |
@@ -121,8 +128,8 @@
 | [llm/engine.rs](src-tauri/src/llm/engine.rs) | llama.cpp 服务(llama-server)封装：下载二进制 + 模型加载，用于纪要/报告生成(Rust 侧本地推理)，暴露 server_pid 供退出清理 |
 | [llm/commands.rs](src-tauri/src/llm/commands.rs) | 模型管理：`llm_list_models`, `llm_download_model`, `llm_download_status`, `llm_cancel_download`, `llm_delete_model`, `llm_load/unload_model`, `llm_server_status`, `llm_download_binary`, `agent_prepare_llm` |
 | [llm/models.rs](src-tauri/src/llm/models.rs) | 模型信息定义 |
-| [summary/gen.rs](src-tauri/src/summary/gen.rs) | 纪要生成 prompt |
-| [summary/template.rs](src-tauri/src/summary/template.rs) | 纪要格式化模板 |
+| [summary/gen.rs](src-tauri/src/summary/gen.rs) | 纪要生成 prompt + `generate_interview_minutes`（求职者视角面试复盘：概况/问答要点/亮点/不足/五维评分/下一步建议） |
+| [summary/template.rs](src-tauri/src/summary/template.rs) | 纪要格式化模板（含 `interview_system_prompt` / `interview_user_prompt`） |
 
 > **两个 LLM 入口**：Rust 侧(llama.cpp)用于纪要/报告生成，Python 侧(OpenAI 兼容/Ollama)用于对话 Agent
 
@@ -139,14 +146,16 @@
 ### 表结构
 
 ```
-meetings              — 会议记录（含 pin 置顶、音频文件路径）
+meetings              — 会议/面试记录（kind/company/position/stage/score + pin 置顶、音频文件路径）
 transcripts           — 语音转写 (FK→meetings)
-minutes               — AI 纪要 (FK→meetings)
-scheduled_meetings    — 日程安排（含会议链接）
-reports               — 周报/月报
-agent_conversations   — Agent 对话
+minutes               — AI 纪要/面试复盘 (FK→meetings)
+scheduled_meetings    — 日程安排（含 stage 阶段、会议链接）
+reports               — 周报/月报（求职复盘报告）
+agent_conversations   — Agent 对话（含 type 角色、ref_id 关联）
 agent_messages        — 对话消息（含 tool_calls）
 agent_todos           — 待办事项（含 priority/deadline/source）
+interview_questions   — 面试题库（category/difficulty/expected_answer）
+interview_assessments — 面试评估（dimensions 五维 JSON/score/summary，FK→meetings）
 settings              — 设置键值对
 ```
 
@@ -198,7 +207,7 @@ Rust 和 Python **共享同一个 SQLite 文件**(WAL 模式保障并发安全)�
 
 ## 八、类型定义（前后端契约）
 
-- [types.ts](src/types.ts) — `AudioDevice`, `MeetingRow`, `ScheduledMeeting`, `ModelStatus/ModelInfo`, `MinutesTab`, `AgentConversationSummary`, `AgentMessage`, `AgentStreamEvent`(plan/thinking/answer/tool/tool_result/error/done), `ToolCall`, `TodoItem`, `ReportItem`, `SpeechModelEntry`, `LlmModelEntry`
+- [types.ts](src/types.ts) — `AudioDevice`, `MeetingRow`(含 kind/company/position/stage/score), `ScheduledMeeting`(含 stage), `ModelStatus/ModelInfo`, `MinutesTab`, `AgentConversationSummary`(含 type/ref_id), `AgentMessage`, `AgentStreamEvent`(plan/thinking/answer/tool/tool_result/error/done), `ToolCall`, `TodoItem`, `ReportItem`, `SpeechModelEntry`, `LlmModelEntry`, `InterviewAssessment`, `InterviewQuestion`, `AgentConversationType`
 
 ---
 

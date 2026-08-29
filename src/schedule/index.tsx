@@ -24,8 +24,8 @@ export default function ScheduleView({
     <>
       <header className="px-8 py-4 bg-white flex items-center justify-between">
         <div>
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider pointer-events-none">日历视图 · 会议日程 · 工作报告</p>
-          <h2 className="text-2xl font-semibold text-gray-900 mt-1">日程管理</h2>
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-wider pointer-events-none">日历视图 · 面试日程 · 求职复盘</p>
+          <h2 className="text-2xl font-semibold text-gray-900 mt-1">面试日程</h2>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -33,14 +33,14 @@ export default function ScheduleView({
             disabled={h.loadingReport}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
           >
-            <FileText size={15} />周报
+            <FileText size={15} />复盘周报
           </button>
           <button
             onClick={() => h.generateReport("month")}
             disabled={h.loadingReport}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
           >
-            <FileText size={15} />月报
+            <FileText size={15} />复盘月报
           </button>
           <button
             onClick={() => { h.openNewForm(); }}

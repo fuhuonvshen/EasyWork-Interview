@@ -151,11 +151,56 @@ export default function App() {
     return () => document.removeEventListener("contextmenu", handler);
   }, []);
 
+  // 面试助手「带上下文唤起」：创建对应角色对话后跳转 Agent 视图，
+  // AgentChat 首次加载时自动发送 pendingPrompt
+  const [agentPending, setAgentPending] = useState<{ convId: string; message: string } | null>(null);
+
   const navigateToRecording = useCallback((title: string, scheduleId?: string) => {
     setPrefillTitle(title);
     setCurrentScheduleId(scheduleId || null);
     setInitialTab("today");
     setView("minutes");
+  }, []);
+
+  // 面试详情页「让 AI 深度复盘」：创建 review 对话并注入面试上下文
+  const handleReview = useCallback(async (meetingId: string, title: string) => {
+    try {
+      const convId = await invoke<string>("agent_create_conversation", {
+        convType: "review",
+        refId: meetingId,
+      });
+      setAgentPending({ convId, message: `请复盘这场面试：${title}` });
+      setView("agent");
+    } catch (e) {
+      console.error("创建复盘对话失败", e);
+    }
+  }, []);
+
+  // 工作台卡片入口：resume / mock 直接创建对应角色对话
+  const handleWorkbenchEnter = useCallback(async (title?: string, action?: string) => {
+    if (action === "agent") {
+      setView("agent");
+    } else if (action === "feedback") {
+      setView("feedback");
+    } else if (action === "resume" || action === "mock") {
+      try {
+        const convType = action === "resume" ? "resume" : "mock";
+        const convId = await invoke<string>("agent_create_conversation", { convType });
+        setAgentPending({
+          convId,
+          message: action === "resume" ? "请帮我分析简历，并告诉我需要补充哪些信息" : "开始一场模拟面试，请先问我目标岗位",
+        });
+        setView("agent");
+      } catch (e) {
+        console.error("创建角色对话失败", e);
+        setView("agent");
+      }
+    } else {
+      setPrefillTitle(title || "");
+      setCurrentScheduleId(null);
+      setInitialTab(action && isMinutesTab(action) ? action : "today");
+      setView("minutes");
+    }
   }, []);
 
   useEffect(() => {
@@ -198,20 +243,7 @@ export default function App() {
       <TitleBar />
       <div className={`flex-1 min-h-0 ${view === "workbench" ? "" : "p-2.5 pt-0"}`}>
       {view === "workbench" && (
-        <Workbench
-          onEnter={(title?: string, action?: string) => {
-            if (action === "agent") {
-              setView("agent");
-            } else if (action === "feedback") {
-              setView("feedback");
-            } else {
-              setPrefillTitle(title || "");
-              setCurrentScheduleId(null);
-              setInitialTab(action && isMinutesTab(action) ? action : "today");
-              setView("minutes");
-            }
-          }}
-        />
+        <Workbench onEnter={handleWorkbenchEnter} />
       )}
       {view === "minutes" && (
         <MinutesApp
@@ -220,10 +252,11 @@ export default function App() {
           initialTab={initialTab}
           onBack={() => setView("workbench")}
           onNavigateRecording={navigateToRecording}
+          onReview={handleReview}
         />
       )}
       {view === "agent" && (
-        <AgentApp onBack={() => setView("workbench")} initStatus={agentInitStatus} />
+        <AgentApp onBack={() => setView("workbench")} initStatus={agentInitStatus} pendingPrompt={agentPending} />
       )}
       {view === "feedback" && (
         <FeedbackView onBack={() => setView("workbench")} />

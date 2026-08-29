@@ -33,6 +33,17 @@ class RenameRequest(BaseModel):
     title: str
 
 
+class CreateConversationRequest(BaseModel):
+    type: str = "general"   # "general" | "mock" | "review" | "resume"
+    ref_id: str | None = None
+
+
+class UpdateConversationMetaRequest(BaseModel):
+    id: str
+    type: str = "general"
+    ref_id: str | None = None
+
+
 # ── Response models ──
 
 class ChatResponse(BaseModel):
@@ -52,6 +63,8 @@ class AgentConversationSummary(BaseModel):
     title: str
     created_at: str
     last_message: str | None = None
+    type: str = "general"
+    ref_id: str | None = None
 
 
 class AgentMessage(BaseModel):

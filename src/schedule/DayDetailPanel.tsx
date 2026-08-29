@@ -2,6 +2,16 @@
 import { X, Clock, Video, Pencil } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import type { ScheduledMeeting } from "../types";
+import { STAGE_OPTIONS } from "./ScheduleForm";
+
+const STAGE_STYLE: Record<string, string> = {
+  apply: "bg-sky-50 text-sky-700 border-sky-200",
+  phone: "bg-sky-50 text-sky-700 border-sky-200",
+  online: "bg-violet-50 text-violet-700 border-violet-200",
+  onsite: "bg-amber-50 text-amber-700 border-amber-200",
+  offer: "bg-emerald-50 text-emerald-700 border-emerald-200",
+};
+const stageLabel = (v: string) => STAGE_OPTIONS.find((s) => s.value === v)?.label || v;
 
 interface Props {
   selectedDate: string;
@@ -54,6 +64,11 @@ export default function DayDetailPanel({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 leading-snug group-hover:text-brand-600 transition-colors">{m.title}</p>
+                {m.stage && (
+                  <span className={`inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${STAGE_STYLE[m.stage] || STAGE_STYLE.apply}`}>
+                    {stageLabel(m.stage)}
+                  </span>
+                )}
               </div>
             </button>
             <div className="flex items-center justify-end gap-1.5 mt-3 pt-3 border-t border-gray-50">

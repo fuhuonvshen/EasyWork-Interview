@@ -57,6 +57,52 @@ class Database:
         except Exception:
             pass  # Column already exists
 
+        # ── 面试语义迁移（与 Rust 侧 repo.rs 对齐）──
+        # 对话角色: "general" | "mock" | "review" | "resume"
+        try:
+            await self._conn.execute(
+                "ALTER TABLE agent_conversations ADD COLUMN type TEXT NOT NULL DEFAULT 'general'"
+            )
+        except Exception:
+            pass  # Column already exists
+        try:
+            await self._conn.execute(
+                "ALTER TABLE agent_conversations ADD COLUMN ref_id TEXT"
+            )
+        except Exception:
+            pass  # Column already exists
+
+        # 日程阶段
+        try:
+            await self._conn.execute(
+                "ALTER TABLE scheduled_meetings ADD COLUMN stage TEXT NOT NULL DEFAULT 'apply'"
+            )
+        except Exception:
+            pass  # Column already exists
+
+        # 面试评估表（与 Rust 侧 repo.rs 对齐；Rust 启动时已建，这里防御性兜底）
+        await self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS interview_assessments ("
+            "  id TEXT PRIMARY KEY,"
+            "  interview_id TEXT NOT NULL,"
+            "  dimensions TEXT NOT NULL DEFAULT '{}',"
+            "  score INTEGER,"
+            "  summary TEXT,"
+            "  created_at TEXT NOT NULL"
+            ")"
+        )
+        # 面试题库表（防御性兜底）
+        await self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS interview_questions ("
+            "  id TEXT PRIMARY KEY,"
+            "  category TEXT NOT NULL,"
+            "  difficulty TEXT NOT NULL DEFAULT 'medium',"
+            "  question TEXT NOT NULL,"
+            "  expected_answer TEXT,"
+            "  created_at TEXT NOT NULL"
+            ")"
+        )
+
         # Ensure schedule_id column for linking todos to schedules
         try:
             await self._conn.execute(
@@ -98,19 +144,38 @@ class Database:
 
     # ── Conversations ──────────────────────────────────────────
 
-    async def create_conversation(self) -> str:
+    async def create_conversation(self, conv_type: str = "general",
+                                  ref_id: str | None = None) -> str:
         conv_id = uuid.uuid4().hex
         now = datetime.now(timezone.utc).isoformat()
         await self.conn.execute(
-            "INSERT INTO agent_conversations (id, title, summary, created_at) VALUES (?, ?, ?, ?)",
-            (conv_id, "", "", now),
+            "INSERT INTO agent_conversations (id, title, summary, created_at, type, ref_id) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (conv_id, "", "", now, conv_type, ref_id),
         )
         await self.conn.commit()
         return conv_id
 
+    async def update_conversation_meta(self, conv_id: str, conv_type: str,
+                                       ref_id: str | None = None):
+        """Set conversation role type and optional ref_id (linked interview/resume)."""
+        await self.conn.execute(
+            "UPDATE agent_conversations SET type = ?, ref_id = ? WHERE id = ?",
+            (conv_type, ref_id, conv_id),
+        )
+        await self.conn.commit()
+
+    async def get_conversation_meta(self, conv_id: str) -> dict | None:
+        """Return {"type": ..., "ref_id": ...} for a conversation, or None."""
+        cursor = await self.conn.execute(
+            "SELECT type, ref_id FROM agent_conversations WHERE id = ?", (conv_id,)
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
     async def list_conversations(self) -> list[dict]:
         cursor = await self.conn.execute(
-            """SELECT ac.id, ac.title, ac.created_at,
+            """SELECT ac.id, ac.title, ac.created_at, ac.type, ac.ref_id,
                       (SELECT SUBSTR(am.content, 1, 100) FROM agent_messages am
                        WHERE am.conversation_id = ac.id AND am.role = 'user'
                        ORDER BY am.created_at DESC LIMIT 1) AS last_message
@@ -267,14 +332,14 @@ class Database:
 
     async def insert_schedule(self, title: str, start_time: str,
                               end_time: str | None = None,
-                              zoom_url: str = "") -> str:
+                              zoom_url: str = "", stage: str = "apply") -> str:
         sched_id = uuid.uuid4().hex
         now = datetime.now(timezone.utc).isoformat()
         end = end_time or ""
         await self.conn.execute(
-            "INSERT INTO scheduled_meetings (id, title, zoom_url, start_time, end_time, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (sched_id, title, zoom_url, start_time, end, now),
+            "INSERT INTO scheduled_meetings (id, title, zoom_url, start_time, end_time, created_at, stage) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (sched_id, title, zoom_url, start_time, end, now, stage),
         )
         await self.conn.commit()
         return sched_id
@@ -298,10 +363,10 @@ class Database:
 
     async def update_schedule(self, sched_id: str, title: str,
                               start_time: str, end_time: str = "",
-                              zoom_url: str = "") -> None:
+                              zoom_url: str = "", stage: str = "apply") -> None:
         await self.conn.execute(
-            "UPDATE scheduled_meetings SET title = ?, zoom_url = ?, start_time = ?, end_time = ? WHERE id = ?",
-            (title, zoom_url, start_time, end_time, sched_id),
+            "UPDATE scheduled_meetings SET title = ?, zoom_url = ?, start_time = ?, end_time = ?, stage = ? WHERE id = ?",
+            (title, zoom_url, start_time, end_time, stage, sched_id),
         )
         # Sync linked todo
         await self.conn.execute(
@@ -309,6 +374,69 @@ class Database:
             (title, start_time[:10], sched_id),
         )
         await self.conn.commit()
+
+    # ── 面试（Interview）数据读取（供 review 复盘 / 工具使用）─────────
+
+    async def get_interview_context(self, interview_id: str) -> dict | None:
+        """返回面试的元信息 + 转写 + 纪要，供复盘分析注入上下文。
+
+        Returns:
+            {"id", "title", "company", "position", "stage", "score",
+             "transcript", "minutes"} 或 None
+        """
+        cursor = await self.conn.execute(
+            "SELECT id, title, created_at, company, position, stage, score "
+            "FROM meetings WHERE id = ?", (interview_id,)
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        meta = dict(row)
+        # transcript
+        cursor = await self.conn.execute(
+            "SELECT content FROM transcripts WHERE meeting_id = ?", (interview_id,)
+        )
+        trow = await cursor.fetchone()
+        meta["transcript"] = trow[0] if trow else ""
+        # minutes
+        cursor = await self.conn.execute(
+            "SELECT content FROM minutes WHERE meeting_id = ?", (interview_id,)
+        )
+        mrow = await cursor.fetchone()
+        meta["minutes"] = mrow[0] if mrow else ""
+        return meta
+
+    async def save_assessment(self, interview_id: str, dimensions: str,
+                              score: int | None, summary: str | None) -> None:
+        """保存 AI 面试评估（与 Rust 侧 interview_assessments 表一致）。"""
+        assess_id = uuid.uuid4().hex
+        now = datetime.now(timezone.utc).isoformat()
+        await self.conn.execute(
+            "INSERT OR REPLACE INTO interview_assessments "
+            "(id, interview_id, dimensions, score, summary, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (assess_id, interview_id, dimensions, score, summary, now),
+        )
+        if score is not None:
+            await self.conn.execute(
+                "UPDATE meetings SET score = ? WHERE id = ?", (score, interview_id)
+            )
+        await self.conn.commit()
+
+    async def list_questions(self, category: str | None = None,
+                             limit: int = 50) -> list[dict]:
+        if category:
+            cursor = await self.conn.execute(
+                "SELECT * FROM interview_questions WHERE category = ? "
+                "ORDER BY created_at DESC LIMIT ?", (category, limit)
+            )
+        else:
+            cursor = await self.conn.execute(
+                "SELECT * FROM interview_questions ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
 
 
 # Singleton for the FastAPI app

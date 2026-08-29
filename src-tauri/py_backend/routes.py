@@ -23,12 +23,14 @@ from .data.models import (
     AttachFileRequest,
     ChatRequest,
     ChatResponse,
+    CreateConversationRequest,
     CreateConversationResponse,
     DeleteRequest,
     ExportRequest,
     ExportResponse,
     OkResponse,
     RenameRequest,
+    UpdateConversationMetaRequest,
 )
 
 logger = logging.getLogger("agent.routes")
@@ -54,9 +56,15 @@ async def list_conversations() -> list[AgentConversationSummary]:
 
 
 @router.post("/create_conversation")
-async def create_conversation() -> CreateConversationResponse:
-    conv_id = await db.create_conversation()
+async def create_conversation(req: CreateConversationRequest) -> CreateConversationResponse:
+    conv_id = await db.create_conversation(conv_type=req.type, ref_id=req.ref_id)
     return CreateConversationResponse(id=conv_id)
+
+
+@router.post("/update_conversation_meta")
+async def update_conversation_meta(req: UpdateConversationMetaRequest) -> OkResponse:
+    await db.update_conversation_meta(req.id, req.type, req.ref_id)
+    return OkResponse()
 
 
 @router.post("/delete_conversation")

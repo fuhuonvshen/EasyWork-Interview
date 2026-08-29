@@ -1,4 +1,4 @@
-// EasyWork - 日程提醒弹窗
+// EasyWork - 面试/日程提醒弹窗
 import { invoke } from "@tauri-apps/api/core";
 import { Clock } from "lucide-react";
 
@@ -15,7 +15,7 @@ export default function ReminderModal({ reminder, onGo, onClose }: ReminderModal
         <div className="w-16 h-16 rounded-full bg-brand-100 flex items-center justify-center mx-auto mb-4">
           <Clock size={32} className="text-brand-600" />
         </div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">会议提醒</h2>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">日程提醒</h2>
         <p className="text-base text-gray-700 font-medium mb-1">{reminder.title}</p>
         <p className="text-sm text-gray-400 mb-6">
           {reminder.startTime.slice(11, 16)} 开始
