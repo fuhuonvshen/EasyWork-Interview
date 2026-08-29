@@ -1,6 +1,6 @@
 {
   "name": "easywork",
-  "version": "1.0.1",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "description": "EasyWork 办公助手 - 本地 AI 会议纪要，支持音频捕获、Whisper 转写、本地 LLM 纪要生成",

@@ -7,7 +7,7 @@
 #   - hound: WAV 文件读写
 [package]
 name = "easywork"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 
 [dependencies]
