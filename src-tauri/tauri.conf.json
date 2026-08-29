@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicedoc/schemas/main/tauri/tauri.conf.schema.json",
   "productName": "EasyWork",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "identifier": "com.easywork",
   "build": {
     "frontendDist": "../dist",
@@ -21,7 +21,7 @@
         "resizable": true,
         "decorations": false,
         "titleBarStyle": "Overlay",
-        "additionalBrowserArgs": "--allow-running-insecure-content"
+        "additionalBrowserArgs": "--allow-running-insecure-content --no-proxy-server --disable-features=AutomaticHttps"
       }
     ],
     "security": {
