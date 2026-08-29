@@ -1,65 +1,68 @@
-// EasyWork - Workbench (landing page, 原版简洁风格)
+// EasyWork - Workbench (landing page, 水滴气泡动态卡片)
 import { useState, useEffect } from "react";
 import { FileText, BookOpen, Rocket, Bot, FileSearch, MessageSquareHeart, Settings } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import ModelDownloadDialog from "../settings/ModelDownloadDialog";
+import type { CSSProperties } from "react";
 
-const WORKBENCH_CARDS = [
+// 每张卡片的形状/配色/浮动相位（水滴气泡风格）
+const WORKBENCH_CARDS: {
+  key: string;
+  icon: typeof FileText;
+  title: string;
+  desc: string;
+  action: string;
+  style: CSSProperties;
+}[] = [
   {
     key: "history",
     icon: FileText,
     title: "面试记录",
     desc: "录制 · 转写 · AI 复盘",
-    color: "bg-accent-50 text-accent-600",
-    hoverColor: "hover:bg-accent-100 hover:border-accent-200",
     action: "history",
+    style: { "--br": "46% 54% 56% 44% / 56% 46% 54% 44%", "--tbg": "#f0f2ff", "--tcolor": "#2a36e0", "--hb": "#bcc5ff", "--delay": "0s", "--dur": "4.2s" } as CSSProperties,
   },
   {
     key: "questions",
     icon: BookOpen,
     title: "我的题库",
     desc: "面试官问题 · 分类复习",
-    color: "bg-violet-50 text-violet-600",
-    hoverColor: "hover:bg-violet-100 hover:border-violet-200",
     action: "questions",
+    style: { "--br": "58% 42% 48% 52% / 46% 56% 44% 54%", "--tbg": "#f5f3ff", "--tcolor": "#7c3aed", "--hb": "#ddd6fe", "--delay": ".5s", "--dur": "4.6s" } as CSSProperties,
   },
   {
     key: "apply",
     icon: Rocket,
     title: "前往投递",
     desc: "我的投递工作台",
-    color: "bg-blue-50 text-blue-600",
-    hoverColor: "hover:bg-blue-100 hover:border-blue-200",
     action: "apply",
+    style: { "--br": "50% 58% 44% 50% / 52% 44% 56% 48%", "--tbg": "#eff6ff", "--tcolor": "#2563eb", "--hb": "#bfdbfe", "--delay": "1s", "--dur": "4.4s" } as CSSProperties,
   },
   {
     key: "agent",
     icon: Bot,
     title: "面试助手",
     desc: "智能问答 · 复盘 · 求职档案",
-    color: "bg-emerald-50 text-emerald-600",
-    hoverColor: "hover:bg-emerald-100 hover:border-emerald-200",
     action: "agent",
+    style: { "--br": "44% 50% 54% 46% / 58% 46% 52% 44%", "--tbg": "#ecfdf5", "--tcolor": "#059669", "--hb": "#a7f3d0", "--delay": "1.5s", "--dur": "4.8s" } as CSSProperties,
   },
   {
     key: "resume",
     icon: FileSearch,
     title: "简历顾问",
     desc: "简历分析 · JD 匹配 · 优化",
-    color: "bg-amber-50 text-amber-600",
-    hoverColor: "hover:bg-amber-100 hover:border-amber-200",
     action: "resume",
+    style: { "--br": "54% 46% 50% 56% / 46% 58% 44% 52%", "--tbg": "#fffbeb", "--tcolor": "#d97706", "--hb": "#fde68a", "--delay": "2s", "--dur": "4.3s" } as CSSProperties,
   },
   {
     key: "feedback",
     icon: MessageSquareHeart,
     title: "意见反馈",
     desc: "变得更强",
-    color: "bg-rose-50 text-rose-600",
-    hoverColor: "hover:bg-rose-100 hover:border-rose-200",
     action: "feedback",
+    style: { "--br": "48% 52% 46% 54% / 54% 48% 52% 46%", "--tbg": "#fff1f2", "--tcolor": "#e11d48", "--hb": "#fecdd3", "--delay": "2.5s", "--dur": "4.7s" } as CSSProperties,
   },
-] as const;
+];
 
 export default function Workbench({ onEnter }: { onEnter: (title?: string, action?: string) => void }) {
   const [showModel, setShowModel] = useState(false);
@@ -72,21 +75,21 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
     <div className="h-full flex flex-col">
       {/* Main content */}
       <div className="flex-1 flex items-center justify-center overflow-y-auto">
-        <div className="grid grid-cols-2 gap-6 max-w-2xl mx-auto px-4 py-4">
+        <div className="grid grid-cols-2 gap-x-10 gap-y-8 max-w-2xl mx-auto px-6 py-6">
           {WORKBENCH_CARDS.map((card) => {
             const Icon = card.icon;
             return (
               <button
                 key={card.key}
                 onClick={() => onEnter(undefined, card.action)}
-                className={`group flex flex-col items-center justify-center p-8 rounded-3xl bg-white border border-gray-100 shadow-sm transition-all ${card.hoverColor} hover:shadow-md active:scale-[0.97]`}
-                style={{ minHeight: "172px" }}
+                className="wb-card"
+                style={card.style}
               >
-                <div className={`w-16 h-16 rounded-2xl ${card.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                  <Icon size={32} />
+                <div className="wb-icon">
+                  <Icon size={28} />
                 </div>
-                <h3 className="text-base font-semibold text-gray-900 mb-1.5">{card.title}</h3>
-                <p className="text-sm text-gray-400 text-center leading-relaxed">{card.desc}</p>
+                <h3>{card.title}</h3>
+                <p>{card.desc}</p>
               </button>
             );
           })}

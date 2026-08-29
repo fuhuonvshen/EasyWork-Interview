@@ -66,6 +66,108 @@ button, a, input, select, textarea {
   border-radius: 3px;
 }
 
-::-webkit-scrollbar-thumb:hover {
+:::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
+}
+
+/* ── 主控台水滴气泡卡片（Workbench）────────────────────────── */
+/* 每个卡片通过内联 CSS 变量定制：--br 气泡形状 / --tbg 浅色底 / --tcolor 图标色 /
+   --hb hover 边框色 / --delay 浮动相位 / --dur 浮动周期 */
+.wb-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 20px;
+  min-height: 158px;
+  background: linear-gradient(165deg, var(--tbg) 0%, rgba(255, 255, 255, 0.92) 78%);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: var(--br, 50% 50% 50% 50% / 50% 50% 50% 50%);
+  box-shadow: 0 6px 18px -8px rgba(15, 23, 42, 0.12);
+  cursor: pointer;
+  overflow: hidden;
+  animation: wb-float var(--dur, 4.2s) ease-in-out var(--delay, 0s) infinite;
+  will-change: transform;
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  font-family: inherit;
+}
+.wb-card:hover {
+  box-shadow: 0 16px 34px -14px rgba(15, 23, 42, 0.22);
+  border-color: var(--hb, rgba(15, 23, 42, 0.12));
+  animation-play-state: paused; /* hover 时停住浮动，聚焦内容 */
+}
+.wb-card:active {
+  transform: scale(0.96) !important;
+}
+/* 水滴顶部高光（反光点） */
+.wb-card::before {
+  content: "";
+  position: absolute;
+  top: 7%;
+  left: 16%;
+  width: 36%;
+  height: 24%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0));
+  transform: rotate(-16deg);
+  pointer-events: none;
+  opacity: 0.85;
+  transition: opacity 0.25s ease, transform 0.4s ease;
+}
+.wb-card:hover::before {
+  opacity: 1;
+  transform: rotate(-16deg) translate(3px, -2px) scale(1.08);
+}
+/* hover 涟漪（从中心扩散的水波） */
+.wb-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 50% 45%, var(--tcolor) 0%, transparent 62%);
+  opacity: 0;
+  transform: scale(0.35);
+  transition: opacity 0.4s ease, transform 0.55s ease;
+  pointer-events: none;
+}
+.wb-card:hover::after {
+  opacity: 0.07;
+  transform: scale(1.7);
+}
+.wb-card .wb-icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 42% 58% 55% 45% / 55% 45% 58% 42%;
+  background: var(--tbg);
+  color: var(--tcolor);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9), 0 4px 10px -6px var(--tcolor);
+  transition: transform 0.25s ease;
+}
+.wb-card:hover .wb-icon {
+  transform: scale(1.12) rotate(4deg);
+}
+.wb-card h3 {
+  font-size: 15.5px;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 5px;
+}
+.wb-card p {
+  font-size: 13px;
+  color: #94a3b8;
+  text-align: center;
+  line-height: 1.5;
+}
+@keyframes wb-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+/* 尊重系统"减少动态效果"偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .wb-card { animation: none; }
 }
