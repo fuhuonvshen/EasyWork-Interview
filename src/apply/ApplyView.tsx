@@ -8,7 +8,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { ArrowLeft, RefreshCw, ExternalLink, Globe, Pencil, Check, X, FileText } from "lucide-react";
 import { showToast } from "../components/Toast";
 
-const DEFAULT_APPLY_URL = "https://example.com";
+const DEFAULT_APPLY_URL = "http://8.159.128.153:8000/";
 
 export default function ApplyView({ onBack }: { onBack: () => void }) {
   const [url, setUrl] = useState(DEFAULT_APPLY_URL);
@@ -148,7 +148,7 @@ export default function ApplyView({ onBack }: { onBack: () => void }) {
             <FileText size={12} /> 已同步简历：{syncedResume}
           </span>
         ) : (
-          <span>💡 投递页若禁止 iframe 嵌入请用「浏览器打开」；在投递页上传简历后会自动同步到面试助手（需内嵌同步脚本，见方案文档）</span>
+          <span>🔐 首次打开需在页面内登录，登录态保存在本机 · 投递页若禁止 iframe 嵌入请用「浏览器打开」 · 上传简历后会自动同步到面试助手（需内嵌同步脚本，见方案文档）</span>
         )}
       </p>
     </div>

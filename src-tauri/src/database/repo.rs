@@ -217,6 +217,14 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
     .await
     .context("创建 settings 表失败")?;
 
+    // 首次初始化时种入默认投递页地址（已存在则不覆盖，用户可在设置页修改）
+    sqlx::query(
+        "INSERT OR IGNORE INTO settings (key, value) VALUES ('apply_url', 'http://8.159.128.153:8000/')",
+    )
+    .execute(pool)
+    .await
+    .context("初始化默认投递页地址失败")?;
+
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS agent_todos (
             id          TEXT PRIMARY KEY,
