@@ -149,6 +149,15 @@ pub struct InterviewAssessment {
     pub created_at: String,
 }
 
+/// 我的简历（resumes 表）— 全局资产，最新一条为当前简历
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Resume {
+    pub id: String,
+    pub file_name: String,
+    pub content: String,
+    pub created_at: String,
+}
+
 /// A todo/task item.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct TodoItem {

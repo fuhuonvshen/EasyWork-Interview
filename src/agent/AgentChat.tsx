@@ -111,6 +111,10 @@ export default function AgentChat({ conversationId, onConversationUpdate, conver
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   };
 
+  // 隐藏意图前缀剥离（服务端已剥离落库，此处兜底展示）
+  const displayUserContent = (content: string) =>
+    content.startsWith("[回答面试题]") ? content.replace(/^\[回答面试题\]\s*/, "") : content;
+
   // ── Drag & drop file handling ──
   useEffect(() => {
     const window = getCurrentWindow();
@@ -385,7 +389,7 @@ export default function AgentChat({ conversationId, onConversationUpdate, conver
                       <Markdown content={msg.content} />
                     </div>
                   ) : (
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                    <p className="whitespace-pre-wrap">{displayUserContent(msg.content)}</p>
                   )}
                 </div>
                 {msg.role === "user" && (

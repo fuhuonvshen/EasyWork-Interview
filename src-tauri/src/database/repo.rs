@@ -98,6 +98,19 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
     .await
     .context("创建 interview_assessments 表失败")?;
 
+    // 我的简历（全局资产，最新一条为当前简历）
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS resumes (
+            id          TEXT PRIMARY KEY,
+            file_name   TEXT NOT NULL DEFAULT '',
+            content     TEXT NOT NULL,
+            created_at  TEXT NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await
+    .context("创建 resumes 表失败")?;
+
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS transcripts (
             id          TEXT PRIMARY KEY,
@@ -1244,4 +1257,35 @@ pub async fn delete_interview_question(pool: &SqlitePool, id: &str) -> Result<()
         .await
         .context("删除面试题失败")?;
     Ok(())
+}
+
+// ── 简历（Resume）────────────────────────────────────────────
+
+use super::models::Resume;
+
+/// 保存一份新简历（追加一行，get_resume 取最新）
+pub async fn save_resume(pool: &SqlitePool, file_name: &str, content: &str) -> Result<String> {
+    let id = uuid::Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO resumes (id, file_name, content, created_at) VALUES (?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(file_name)
+    .bind(content)
+    .bind(chrono::Local::now().to_rfc3339())
+    .execute(pool)
+    .await
+    .context("保存简历失败")?;
+    Ok(id)
+}
+
+/// 取最新一份简历
+pub async fn get_resume(pool: &SqlitePool) -> Result<Option<Resume>> {
+    let row = sqlx::query_as::<_, Resume>(
+        "SELECT * FROM resumes ORDER BY created_at DESC LIMIT 1",
+    )
+    .fetch_optional(pool)
+    .await
+    .context("查询简历失败")?;
+    Ok(row)
 }

@@ -10,6 +10,7 @@ import MinutesApp from "./minutes";
 import AgentApp from "./agent/AgentApp";
 import QuestionBankView from "./questions/QuestionBankView";
 import ApplyView from "./apply/ApplyView";
+import SettingsView from "./settings/SettingsView";
 import ReminderModal from "./ReminderModal";
 import TitleBar from "./components/TitleBar";
 import { ToastContainer, showToast } from "./components/Toast";
@@ -20,7 +21,7 @@ const MINUTES_TABS: MinutesTab[] = ["today", "history", "schedule", "reports"];
 const isMinutesTab = (v: string): v is MinutesTab => MINUTES_TABS.includes(v as MinutesTab);
 
 export default function App() {
-  const [view, setView] = useState<"workbench" | "minutes" | "agent" | "feedback" | "questions" | "apply">("workbench");
+  const [view, setView] = useState<"workbench" | "minutes" | "agent" | "feedback" | "questions" | "apply" | "settings">("workbench");
   const [prefillTitle, setPrefillTitle] = useState("");
   const [initialTab, setInitialTab] = useState<MinutesTab>("today");
 
@@ -164,6 +165,18 @@ export default function App() {
     setView("minutes");
   }, []);
 
+  // 题库「如何回答」：创建新话题并自动发送（隐藏意图前缀，服务端检测后剥离）
+  const handleAskQuestion = useCallback(async (question: string) => {
+    try {
+      const convId = await invoke<string>("agent_create_conversation", { convType: "general" });
+      setAgentPending({ convId, message: `[回答面试题] ${question}` });
+      setView("agent");
+    } catch (e) {
+      console.error("创建回答演练对话失败", e);
+      setView("agent");
+    }
+  }, []);
+
   // 面试详情页「让 AI 深度复盘」：创建 review 对话并注入面试上下文
   const handleReview = useCallback(async (meetingId: string, title: string) => {
     try {
@@ -188,6 +201,8 @@ export default function App() {
       setView("questions");
     } else if (action === "apply") {
       setView("apply");
+    } else if (action === "settings") {
+      setView("settings");
     } else if (action === "resume" || action === "mock") {
       try {
         const convType = action === "resume" ? "resume" : "mock";
@@ -265,10 +280,13 @@ export default function App() {
         <AgentApp onBack={() => setView("workbench")} initStatus={agentInitStatus} pendingPrompt={agentPending} />
       )}
       {view === "questions" && (
-        <QuestionBankView onBack={() => setView("workbench")} />
+        <QuestionBankView onBack={() => setView("workbench")} onAsk={handleAskQuestion} />
       )}
       {view === "apply" && (
         <ApplyView onBack={() => setView("workbench")} />
+      )}
+      {view === "settings" && (
+        <SettingsView onBack={() => setView("workbench")} />
       )}
       {view === "feedback" && (
         <FeedbackView onBack={() => setView("workbench")} />

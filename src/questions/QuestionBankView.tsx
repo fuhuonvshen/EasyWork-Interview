@@ -1,7 +1,7 @@
-// EasyWork - 我的题库：查看 AI 从面试中提取的面试官问题（按分类筛选 / 删除）
+// EasyWork - 我的题库：查看 AI 从面试中提取的面试官问题（按分类筛选 / 删除 / 一键面试回答演练）
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowLeft, BookOpen, Loader, Trash2, Sparkles } from "lucide-react";
+import { ArrowLeft, BookOpen, Loader, Trash2, Sparkles, Bot } from "lucide-react";
 import type { InterviewQuestion } from "../types";
 import { showToast } from "../components/Toast";
 
@@ -11,7 +11,10 @@ const DIFF_LABEL: Record<string, { label: string; cls: string }> = {
   hard: { label: "困难", cls: "bg-rose-50 text-rose-700 border-rose-200" },
 };
 
-export default function QuestionBankView({ onBack }: { onBack: () => void }) {
+export default function QuestionBankView({ onBack, onAsk }: {
+  onBack: () => void;
+  onAsk?: (question: string) => void;
+}) {
   const [questions, setQuestions] = useState<InterviewQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState<string>("全部");
@@ -114,13 +117,25 @@ export default function QuestionBankView({ onBack }: { onBack: () => void }) {
                     <p className="mt-1.5 text-xs text-gray-400 leading-relaxed line-clamp-2">💡 {q.expected_answer}</p>
                   )}
                 </div>
-                <button
-                  onClick={() => handleDelete(q.id)}
-                  className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
-                  title="删除这道题"
-                >
-                  <Trash2 size={14} />
-                </button>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {onAsk && (
+                    <button
+                      onClick={() => onAsk(q.question)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors flex items-center gap-1"
+                      title="前往面试助手，让 AI 结合你的简历准备回答"
+                    >
+                      <Bot size={13} />
+                      如何回答
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDelete(q.id)}
+                    className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    title="删除这道题"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

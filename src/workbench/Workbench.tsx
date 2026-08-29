@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { FileText, BookOpen, Rocket, Bot, FileSearch, MessageSquareHeart, Settings, PanelRightClose, Maximize2, Loader } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
-import ModelDownloadDialog from "../settings/ModelDownloadDialog";
 import AgentChat from "../agent/AgentChat";
 import type { AgentConversationSummary } from "../types";
 import type { CSSProperties } from "react";
@@ -117,7 +116,6 @@ const WORKBENCH_CARDS: {
 ];
 
 export default function Workbench({ onEnter }: { onEnter: (title?: string, action?: string) => void }) {
-  const [showModel, setShowModel] = useState(false);
   const [appVersion, setAppVersion] = useState("");
   // 右侧常驻对话面板
   const [dockOpen, setDockOpen] = useState(true);
@@ -183,15 +181,7 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
               );
             })}
           </div>
-
-          {showModel && (
-            <ModelDownloadDialog
-              onDone={() => setShowModel(false)}
-              onClose={() => setShowModel(false)}
-            />
-          )}
         </div>
-
         {/* 右侧对话面板（常驻，可折叠） */}
         <aside className={`wb-dock ${dockOpen ? "" : "wb-dock-collapsed"}`}>
           {dockOpen ? (
@@ -265,7 +255,7 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
       <div className="flex items-center justify-between px-8 py-3 flex-shrink-0">
         <span className="text-xs text-gray-400 select-none">EasyWork 面试助手 v{appVersion}</span>
         <button
-          onClick={() => setShowModel(true)}
+          onClick={() => onEnter(undefined, "settings")}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 rounded-lg transition-colors"
         >
           <Settings size={14} />

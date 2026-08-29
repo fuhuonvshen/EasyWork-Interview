@@ -41,6 +41,13 @@ export interface InterviewQuestion {
   in_bank: boolean;                  // 是否已加入题库（false=待用户确认）
 }
 
+export interface Resume {
+  id: string;
+  file_name: string;
+  content: string;
+  created_at: string;
+}
+
 export interface ScheduledMeeting {
   id: string;
   title: string;

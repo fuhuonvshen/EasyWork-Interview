@@ -211,6 +211,8 @@ pub fn run() {
             minutes::meeting::interview_question_delete,
             minutes::meeting::get_meeting_questions,
             minutes::meeting::add_questions_to_bank,
+            minutes::meeting::save_resume,
+            minutes::meeting::get_resume,
             minutes::schedule::add_scheduled_meeting,
             minutes::schedule::delete_scheduled_meeting,
             minutes::schedule::update_scheduled_meeting,

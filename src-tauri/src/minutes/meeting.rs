@@ -492,3 +492,28 @@ pub async fn add_questions_to_bank(
         .await
         .map_err(|e| format!("加入题库失败: {}", e))
 }
+
+/// 保存我的简历（全局资产，最新一条生效）
+#[tauri::command]
+pub async fn save_resume(
+    file_name: String,
+    content: String,
+    db: State<'_, DbState>,
+) -> Result<String, String> {
+    if content.trim().is_empty() {
+        return Err("简历内容为空".into());
+    }
+    crate::database::repo::save_resume(&db.0, &file_name, &content)
+        .await
+        .map_err(|e| format!("保存简历失败: {}", e))
+}
+
+/// 获取最新简历
+#[tauri::command]
+pub async fn get_resume(
+    db: State<'_, DbState>,
+) -> Result<Option<crate::database::models::Resume>, String> {
+    crate::database::repo::get_resume(&db.0)
+        .await
+        .map_err(|e| format!("查询简历失败: {}", e))
+}
