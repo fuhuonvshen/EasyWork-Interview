@@ -1,9 +1,12 @@
 // EasyWork - 前往投递：内嵌外部投递网页（可配置 URL，settings.apply_url）
 // 说明：你的个人投递页只要允许 iframe 嵌入（无 X-Frame-Options 限制），
 // 就能直接内嵌在应用里；遇到登录态/第三方 cookie 问题时可点「在浏览器打开」。
+// 简历同步：投递页内嵌 postMessage 脚本（见 docs/面试改造方案.md 第七节），
+// 用户在投递页上传简历后自动推送 → 此处校验来源域名 → save_resume 存为全局简历。
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowLeft, RefreshCw, ExternalLink, Globe, Pencil, Check, X } from "lucide-react";
+import { ArrowLeft, RefreshCw, ExternalLink, Globe, Pencil, Check, X, FileText } from "lucide-react";
+import { showToast } from "../components/Toast";
 
 const DEFAULT_APPLY_URL = "https://example.com";
 
@@ -13,6 +16,7 @@ export default function ApplyView({ onBack }: { onBack: () => void }) {
   const [draftUrl, setDraftUrl] = useState(DEFAULT_APPLY_URL);
   const [frameKey, setFrameKey] = useState(0); // 强制 iframe 刷新
   const [loading, setLoading] = useState(true);
+  const [syncedResume, setSyncedResume] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // 读取配置的投递页 URL
@@ -27,6 +31,38 @@ export default function ApplyView({ onBack }: { onBack: () => void }) {
       })
       .catch(() => {});
   }, []);
+
+  // 接收投递页 postMessage 推送的简历（仅接受配置域名来源）
+  useEffect(() => {
+    const onMessage = async (e: MessageEvent) => {
+      const data = e.data;
+      if (!data || typeof data !== "object") return;
+      if (data.source !== "easywork-apply" || data.type !== "resume") return;
+      // 来源校验：只接受当前配置的投递页域名（自己的站，防伪造）
+      let allowed = "";
+      try {
+        allowed = new URL(url).origin;
+      } catch {
+        return;
+      }
+      if (e.origin !== allowed) {
+        console.warn("[简历同步] 忽略未知来源:", e.origin);
+        return;
+      }
+      const fileName = String(data.fileName || "投递页简历.txt");
+      const content = String(data.content || "");
+      if (!content.trim()) return;
+      try {
+        await invoke("save_resume", { fileName, content });
+        setSyncedResume(fileName);
+        showToast("已从投递页同步简历，面试助手将自动参考", "success");
+      } catch {
+        showToast("简历同步失败", "error");
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [url]);
 
   const saveUrl = async () => {
     let next = draftUrl.trim();
@@ -107,7 +143,13 @@ export default function ApplyView({ onBack }: { onBack: () => void }) {
       </div>
 
       <p className="px-5 py-2 text-[11px] text-gray-400 border-t border-gray-50 flex-shrink-0">
-        💡 提示：你的投递页若禁止 iframe 嵌入（X-Frame-Options），请用「浏览器打开」；登录状态在嵌入模式下可能不共享。
+        {syncedResume ? (
+          <span className="flex items-center gap-1.5 text-emerald-600">
+            <FileText size={12} /> 已同步简历：{syncedResume}
+          </span>
+        ) : (
+          <span>💡 投递页若禁止 iframe 嵌入请用「浏览器打开」；在投递页上传简历后会自动同步到面试助手（需内嵌同步脚本，见方案文档）</span>
+        )}
       </p>
     </div>
   );
