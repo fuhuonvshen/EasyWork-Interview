@@ -77,6 +77,24 @@ jobs:
       - name: Build Python agent (PyInstaller)
         run: ${{ matrix.agent_build_cmd }}
 
+      # 与 EasyWork publish.yml 同款：macOS 打包需要 binaries/llama-server（tauri.macos.conf.json
+      # resources 声明），运行时从捆绑拷贝到数据目录。未下载则 tauri-build 校验失败。
+      - name: Download llama-server (macOS, bundled into installer)
+        if: matrix.os == 'macos-latest'
+        run: |
+          set -e
+          mkdir -p src-tauri/binaries
+          curl -fL -o /tmp/llama-macos.tar.gz "https://github.com/ggml-org/llama.cpp/releases/download/b10034/llama-b10034-bin-macos-arm64.tar.gz"
+          # 资产内是 llama-b10034/ 嵌套目录，strip 掉前缀让 llama-server 落在 binaries/ 根目录
+          tar -xzf /tmp/llama-macos.tar.gz -C src-tauri/binaries --strip-components=1
+          # 把符号链接转成真实文件，避免打包后 bin 目录里链接失效
+          cd src-tauri/binaries
+          for f in *; do
+            if [ -L "$f" ]; then cp -L "$f" "$f.tmp" && mv -f "$f.tmp" "$f"; fi
+          done
+          test -x llama-server && echo "llama-server OK"
+          ls -la | grep -E "llama-server|dylib" | head -15
+
       # 注：sherpa-onnx 不干预，构建方式与 EasyWork 的 publish.yml 完全一致，
       # sherpa-onnx-sys 构建脚本自动下载匹配的预编译库。
 
