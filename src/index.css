@@ -227,7 +227,7 @@ button, a, input, select, textarea {
 
 /* ── 主控台右侧对话面板（Workbench 常驻抽屉）────────────────── */
 .wb-dock {
-  width: 384px;
+  width: 420px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -236,10 +236,21 @@ button, a, input, select, textarea {
   border-radius: 18px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px -16px rgba(15, 23, 42, 0.18);
   overflow: hidden;
-  transition: width 0.22s ease;
+  transition: width 0.28s cubic-bezier(0.65, 0, 0.35, 1);
+}
+/* 展开/折叠动画：内容随宽度过渡淡入淡出（简化版收缩效果） */
+.wb-dock > * {
+  animation: wb-dock-in 0.28s cubic-bezier(0.65, 0, 0.35, 1);
 }
 .wb-dock-collapsed {
   width: 46px;
+}
+.wb-dock-collapsed > * {
+  animation: none;
+}
+@keyframes wb-dock-in {
+  from { opacity: 0; transform: translateX(10px); }
+  to { opacity: 1; transform: none; }
 }
 .wb-dock-head {
   display: flex;

@@ -131,7 +131,7 @@ export default function QuestionBankView({ onBack, onExpand }: {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-1 min-h-0 flex gap-2.5 pl-3 pr-1 pt-3 pb-3">
+      <div className="flex-1 min-h-0 flex gap-2.5 pl-0.5 pr-0.5 pt-3 pb-3">
         {/* 左中：题库主体 */}
         <div className="flex-1 min-w-0 bg-white rounded-lg overflow-hidden flex flex-col">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3 flex-shrink-0">

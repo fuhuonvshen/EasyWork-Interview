@@ -353,9 +353,6 @@ export default function AgentChat({ conversationId, onConversationUpdate, conver
                       {dataContent.length > 500 ? dataContent.slice(0, 500) + "\n...(已截断)" : dataContent}
                     </pre>
                   </div>
-                  <div className="w-7 h-7 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0 mt-1 ml-3">
-                    <span className="text-xs font-bold text-white">U</span>
-                  </div>
                 </div>
               );
             }
@@ -368,17 +365,12 @@ export default function AgentChat({ conversationId, onConversationUpdate, conver
             return (
               <div
                 key={msg.id}
-                className={`flex gap-3 text-sm ${
+                className={`flex text-sm ${
                   msg.role === "user" ? "justify-end" : "justify-start"
                 }`}
               >
-                {msg.role === "assistant" && (
-                  <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 mt-1">
-                    <span className="text-xs font-bold text-emerald-600">AI</span>
-                  </div>
-                )}
                 <div
-                  className={`max-w-[75%] rounded-2xl px-4 py-3 ${
+                  className={`max-w-[78%] rounded-2xl px-4 py-3 ${
                     msg.role === "user"
                       ? "bg-emerald-600 text-white"
                       : "bg-gray-100 text-gray-700"
@@ -392,20 +384,12 @@ export default function AgentChat({ conversationId, onConversationUpdate, conver
                     <p className="whitespace-pre-wrap">{displayUserContent(msg.content)}</p>
                   )}
                 </div>
-                {msg.role === "user" && (
-                  <div className="w-7 h-7 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0 mt-1">
-                    <span className="text-xs font-bold text-white">U</span>
-                  </div>
-                )}
               </div>
             );
           })}
           {stream && (
-            <div className="flex gap-3 text-sm">
-              <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 mt-1">
-                <span className="text-xs font-bold text-emerald-600">AI</span>
-              </div>
-              <div className="max-w-[75%] rounded-2xl px-4 py-3 bg-gray-100 text-gray-700">
+            <div className="flex text-sm">
+              <div className="max-w-[78%] rounded-2xl px-4 py-3 bg-gray-100 text-gray-700">
                 {stream.thinking && (
                   <div className="mb-2">
                     <button

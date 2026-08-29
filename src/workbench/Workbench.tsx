@@ -1,5 +1,5 @@
 // EasyWork - Workbench (landing page: 水滴气泡卡片 + 右侧常驻对话面板)
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { FileText, BookOpen, Rocket, Bot, FileSearch, MessageSquareHeart, Settings, PanelRightClose, Maximize2, Loader } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
@@ -126,6 +126,80 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
   const [dockLoading, setDockLoading] = useState(true);
   const [dockCreating, setDockCreating] = useState(false);
 
+  // ── 气泡物理：六个模块在左侧区域自由漂浮 + 互相碰撞不重叠 ──
+  const areaRef = useRef<HTMLDivElement>(null);
+  const cardElRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const physRef = useRef<{ x: number; y: number; vx: number; vy: number; w: number }[] | null>(null);
+  useEffect(() => {
+    if (physRef.current) return; // 只初始化一次（React StrictMode 双调用保护）
+    physRef.current = WORKBENCH_CARDS.map((c) => ({
+      x: c.pos.left, y: c.pos.top,
+      vx: (Math.random() - 0.5) * 40,
+      vy: (Math.random() - 0.5) * 40,
+      w: parseFloat(String((c.style as Record<string, unknown>)["--w"] || "200px")) || 200,
+    }));
+    const bodies = physRef.current;
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min((now - last) / 1000, 0.05);
+      last = now;
+      const area = areaRef.current;
+      const W = area?.offsetWidth || 720;
+      const H = area?.offsetHeight || 460;
+      const t = now / 1000;
+      const MARGIN = 6;
+      const radiusOf = (w: number) => (w / 2) * 0.85; // 水滴形比圆略小
+      // 漂移：正弦风 + 微随机扰动，永不停止；限速保持漂浮感
+      for (let i = 0; i < bodies.length; i++) {
+        const b = bodies[i];
+        b.vx += Math.sin(t * 0.7 + i * 1.7) * 0.2 + (Math.random() - 0.5) * 0.6;
+        b.vy += Math.cos(t * 0.6 + i * 2.1) * 0.2 + (Math.random() - 0.5) * 0.6;
+        const sp = Math.hypot(b.vx, b.vy);
+        const maxSp = 44;
+        if (sp > maxSp) { b.vx = (b.vx / sp) * maxSp; b.vy = (b.vy / sp) * maxSp; }
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+        // 边界反弹
+        const r = radiusOf(b.w);
+        if (b.x < MARGIN) { b.x = MARGIN; b.vx = Math.abs(b.vx); }
+        if (b.x > W - b.w - MARGIN) { b.x = W - b.w - MARGIN; b.vx = -Math.abs(b.vx); }
+        if (b.y < MARGIN) { b.y = MARGIN; b.vy = Math.abs(b.vy); }
+        if (b.y > H - b.w - MARGIN) { b.y = H - b.w - MARGIN; b.vy = -Math.abs(b.vy); }
+      }
+      // 两两碰撞：重叠分离 + 沿法线交换速度（弹性）
+      for (let i = 0; i < bodies.length; i++) {
+        for (let j = i + 1; j < bodies.length; j++) {
+          const a = bodies[i], b = bodies[j];
+          const ra = radiusOf(a.w), rb = radiusOf(b.w);
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const d = Math.hypot(dx, dy);
+          const minD = ra + rb;
+          if (d < minD && d > 0.001) {
+            const nx = dx / d, ny = dy / d;
+            const overlap = (minD - d) / 2;
+            a.x -= nx * overlap; a.y -= ny * overlap;
+            b.x += nx * overlap; b.y += ny * overlap;
+            const va = a.vx * nx + a.vy * ny;
+            const vb = b.vx * nx + b.vy * ny;
+            a.vx += (vb - va) * nx * 0.9; a.vy += (vb - va) * ny * 0.9;
+            b.vx += (va - vb) * nx * 0.9; b.vy += (va - vb) * ny * 0.9;
+          }
+        }
+      }
+      // 直写 DOM（不经 React state，避免每帧重渲染）
+      cardElRefs.current.forEach((el, i) => {
+        if (el && bodies[i]) {
+          el.style.left = `${bodies[i].x}px`;
+          el.style.top = `${bodies[i].y}px`;
+        }
+      });
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   useEffect(() => {
     getVersion().then(setAppVersion).catch(() => setAppVersion(""));
   }, []);
@@ -156,14 +230,15 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
   return (
     <div className="h-full flex flex-col relative">
       {/* 主内容：气泡场景 + 右侧对话面板（dock 上下满高，底部栏仅占左下） */}
-      <div className="flex-1 min-h-0 flex gap-2.5 pl-3 pr-1 pt-3 pb-3">
-        <div className="flex-1 min-w-0 flex items-center justify-center overflow-hidden">
+      <div className="flex-1 min-h-0 flex gap-2.5 pl-3 pr-3 pt-3 pb-[22px]">
+        <div ref={areaRef} className="flex-1 min-w-0 flex items-center justify-center overflow-hidden">
           <div className="wb-scene">
-            {WORKBENCH_CARDS.map((card) => {
+            {WORKBENCH_CARDS.map((card, i) => {
               const Icon = card.icon;
               return (
                 <div
                   key={card.key}
+                  ref={(el) => { cardElRefs.current[i] = el; }}
                   className="wb-pos"
                   style={{ left: card.pos.left, top: card.pos.top }}
                 >
