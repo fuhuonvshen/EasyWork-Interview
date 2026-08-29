@@ -125,13 +125,18 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: npm run tauri:build
 
+      # 注：if 条件里不能引用 secrets（workflow 解析会报错），改为运行时判断
       - name: Sign installer
-        if: startsWith(github.ref, 'refs/tags/v') && secrets.TAURI_SIGNING_PRIVATE_KEY != ''
+        if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         env:
           TSK: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TSPW: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
+          if [ -z "$TSK" ]; then
+            echo "未配置 TAURI_SIGNING_PRIVATE_KEY，跳过签名（应用内更新不可用，安装包可正常使用）"
+            exit 0
+          fi
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             installer=$(ls src-tauri/target/release/bundle/msi/*.msi | head -1)
           else
