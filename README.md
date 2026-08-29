@@ -73,6 +73,18 @@ npm run tauri:dev
 
 ### 构建安装包
 
+**推荐：云端构建（无需本地 Rust 环境）**
+
+本项目已配置 GitHub Actions（`.github/workflows/build.yml`），Rust/whisper.cpp/sherpa-onnx 等重型编译全部在云端完成，本地不需要安装 Rust：
+
+1. 推送代码到 `main` 分支 → 在仓库 **Actions** 页面查看构建进度
+2. 构建完成后，从 Actions 运行记录底部下载 **EasyWork-windows-installer** 安装包直接安装
+3. 打 `v*` 标签（如 `v1.0.7`）会自动生成 GitHub **Release**，附带安装包与更新清单
+
+首次云端构建约 15-40 分钟（需现场编译 whisper.cpp、sherpa-onnx），之后有缓存会显著加快。
+
+**本地构建（可选）**：
+
 ```bash
 npm run tauri build
 ```
