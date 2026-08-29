@@ -84,3 +84,13 @@ pub async fn select_folder(
     let result = dialog.blocking_pick_folder();
     Ok(result.map(|f| f.to_string()))
 }
+
+/// 用系统默认浏览器打开外部 URL（"前往投递"嵌入页的兜底入口）
+#[tauri::command]
+pub async fn open_external_url(url: String) -> Result<(), String> {
+    if url.trim().is_empty() {
+        return Err("URL 为空".into());
+    }
+    open::that(url.trim())
+        .map_err(|e| format!("打开浏览器失败: {}", e))
+}

@@ -1,6 +1,6 @@
 // EasyWork - Workbench (landing page, 原版简洁风格)
 import { useState, useEffect } from "react";
-import { FileText, CalendarDays, BarChart3, Bot, FileSearch, Target, Settings, MessageSquareHeart } from "lucide-react";
+import { FileText, BookOpen, Rocket, Bot, FileSearch, MessageSquareHeart, Settings } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import ModelDownloadDialog from "../settings/ModelDownloadDialog";
 
@@ -15,22 +15,22 @@ const WORKBENCH_CARDS = [
     action: "history",
   },
   {
-    key: "schedule",
-    icon: CalendarDays,
-    title: "面试日程",
-    desc: "投递 · 一面 · Offer 全流程",
-    color: "bg-blue-50 text-blue-600",
-    hoverColor: "hover:bg-blue-100 hover:border-blue-200",
-    action: "schedule",
-  },
-  {
-    key: "reports",
-    icon: BarChart3,
-    title: "复盘报告",
-    desc: "投递统计 · 通过率 · 对比",
+    key: "questions",
+    icon: BookOpen,
+    title: "我的题库",
+    desc: "面试官问题 · 分类复习",
     color: "bg-violet-50 text-violet-600",
     hoverColor: "hover:bg-violet-100 hover:border-violet-200",
-    action: "reports",
+    action: "questions",
+  },
+  {
+    key: "apply",
+    icon: Rocket,
+    title: "前往投递",
+    desc: "我的投递工作台",
+    color: "bg-blue-50 text-blue-600",
+    hoverColor: "hover:bg-blue-100 hover:border-blue-200",
+    action: "apply",
   },
   {
     key: "agent",
@@ -51,13 +51,13 @@ const WORKBENCH_CARDS = [
     action: "resume",
   },
   {
-    key: "mock",
-    icon: Target,
-    title: "模拟面试",
-    desc: "按岗位出题 · 逐题点评 · 评分报告",
-    color: "bg-fuchsia-50 text-fuchsia-600",
-    hoverColor: "hover:bg-fuchsia-100 hover:border-fuchsia-200",
-    action: "mock",
+    key: "feedback",
+    icon: MessageSquareHeart,
+    title: "意见反馈",
+    desc: "变得更强",
+    color: "bg-rose-50 text-rose-600",
+    hoverColor: "hover:bg-rose-100 hover:border-rose-200",
+    action: "feedback",
   },
 ] as const;
 
@@ -103,22 +103,13 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
       {/* Bottom bar */}
       <div className="flex items-center justify-between px-8 py-3 flex-shrink-0">
         <span className="text-xs text-gray-400 select-none">EasyWork 面试助手 v{appVersion}</span>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onEnter(undefined, "feedback")}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 rounded-lg transition-colors"
-          >
-            <MessageSquareHeart size={14} />
-            反馈
-          </button>
-          <button
-            onClick={() => setShowModel(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 rounded-lg transition-colors"
-          >
-            <Settings size={14} />
-            设置
-          </button>
-        </div>
+        <button
+          onClick={() => setShowModel(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 rounded-lg transition-colors"
+        >
+          <Settings size={14} />
+          设置
+        </button>
       </div>
     </div>
   );

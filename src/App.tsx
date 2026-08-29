@@ -8,6 +8,8 @@ import Workbench from "./workbench/Workbench";
 import FeedbackView from "./workbench/FeedbackView";
 import MinutesApp from "./minutes";
 import AgentApp from "./agent/AgentApp";
+import QuestionBankView from "./questions/QuestionBankView";
+import ApplyView from "./apply/ApplyView";
 import ReminderModal from "./ReminderModal";
 import TitleBar from "./components/TitleBar";
 import { ToastContainer, showToast } from "./components/Toast";
@@ -18,7 +20,7 @@ const MINUTES_TABS: MinutesTab[] = ["today", "history", "schedule", "reports"];
 const isMinutesTab = (v: string): v is MinutesTab => MINUTES_TABS.includes(v as MinutesTab);
 
 export default function App() {
-  const [view, setView] = useState<"workbench" | "minutes" | "agent" | "feedback">("workbench");
+  const [view, setView] = useState<"workbench" | "minutes" | "agent" | "feedback" | "questions" | "apply">("workbench");
   const [prefillTitle, setPrefillTitle] = useState("");
   const [initialTab, setInitialTab] = useState<MinutesTab>("today");
 
@@ -182,6 +184,10 @@ export default function App() {
       setView("agent");
     } else if (action === "feedback") {
       setView("feedback");
+    } else if (action === "questions") {
+      setView("questions");
+    } else if (action === "apply") {
+      setView("apply");
     } else if (action === "resume" || action === "mock") {
       try {
         const convType = action === "resume" ? "resume" : "mock";
@@ -257,6 +263,12 @@ export default function App() {
       )}
       {view === "agent" && (
         <AgentApp onBack={() => setView("workbench")} initStatus={agentInitStatus} pendingPrompt={agentPending} />
+      )}
+      {view === "questions" && (
+        <QuestionBankView onBack={() => setView("workbench")} />
+      )}
+      {view === "apply" && (
+        <ApplyView onBack={() => setView("workbench")} />
       )}
       {view === "feedback" && (
         <FeedbackView onBack={() => setView("workbench")} />

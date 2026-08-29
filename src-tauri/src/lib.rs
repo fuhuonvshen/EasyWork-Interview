@@ -251,6 +251,7 @@ pub fn run() {
             settings::commands::select_folder,
             settings::commands::get_default_paths,
             settings::commands::pick_audio_file,
+            settings::commands::open_external_url,
             // ── Update ──
             update::exit_for_update,
             update::install_update,
