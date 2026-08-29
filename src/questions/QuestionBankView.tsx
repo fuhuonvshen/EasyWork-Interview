@@ -114,16 +114,16 @@ export default function QuestionBankView({ onBack, onExpand }: {
     setDockCreating(false);
   };
 
-  // 问问 AI：在侧边栏对话中提出这道题（不跳转、不弹窗）
+  // 问问 AI：新建对话并在侧边栏自动发送（不跳转、不弹窗）。
+  // 必须新建对话 + key 重挂载：AgentChat 只在「消息为空」时消费 initialPrompt，
+  // 复用已有对话（有历史消息）点了不会发。
   const handleAsk = async (question: string) => {
     try {
-      let id = convId;
-      if (!id) {
-        id = await invoke<string>("agent_create_conversation", { convType: "general" });
-        setConvId(id);
-        setConvs((prev) => [{ id: id!, title: "", created_at: new Date().toISOString(), last_message: null, type: "general", ref_id: null }, ...prev]);
-      }
+      const id = await invoke<string>("agent_create_conversation", { convType: "general" });
+      setConvId(id);
+      setConvs((prev) => [{ id, title: "", created_at: new Date().toISOString(), last_message: null, type: "general", ref_id: null }, ...prev]);
       setPendingQ(question);
+      setDockOpen(true);
     } catch {
       showToast("创建对话失败", "error");
     }
@@ -131,7 +131,7 @@ export default function QuestionBankView({ onBack, onExpand }: {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-1 min-h-0 flex gap-2.5 px-3 pt-3">
+      <div className="flex-1 min-h-0 flex gap-2.5 pl-3 pr-1 pt-3 pb-3">
         {/* 左中：题库主体 */}
         <div className="flex-1 min-w-0 bg-white rounded-lg overflow-hidden flex flex-col">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
@@ -269,6 +269,7 @@ export default function QuestionBankView({ onBack, onExpand }: {
                 ) : convId ? (
                   <div className="wb-dock-chat">
                     <AgentChat
+                      key={convId}
                       conversationId={convId}
                       conversationType="general"
                       onConversationUpdate={() => {}}

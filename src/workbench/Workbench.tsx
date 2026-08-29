@@ -104,7 +104,7 @@ const WORKBENCH_CARDS: {
     title: "意见反馈",
     desc: "变得更强",
     action: "feedback",
-    pos: { left: 232, top: -6 },
+    pos: { left: 150, top: 262 },
     style: {
       "--w": "200px", "--rot": "6deg", "--tdeep": "#ffe4e6", "--tbg": "#fff1f2",
       "--br": "48% 52% 46% 54% / 54% 48% 52% 46%",
@@ -154,10 +154,10 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
   const dockConvType = dockConvs.find((c) => c.id === dockConvId)?.type || "general";
 
   return (
-    <div className="h-full flex flex-col">
-      {/* 主内容：气泡场景 + 右侧对话面板 */}
-      <div className="flex-1 min-h-0 flex gap-2.5 px-3 pt-3">
-        <div className="flex-1 min-w-0 flex items-center justify-center overflow-y-auto">
+    <div className="h-full flex flex-col relative">
+      {/* 主内容：气泡场景 + 右侧对话面板（dock 上下满高，底部栏仅占左下） */}
+      <div className="flex-1 min-h-0 flex gap-2.5 pl-3 pr-1 pt-3 pb-3">
+        <div className="flex-1 min-w-0 flex items-center justify-center overflow-hidden">
           <div className="wb-scene">
             {WORKBENCH_CARDS.map((card) => {
               const Icon = card.icon;
@@ -255,12 +255,12 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
         </aside>
       </div>
 
-      {/* Bottom bar */}
-      <div className="flex items-center justify-between px-8 py-3 flex-shrink-0">
-        <span className="text-xs text-gray-400 select-none">EasyWork 面试助手 v{appVersion}</span>
+      {/* Bottom bar：窄条，只占左下角，右侧全部让给对话面板 */}
+      <div className="absolute bottom-1.5 left-4 z-10 flex items-center gap-2 bg-gradient-to-r from-white/0 to-transparent pointer-events-none">
+        <span className="text-xs text-gray-400 select-none pointer-events-auto">EasyWork 面试助手 v{appVersion}</span>
         <button
           onClick={() => setShowModel(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-500 rounded-lg transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-gray-500 rounded-lg transition-colors pointer-events-auto"
         >
           <Settings size={14} />
           设置

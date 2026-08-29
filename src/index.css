@@ -82,6 +82,8 @@ button, a, input, select, textarea {
   height: 460px;
   margin: 0 auto;
   flex-shrink: 0;
+  /* 右侧有对话面板占位，场景整体左移 16px 视觉更平衡 */
+  transform: translateX(-16px);
 }
 .wb-pos {
   position: absolute;
@@ -235,7 +237,6 @@ button, a, input, select, textarea {
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px -16px rgba(15, 23, 42, 0.18);
   overflow: hidden;
   transition: width 0.22s ease;
-  margin-bottom: 12px;
 }
 .wb-dock-collapsed {
   width: 46px;
