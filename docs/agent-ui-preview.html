@@ -324,58 +324,72 @@
   .wb { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .wb-main { flex: 1; min-height: 0; display: flex; gap: 12px; padding: 0 12px; }
   .wb-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow-y: auto; }
-  .wb-scene { position: relative; width: 660px; height: 408px; margin: 0 auto; flex-shrink: 0; }
-  .wb-pos { position: absolute; width: var(--w, 156px); height: var(--w, 156px); transform: rotate(var(--rot, 0deg)); transition: transform .2s ease; }
-  .wb-pos:hover { transform: rotate(var(--rot, 0deg)) scale(1.07); }
+  .wb-scene { position: relative; width: 720px; height: 460px; margin: 0 auto; flex-shrink: 0; }
+  .wb-pos { position: absolute; width: var(--w, 180px); height: var(--w, 180px); transform: rotate(var(--rot, 0deg)); transition: transform .2s ease; }
+  .wb-pos:hover { transform: rotate(var(--rot, 0deg)) scale(1.06); z-index: 20; }
   .wb-pos:active { transform: rotate(var(--rot, 0deg)) scale(.94); }
   .wb-card {
     position: relative; width: 100%; height: 100%;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 14px;
-    background: linear-gradient(165deg, var(--tbg) 0%, rgba(255,255,255,.92) 78%);
-    border: 1.6px solid var(--hb, rgba(15,23,42,.1));
+    padding: 18px;
+    background:
+      radial-gradient(120% 90% at 30% 16%, rgba(255,255,255,.95) 0%, rgba(255,255,255,.22) 42%, rgba(255,255,255,0) 62%),
+      linear-gradient(160deg, var(--tdeep) 0%, var(--tbg) 55%, rgba(255,255,255,.92) 100%);
+    border: 1.6px solid var(--hb, rgba(15,23,42,.12));
     border-radius: var(--br, 50% 50% 50% 50% / 50% 50% 50% 50%);
-    box-shadow: 0 8px 22px -10px rgba(15,23,42,.16);
+    box-shadow:
+      inset 4px 6px 14px rgba(255,255,255,.85),
+      inset -6px -10px 18px rgba(15,23,42,.06),
+      0 14px 30px -12px rgba(15,23,42,.3);
     cursor: pointer; font-family: inherit;
     animation:
-      wb-float var(--dur, 4.2s) ease-in-out var(--delay, 0s) infinite,
-      wb-morph var(--mdur, 6.5s) ease-in-out var(--mdelay, 0s) infinite;
+      wb-float var(--dur, 4.6s) ease-in-out var(--delay, 0s) infinite,
+      wb-morph var(--mdur, 7s) ease-in-out var(--mdelay, 0s) infinite;
     will-change: transform, border-radius;
     transition: box-shadow .25s ease, border-color .25s ease;
   }
-  .wb-card:hover { box-shadow: 0 18px 38px -14px rgba(15,23,42,.28); border-color: var(--tcolor); animation-play-state: paused; }
-  .wb-ring {
-    position: absolute; inset: -2.5px;
-    border: 2px solid var(--tcolor); border-radius: inherit;
-    opacity: .26; pointer-events: none; transition: opacity .25s ease;
+  .wb-card:hover {
+    box-shadow:
+      inset 4px 6px 14px rgba(255,255,255,.95),
+      inset -6px -10px 18px rgba(15,23,42,.05),
+      0 20px 42px -14px rgba(15,23,42,.36);
+    border-color: var(--tcolor); animation-play-state: paused;
   }
-  .wb-card:hover .wb-ring { opacity: .55; }
+  .wb-ring {
+    position: absolute; inset: -3px;
+    border: 2px solid var(--tcolor); border-radius: inherit;
+    opacity: .3; pointer-events: none; transition: opacity .25s ease;
+  }
+  .wb-card:hover .wb-ring { opacity: .6; }
   .wb-card::before {
-    content: ""; position: absolute; top: 8%; left: 17%;
-    width: 34%; height: 22%; border-radius: 50%;
-    background: radial-gradient(closest-side, rgba(255,255,255,.95), rgba(255,255,255,0));
-    transform: rotate(-16deg); pointer-events: none; opacity: .85;
+    content: ""; position: absolute; top: 5%; left: 13%;
+    width: 48%; height: 32%; border-radius: 50%;
+    background:
+      radial-gradient(72% 62% at 34% 32%, rgba(255,255,255,.96) 0%, rgba(255,255,255,0) 72%),
+      radial-gradient(22% 15% at 24% 22%, #fff 0%, rgba(255,255,255,0) 82%);
+    transform: rotate(-14deg); pointer-events: none; opacity: .9;
     transition: opacity .25s ease, transform .4s ease;
   }
-  .wb-card:hover::before { opacity: 1; transform: rotate(-16deg) translate(3px,-2px) scale(1.08); }
+  .wb-card:hover::before { opacity: 1; transform: rotate(-14deg) translate(4px,-3px) scale(1.08); }
   .wb-card::after {
     content: ""; position: absolute; inset: 0; border-radius: inherit;
     background: radial-gradient(circle at 50% 45%, var(--tcolor) 0%, transparent 62%);
     opacity: 0; transform: scale(.35);
     transition: opacity .4s ease, transform .55s ease; pointer-events: none;
   }
-  .wb-card:hover::after { opacity: .08; transform: scale(1.6); }
+  .wb-card:hover::after { opacity: .09; transform: scale(1.55); }
   .wb-icon {
-    width: 44px; height: 44px; border-radius: 42% 58% 55% 45% / 55% 45% 58% 42%;
-    background: var(--tbg); color: var(--tcolor);
+    width: 54px; height: 54px; border-radius: 42% 58% 55% 45% / 55% 45% 58% 42%;
+    background: rgba(255,255,255,.55); color: var(--tcolor);
     display: flex; align-items: center; justify-content: center;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,.9), 0 4px 10px -6px var(--tcolor);
-    margin-bottom: 10px; transition: transform .25s ease;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.9), 0 5px 12px -6px var(--tcolor);
+    backdrop-filter: blur(2px);
+    margin-bottom: 12px; transition: transform .25s ease;
   }
   .wb-card:hover .wb-icon { transform: scale(1.1) rotate(4deg); }
-  .wb-card h3 { font-size: 13.5px; font-weight: 600; color: var(--ink); margin-bottom: 3px; }
-  .wb-card p { font-size: 11.5px; color: var(--ink-3); text-align: center; line-height: 1.45; }
-  @keyframes wb-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+  .wb-card h3 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 4px; letter-spacing: .01em; }
+  .wb-card p { font-size: 12.5px; color: #64748b; text-align: center; line-height: 1.5; }
+  @keyframes wb-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
   @keyframes wb-morph {
     0%,100% { border-radius: var(--br, 50% 50% 50% 50% / 50% 50% 50% 50%); }
     33% { border-radius: var(--br2, var(--br, 50% 50% 50% 50% / 50% 50% 50% 50%)); }
@@ -477,43 +491,43 @@
     <div class="wb-main">
       <div class="wb-body">
         <div class="wb-scene">
-          <div class="wb-pos" style="left:60px;top:18px">
-            <button class="wb-card" style="--w:162px;--rot:-6deg;--tbg:#f0f2ff;--tcolor:#2a36e0;--hb:#bcc5ff;--br:46% 54% 56% 44% / 56% 46% 54% 44%;--br2:52% 48% 42% 58% / 48% 56% 44% 52%;--br3:40% 60% 58% 42% / 60% 42% 56% 44%;--delay:0s;--dur:4.2s;--mdelay:0s;--mdur:6.2s" onclick="toast('进入：面试记录（录制 → 转写 → AI 复盘）')">
+          <div class="wb-pos" style="left:36px;top:10px">
+            <button class="wb-card" style="--w:226px;--rot:-7deg;--tdeep:#dbe0ff;--tbg:#f0f2ff;--tcolor:#2a36e0;--hb:#bcc5ff;--br:46% 54% 56% 44% / 56% 46% 54% 44%;--br2:52% 48% 42% 58% / 48% 56% 44% 52%;--br3:40% 60% 58% 42% / 60% 42% 56% 44%;--delay:0s;--dur:4.6s;--mdelay:0s;--mdur:6.6s" onclick="toast('进入：面试记录（录制 → 转写 → AI 复盘）')">
               <span class="wb-ring" aria-hidden="true"></span>
               <div class="wb-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg></div>
               <h3>面试记录</h3><p>录制 · 转写 · AI 复盘</p>
             </button>
           </div>
-          <div class="wb-pos" style="left:468px;top:36px">
-            <button class="wb-card" style="--w:146px;--rot:4deg;--tbg:#f5f3ff;--tcolor:#7c3aed;--hb:#ddd6fe;--br:58% 42% 48% 52% / 46% 56% 44% 54%;--br2:46% 54% 58% 42% / 56% 44% 52% 48%;--br3:62% 38% 44% 56% / 42% 58% 46% 54%;--delay:.5s;--dur:4.6s;--mdelay:-1.2s;--mdur:6.8s" onclick="toast('进入：我的题库（AI 提取的面试官问题）')">
+          <div class="wb-pos" style="left:500px;top:26px">
+            <button class="wb-card" style="--w:208px;--rot:4deg;--tdeep:#ede9fe;--tbg:#f5f3ff;--tcolor:#7c3aed;--hb:#ddd6fe;--br:58% 42% 48% 52% / 46% 56% 44% 54%;--br2:46% 54% 58% 42% / 56% 44% 52% 48%;--br3:62% 38% 44% 56% / 42% 58% 46% 54%;--delay:.6s;--dur:5s;--mdelay:-1.4s;--mdur:7.2s" onclick="toast('进入：我的题库（AI 提取的面试官问题）')">
               <span class="wb-ring" aria-hidden="true"></span>
               <div class="wb-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
               <h3>我的题库</h3><p>面试官问题 · 分类复习</p>
             </button>
           </div>
-          <div class="wb-pos" style="left:262px;top:218px">
-            <button class="wb-card" style="--w:152px;--rot:-2deg;--tbg:#eff6ff;--tcolor:#2563eb;--hb:#bfdbfe;--br:50% 58% 44% 50% / 52% 44% 56% 48%;--br2:42% 50% 58% 46% / 44% 58% 46% 52%;--br3:56% 44% 50% 58% / 60% 42% 52% 46%;--delay:1s;--dur:4.4s;--mdelay:-2.4s;--mdur:6.5s" onclick="toast('打开投递工作台（内嵌网页，URL 可在设置修改）')">
+          <div class="wb-pos" style="left:258px;top:224px">
+            <button class="wb-card" style="--w:214px;--rot:-3deg;--tdeep:#dbeafe;--tbg:#eff6ff;--tcolor:#2563eb;--hb:#bfdbfe;--br:50% 58% 44% 50% / 52% 44% 56% 48%;--br2:42% 50% 58% 46% / 44% 58% 46% 52%;--br3:56% 44% 50% 58% / 60% 42% 52% 46%;--delay:1.2s;--dur:4.8s;--mdelay:-2.6s;--mdur:6.9s" onclick="toast('打开投递工作台（内嵌网页，URL 可在设置修改）')">
               <span class="wb-ring" aria-hidden="true"></span>
               <div class="wb-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg></div>
               <h3>前往投递</h3><p>我的投递工作台</p>
             </button>
           </div>
-          <div class="wb-pos" style="left:18px;top:232px">
-            <button class="wb-card" style="--w:160px;--rot:3deg;--tbg:#ecfdf5;--tcolor:#059669;--hb:#a7f3d0;--br:44% 50% 54% 46% / 58% 46% 52% 44%;--br2:54% 44% 46% 56% / 46% 56% 44% 54%;--br3:40% 56% 52% 48% / 62% 44% 56% 42%;--delay:1.5s;--dur:4.8s;--mdelay:-.6s;--mdur:7.0s" onclick="switchView('agent')">
+          <div class="wb-pos" style="left:6px;top:236px">
+            <button class="wb-card" style="--w:218px;--rot:3deg;--tdeep:#d1fae5;--tbg:#ecfdf5;--tcolor:#059669;--hb:#a7f3d0;--br:44% 50% 54% 46% / 58% 46% 52% 44%;--br2:54% 44% 46% 56% / 46% 56% 44% 54%;--br3:40% 56% 52% 48% / 62% 44% 56% 42%;--delay:1.8s;--dur:5.2s;--mdelay:-.8s;--mdur:7.4s" onclick="switchView('agent')">
               <span class="wb-ring" aria-hidden="true"></span>
               <div class="wb-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4m0 4a4 4 0 0 1 4 4v6H8v-6a4 4 0 0 1 4-4z"/><path d="M4 14v1a8 8 0 0 0 16 0v-1"/><circle cx="9" cy="13" r=".8" fill="currentColor"/><circle cx="15" cy="13" r=".8" fill="currentColor"/></svg></div>
               <h3>面试助手</h3><p>智能问答 · 复盘 · 档案</p>
             </button>
           </div>
-          <div class="wb-pos" style="left:508px;top:240px">
-            <button class="wb-card" style="--w:136px;--rot:-4deg;--tbg:#fffbeb;--tcolor:#d97706;--hb:#fde68a;--br:54% 46% 50% 56% / 46% 58% 44% 52%;--br2:46% 56% 58% 42% / 56% 46% 52% 44%;--br3:60% 40% 44% 58% / 44% 56% 48% 58%;--delay:2s;--dur:4.3s;--mdelay:-3s;--mdur:6.4s" onclick="toast('进入：简历顾问（解析 · JD 匹配 · 优化）')">
+          <div class="wb-pos" style="left:500px;top:250px">
+            <button class="wb-card" style="--w:192px;--rot:-5deg;--tdeep:#fef3c7;--tbg:#fffbeb;--tcolor:#d97706;--hb:#fde68a;--br:54% 46% 50% 56% / 46% 58% 44% 52%;--br2:46% 56% 58% 42% / 56% 46% 52% 44%;--br3:60% 40% 44% 58% / 44% 56% 48% 58%;--delay:2.4s;--dur:4.7s;--mdelay:-3.2s;--mdur:6.8s" onclick="toast('进入：简历顾问（解析 · JD 匹配 · 优化）')">
               <span class="wb-ring" aria-hidden="true"></span>
               <div class="wb-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg></div>
               <h3>简历顾问</h3><p>简历分析 · JD 匹配</p>
             </button>
           </div>
-          <div class="wb-pos" style="left:296px;top:8px">
-            <button class="wb-card" style="--w:142px;--rot:5deg;--tbg:#fff1f2;--tcolor:#e11d48;--hb:#fecdd3;--br:48% 52% 46% 54% / 54% 48% 52% 46%;--br2:56% 44% 54% 46% / 46% 56% 44% 54%;--br3:44% 58% 50% 52% / 58% 44% 56% 46%;--delay:2.5s;--dur:4.7s;--mdelay:-1.8s;--mdur:7.2s" onclick="toast('意见反馈（演示）')">
+          <div class="wb-pos" style="left:246px;top:2px">
+            <button class="wb-card" style="--w:200px;--rot:6deg;--tdeep:#ffe4e6;--tbg:#fff1f2;--tcolor:#e11d48;--hb:#fecdd3;--br:48% 52% 46% 54% / 54% 48% 52% 46%;--br2:56% 44% 54% 46% / 46% 56% 44% 54%;--br3:44% 58% 50% 52% / 58% 44% 56% 46%;--delay:3s;--dur:5.1s;--mdelay:-2s;--mdur:7.6s" onclick="toast('意见反馈（演示）')">
               <span class="wb-ring" aria-hidden="true"></span>
               <div class="wb-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
               <h3>意见反馈</h3><p>变得更强</p>

@@ -71,26 +71,26 @@ button, a, input, select, textarea {
 }
 
 /* ── 主控台水滴气泡卡片（Workbench）────────────────────────── */
-/* 布局：黄金比例矩形场景（660×408 ≈ 1.618），气泡不规则散落，
+/* 布局：黄金比例矩形场景（720×460 ≈ 1.565），气泡大尺寸不规则散落（可轻微叠压），
    每颗气泡通过 .wb-pos 定位（含旋转与尺寸），.wb-card 负责浮动与形态蠕动。
-   卡片内联变量：--w 尺寸 / --rot 旋转 / --br/--br2/--br3 三态水滴形状 /
-   --tbg 浅色底 / --tcolor 图标与描边色 / --hb 边框色、
+   卡片内联变量：--w 尺寸 / --rot 旋转 / --tdeep 深色水色 / --tbg 浅色水色 /
+   --tcolor 图标与描边色 / --hb 边框色 / --br/--br2/--br3 三态水滴形状、
    --delay/--dur 浮动相位与周期、--mdelay/--mdur 形态蠕动相位与周期。 */
 .wb-scene {
   position: relative;
-  width: 660px;   /* 黄金比例：660 / 408 ≈ 1.618 */
-  height: 408px;
+  width: 720px;   /* 黄金比例：720 / 460 ≈ 1.565 */
+  height: 460px;
   margin: 0 auto;
   flex-shrink: 0;
 }
 .wb-pos {
   position: absolute;
-  width: var(--w, 156px);
-  height: var(--w, 156px);
+  width: var(--w, 180px);
+  height: var(--w, 180px);
   transform: rotate(var(--rot, 0deg));
   transition: transform 0.2s ease;
 }
-.wb-pos:hover { transform: rotate(var(--rot, 0deg)) scale(1.07); }
+.wb-pos:hover { transform: rotate(var(--rot, 0deg)) scale(1.06); z-index: 20; }
 .wb-pos:active { transform: rotate(var(--rot, 0deg)) scale(0.94); }
 
 .wb-card {
@@ -101,54 +101,66 @@ button, a, input, select, textarea {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 14px;
-  background: linear-gradient(165deg, var(--tbg) 0%, rgba(255, 255, 255, 0.92) 78%);
-  border: 1.6px solid var(--hb, rgba(15, 23, 42, 0.1));
+  padding: 18px;
+  /* 水滴质感：顶部白色光泽 + 深色到浅色的水色渐变 */
+  background:
+    radial-gradient(120% 90% at 30% 16%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.22) 42%, rgba(255, 255, 255, 0) 62%),
+    linear-gradient(160deg, var(--tdeep) 0%, var(--tbg) 55%, rgba(255, 255, 255, 0.92) 100%);
+  border: 1.6px solid var(--hb, rgba(15, 23, 42, 0.12));
   border-radius: var(--br, 50% 50% 50% 50% / 50% 50% 50% 50%);
-  box-shadow: 0 8px 22px -10px rgba(15, 23, 42, 0.16);
+  /* 内高光（左上）+ 内阴影（右下，液面深度）+ 外投影 */
+  box-shadow:
+    inset 4px 6px 14px rgba(255, 255, 255, 0.85),
+    inset -6px -10px 18px rgba(15, 23, 42, 0.06),
+    0 14px 30px -12px rgba(15, 23, 42, 0.3);
   cursor: pointer;
   font-family: inherit;
   /* 浮动 + 形态蠕动（边框随形状波动） */
   animation:
-    wb-float var(--dur, 4.2s) ease-in-out var(--delay, 0s) infinite,
-    wb-morph var(--mdur, 6.5s) ease-in-out var(--mdelay, 0s) infinite;
+    wb-float var(--dur, 4.6s) ease-in-out var(--delay, 0s) infinite,
+    wb-morph var(--mdur, 7s) ease-in-out var(--mdelay, 0s) infinite;
   will-change: transform, border-radius;
   transition: box-shadow 0.25s ease, border-color 0.25s ease;
 }
 .wb-card:hover {
-  box-shadow: 0 18px 38px -14px rgba(15, 23, 42, 0.28);
+  box-shadow:
+    inset 4px 6px 14px rgba(255, 255, 255, 0.95),
+    inset -6px -10px 18px rgba(15, 23, 42, 0.05),
+    0 20px 42px -14px rgba(15, 23, 42, 0.36);
   border-color: var(--tcolor);
   animation-play-state: paused; /* hover 时停住蠕动，聚焦内容 */
 }
 /* 外圈液态描边：与卡片同形同相位蠕动，形成双线液态轮廓 */
 .wb-ring {
   position: absolute;
-  inset: -2.5px;
+  inset: -3px;
   border: 2px solid var(--tcolor);
   border-radius: inherit; /* 跟随父级 border-radius 动画，实时同步蠕动 */
-  opacity: 0.26;
+  opacity: 0.3;
   pointer-events: none;
   transition: opacity 0.25s ease;
 }
-.wb-card:hover .wb-ring { opacity: 0.55; }
-/* 水滴顶部高光（反光点） */
+.wb-card:hover .wb-ring { opacity: 0.6; }
+/* 水滴主高光 + 高光亮点（反光点） */
 .wb-card::before {
   content: "";
   position: absolute;
-  top: 8%;
-  left: 17%;
-  width: 34%;
-  height: 22%;
+  top: 5%;
+  left: 13%;
+  width: 48%;
+  height: 32%;
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0));
-  transform: rotate(-16deg);
+  background:
+    radial-gradient(72% 62% at 34% 32%, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0) 72%),
+    radial-gradient(22% 15% at 24% 22%, #ffffff 0%, rgba(255, 255, 255, 0) 82%);
+  transform: rotate(-14deg);
   pointer-events: none;
-  opacity: 0.85;
+  opacity: 0.9;
   transition: opacity 0.25s ease, transform 0.4s ease;
 }
 .wb-card:hover::before {
   opacity: 1;
-  transform: rotate(-16deg) translate(3px, -2px) scale(1.08);
+  transform: rotate(-14deg) translate(4px, -3px) scale(1.08);
 }
 /* hover 涟漪（从中心扩散的水波） */
 .wb-card::after {
@@ -163,40 +175,42 @@ button, a, input, select, textarea {
   pointer-events: none;
 }
 .wb-card:hover::after {
-  opacity: 0.08;
-  transform: scale(1.6);
+  opacity: 0.09;
+  transform: scale(1.55);
 }
 .wb-card .wb-icon {
-  width: 44px;
-  height: 44px;
+  width: 54px;
+  height: 54px;
   border-radius: 42% 58% 55% 45% / 55% 45% 58% 42%;
-  background: var(--tbg);
+  background: rgba(255, 255, 255, 0.55);
   color: var(--tcolor);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 10px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9), 0 4px 10px -6px var(--tcolor);
+  margin-bottom: 12px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9), 0 5px 12px -6px var(--tcolor);
+  backdrop-filter: blur(2px);
   transition: transform 0.25s ease;
 }
 .wb-card:hover .wb-icon {
   transform: scale(1.1) rotate(4deg);
 }
 .wb-card h3 {
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   color: #0f172a;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
+  letter-spacing: 0.01em;
 }
 .wb-card p {
-  font-size: 11.5px;
-  color: #94a3b8;
+  font-size: 12.5px;
+  color: #64748b;
   text-align: center;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 @keyframes wb-float {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-7px); }
+  50% { transform: translateY(-9px); }
 }
 /* 形态蠕动：border-radius 在三态水滴形状间过渡，边框随之波动 */
 @keyframes wb-morph {
