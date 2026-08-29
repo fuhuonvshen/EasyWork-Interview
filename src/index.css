@@ -222,3 +222,79 @@ button, a, input, select, textarea {
 @media (prefers-reduced-motion: reduce) {
   .wb-card { animation: none; }
 }
+
+/* ── 主控台右侧对话面板（Workbench 常驻抽屉）────────────────── */
+.wb-dock {
+  width: 356px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 18px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px -16px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+  transition: width 0.22s ease;
+  margin-bottom: 12px;
+}
+.wb-dock-collapsed {
+  width: 46px;
+}
+.wb-dock-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  flex-shrink: 0;
+}
+.wb-dock-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #10b981, #0ea5a4);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 14px -6px rgba(16, 185, 129, 0.5);
+}
+.wb-dock-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.wb-dock-hint {
+  font-size: 10.5px;
+  color: #94a3b8;
+  padding: 8px 12px;
+  border-top: 1px dashed rgba(15, 23, 42, 0.08);
+  flex-shrink: 0;
+  text-align: center;
+}
+.wb-dock-bar {
+  width: 100%;
+  height: 100%;
+  border: none;
+  cursor: pointer;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+  color: #475569;
+  font-family: inherit;
+}
+.wb-dock-bar:hover {
+  color: #0f766e;
+  background: rgba(16, 185, 129, 0.05);
+}
+.wb-dock-bar span {
+  writing-mode: vertical-rl;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+}
