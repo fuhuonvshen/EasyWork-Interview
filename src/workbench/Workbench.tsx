@@ -20,7 +20,7 @@ const WORKBENCH_CARDS: {
     title: "面试记录",
     desc: "录制 · 转写 · AI 复盘",
     action: "history",
-    style: { "--br": "46% 54% 56% 44% / 56% 46% 54% 44%", "--tbg": "#f0f2ff", "--tcolor": "#2a36e0", "--hb": "#bcc5ff", "--delay": "0s", "--dur": "4.2s" } as CSSProperties,
+    style: { "--br": "46% 54% 56% 44% / 56% 46% 54% 44%", "--tbg": "#f0f2ff", "--tcolor": "#2a36e0", "--hb": "#bcc5ff", "--delay": "0s", "--dur": "4.2s", "--offy": "0px", "--offx": "0px" } as CSSProperties,
   },
   {
     key: "questions",
@@ -28,7 +28,7 @@ const WORKBENCH_CARDS: {
     title: "我的题库",
     desc: "面试官问题 · 分类复习",
     action: "questions",
-    style: { "--br": "58% 42% 48% 52% / 46% 56% 44% 54%", "--tbg": "#f5f3ff", "--tcolor": "#7c3aed", "--hb": "#ddd6fe", "--delay": ".5s", "--dur": "4.6s" } as CSSProperties,
+    style: { "--br": "58% 42% 48% 52% / 46% 56% 44% 54%", "--tbg": "#f5f3ff", "--tcolor": "#7c3aed", "--hb": "#ddd6fe", "--delay": ".5s", "--dur": "4.6s", "--offy": "34px", "--offx": "10px" } as CSSProperties,
   },
   {
     key: "apply",
@@ -36,7 +36,7 @@ const WORKBENCH_CARDS: {
     title: "前往投递",
     desc: "我的投递工作台",
     action: "apply",
-    style: { "--br": "50% 58% 44% 50% / 52% 44% 56% 48%", "--tbg": "#eff6ff", "--tcolor": "#2563eb", "--hb": "#bfdbfe", "--delay": "1s", "--dur": "4.4s" } as CSSProperties,
+    style: { "--br": "50% 58% 44% 50% / 52% 44% 56% 48%", "--tbg": "#eff6ff", "--tcolor": "#2563eb", "--hb": "#bfdbfe", "--delay": "1s", "--dur": "4.4s", "--offy": "12px", "--offx": "-8px" } as CSSProperties,
   },
   {
     key: "agent",
@@ -44,7 +44,7 @@ const WORKBENCH_CARDS: {
     title: "面试助手",
     desc: "智能问答 · 复盘 · 求职档案",
     action: "agent",
-    style: { "--br": "44% 50% 54% 46% / 58% 46% 52% 44%", "--tbg": "#ecfdf5", "--tcolor": "#059669", "--hb": "#a7f3d0", "--delay": "1.5s", "--dur": "4.8s" } as CSSProperties,
+    style: { "--br": "44% 50% 54% 46% / 58% 46% 52% 44%", "--tbg": "#ecfdf5", "--tcolor": "#059669", "--hb": "#a7f3d0", "--delay": "1.5s", "--dur": "4.8s", "--offy": "48px", "--offx": "6px" } as CSSProperties,
   },
   {
     key: "resume",
@@ -52,7 +52,7 @@ const WORKBENCH_CARDS: {
     title: "简历顾问",
     desc: "简历分析 · JD 匹配 · 优化",
     action: "resume",
-    style: { "--br": "54% 46% 50% 56% / 46% 58% 44% 52%", "--tbg": "#fffbeb", "--tcolor": "#d97706", "--hb": "#fde68a", "--delay": "2s", "--dur": "4.3s" } as CSSProperties,
+    style: { "--br": "54% 46% 50% 56% / 46% 58% 44% 52%", "--tbg": "#fffbeb", "--tcolor": "#d97706", "--hb": "#fde68a", "--delay": "2s", "--dur": "4.3s", "--offy": "22px", "--offx": "-12px" } as CSSProperties,
   },
   {
     key: "feedback",
@@ -60,7 +60,7 @@ const WORKBENCH_CARDS: {
     title: "意见反馈",
     desc: "变得更强",
     action: "feedback",
-    style: { "--br": "48% 52% 46% 54% / 54% 48% 52% 46%", "--tbg": "#fff1f2", "--tcolor": "#e11d48", "--hb": "#fecdd3", "--delay": "2.5s", "--dur": "4.7s" } as CSSProperties,
+    style: { "--br": "48% 52% 46% 54% / 54% 48% 52% 46%", "--tbg": "#fff1f2", "--tcolor": "#e11d48", "--hb": "#fecdd3", "--delay": "2.5s", "--dur": "4.7s", "--offy": "56px", "--offx": "0px" } as CSSProperties,
   },
 ];
 
@@ -75,7 +75,7 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
     <div className="h-full flex flex-col">
       {/* Main content */}
       <div className="flex-1 flex items-center justify-center overflow-y-auto">
-        <div className="grid grid-cols-2 gap-x-10 gap-y-8 max-w-2xl mx-auto px-6 py-6">
+        <div className="grid grid-cols-2 gap-x-12 gap-y-4 max-w-3xl mx-auto px-8 pt-8 pb-16">
           {WORKBENCH_CARDS.map((card) => {
             const Icon = card.icon;
             return (
@@ -85,6 +85,7 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
                 className="wb-card"
                 style={card.style}
               >
+                <span className="wb-ring" aria-hidden="true" />
                 <div className="wb-icon">
                   <Icon size={28} />
                 </div>

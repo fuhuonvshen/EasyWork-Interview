@@ -72,7 +72,13 @@ button, a, input, select, textarea {
 
 /* ── 主控台水滴气泡卡片（Workbench）────────────────────────── */
 /* 每个卡片通过内联 CSS 变量定制：--br 气泡形状 / --tbg 浅色底 / --tcolor 图标色 /
-   --hb hover 边框色 / --delay 浮动相位 / --dur 浮动周期 */
+   --hb hover 边框色 / --delay 浮动相位 / --dur 浮动周期 / --offy 垂直错位 / --offx 水平错位 */
+@property --wba {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
 .wb-card {
   position: relative;
   display: flex;
@@ -81,6 +87,8 @@ button, a, input, select, textarea {
   justify-content: center;
   padding: 30px 20px;
   min-height: 158px;
+  margin-top: var(--offy, 0px);
+  margin-left: var(--offx, 0px);
   background: linear-gradient(165deg, var(--tbg) 0%, rgba(255, 255, 255, 0.92) 78%);
   border: 1px solid rgba(15, 23, 42, 0.06);
   border-radius: var(--br, 50% 50% 50% 50% / 50% 50% 50% 50%);
@@ -99,6 +107,30 @@ button, a, input, select, textarea {
 }
 .wb-card:active {
   transform: scale(0.96) !important;
+}
+/* 动态流转边框：沿气泡边缘旋转的光带 */
+.wb-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.8px;
+  background: conic-gradient(
+    from var(--wba),
+    transparent 0deg 200deg,
+    var(--tcolor) 290deg 340deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: wb-ring-spin 3.6s linear infinite;
+  opacity: 0.5;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.wb-card:hover .wb-ring {
+  opacity: 1;
 }
 /* 水滴顶部高光（反光点） */
 .wb-card::before {
@@ -167,7 +199,11 @@ button, a, input, select, textarea {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-7px); }
 }
+@keyframes wb-ring-spin {
+  to { --wba: 360deg; }
+}
 /* 尊重系统"减少动态效果"偏好 */
 @media (prefers-reduced-motion: reduce) {
   .wb-card { animation: none; }
+  .wb-ring { animation: none; opacity: 0.35; }
 }
