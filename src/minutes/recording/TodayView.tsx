@@ -48,7 +48,7 @@ export default function TodayView({
   const [isInterview, setIsInterview] = useState(true);
   const [company, setCompany] = useState("");
   const [position, setPosition] = useState("");
-  const [stage, setStage] = useState("online");
+  const [stage, setStage] = useState("one");
   const [elapsed, setElapsed] = useState(0);
   const dragStartXRef = useRef(0);
   const dragStartYRef = useRef(0);
@@ -471,11 +471,10 @@ export default function TodayView({
                 <Select
                   value={stage}
                   options={[
-                    { value: "phone", label: "电话面" },
-                    { value: "online", label: "线上面" },
-                    { value: "onsite", label: "现场面" },
-                    { value: "mock", label: "模拟面试" },
-                    { value: "offer", label: "Offer 沟通" },
+                    { value: "hr", label: "HR面" },
+                    { value: "one", label: "一面" },
+                    { value: "two", label: "二面" },
+                    { value: "three", label: "三面" },
                   ]}
                   onChange={setStage}
                 />

@@ -473,6 +473,29 @@ pub async fn interview_question_delete(
         .map_err(|e| format!("删除面试题失败: {}", e))
 }
 
+/// 手动修改题目（用户纠正 AI 提取的内容）
+#[tauri::command]
+pub async fn interview_question_update(
+    id: String,
+    category: String,
+    difficulty: String,
+    question: String,
+    expected_answer: Option<String>,
+    db: State<'_, DbState>,
+) -> Result<(), String> {
+    let difficulty = if difficulty.is_empty() { "medium".to_string() } else { difficulty };
+    crate::database::repo::update_interview_question(
+        &db.0,
+        &id,
+        &category,
+        &difficulty,
+        &question,
+        expected_answer.as_deref(),
+    )
+    .await
+    .map_err(|e| format!("更新面试题失败: {}", e))
+}
+
 /// 查询某场面试提取出的全部题目（含未入题库的待确认项）— 纪要弹窗/历史记录用
 #[tauri::command]
 pub async fn get_meeting_questions(

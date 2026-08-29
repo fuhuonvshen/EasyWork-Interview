@@ -208,6 +208,7 @@ pub fn run() {
             minutes::meeting::get_interview_assessment,
             minutes::meeting::interview_question_create,
             minutes::meeting::interview_question_list,
+            minutes::meeting::interview_question_update,
             minutes::meeting::interview_question_delete,
             minutes::meeting::get_meeting_questions,
             minutes::meeting::add_questions_to_bank,

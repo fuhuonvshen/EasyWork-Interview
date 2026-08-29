@@ -3,11 +3,10 @@ import { useState, useId } from "react";
 import type { ScheduledMeeting } from "../types";
 
 export const STAGE_OPTIONS = [
-  { value: "apply", label: "投递" },
-  { value: "phone", label: "电话面" },
-  { value: "online", label: "线上面" },
-  { value: "onsite", label: "现场面" },
-  { value: "offer", label: "Offer" },
+  { value: "hr", label: "HR面" },
+  { value: "one", label: "一面" },
+  { value: "two", label: "二面" },
+  { value: "three", label: "三面" },
 ];
 
 interface Props {
@@ -23,7 +22,7 @@ export default function ScheduleForm({ editingMeeting, initialDate, onSubmit, on
   const [zoomUrl, setZoomUrl] = useState(editingMeeting?.zoom_url ?? "");
   const [date, setDate] = useState(editingMeeting?.start_time.slice(0, 10) ?? initialDate ?? "");
   const [time, setTime] = useState(editingMeeting?.start_time.slice(11, 16) ?? "");
-  const [stage, setStage] = useState(editingMeeting?.stage || "online");
+  const [stage, setStage] = useState(editingMeeting?.stage || "one");
 
   const canSubmit = title.trim() && date && time;
 

@@ -225,7 +225,7 @@ button, a, input, select, textarea {
 
 /* ── 主控台右侧对话面板（Workbench 常驻抽屉）────────────────── */
 .wb-dock {
-  width: 356px;
+  width: 384px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -244,10 +244,24 @@ button, a, input, select, textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
   flex-shrink: 0;
 }
+/* 抽屉内嵌聊天的紧凑排版：padding 更小、字号略小 */
+.wb-dock-chat {
+  font-size: 12.5px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.wb-dock-chat .px-8 { padding-left: 14px; padding-right: 14px; }
+.wb-dock-chat .py-6 { padding-top: 10px; padding-bottom: 10px; }
+.wb-dock-chat .px-6 { padding-left: 10px; padding-right: 10px; }
+.wb-dock-chat .py-4 { padding-top: 8px; padding-bottom: 8px; }
+.wb-dock-chat .space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.6rem; }
+.wb-dock-chat .mb-5 { margin-bottom: 0.75rem; }
 .wb-dock-avatar {
   width: 28px;
   height: 28px;

@@ -1267,6 +1267,29 @@ pub async fn delete_interview_question(pool: &SqlitePool, id: &str) -> Result<()
     Ok(())
 }
 
+/// 手动修改题目内容（题库里的题允许用户纠正 AI 提取的内容）
+pub async fn update_interview_question(
+    pool: &SqlitePool,
+    id: &str,
+    category: &str,
+    difficulty: &str,
+    question: &str,
+    expected_answer: Option<&str>,
+) -> Result<()> {
+    sqlx::query(
+        "UPDATE interview_questions SET category = ?, difficulty = ?, question = ?, expected_answer = ? WHERE id = ?",
+    )
+    .bind(category)
+    .bind(difficulty)
+    .bind(question)
+    .bind(expected_answer)
+    .bind(id)
+    .execute(pool)
+    .await
+    .context("更新面试题失败")?;
+    Ok(())
+}
+
 // ── 简历（Resume）────────────────────────────────────────────
 
 use super::models::Resume;

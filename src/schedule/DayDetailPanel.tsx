@@ -5,11 +5,10 @@ import type { ScheduledMeeting } from "../types";
 import { STAGE_OPTIONS } from "./ScheduleForm";
 
 const STAGE_STYLE: Record<string, string> = {
-  apply: "bg-sky-50 text-sky-700 border-sky-200",
-  phone: "bg-sky-50 text-sky-700 border-sky-200",
-  online: "bg-violet-50 text-violet-700 border-violet-200",
-  onsite: "bg-amber-50 text-amber-700 border-amber-200",
-  offer: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  hr: "bg-sky-50 text-sky-700 border-sky-200",
+  one: "bg-violet-50 text-violet-700 border-violet-200",
+  two: "bg-amber-50 text-amber-700 border-amber-200",
+  three: "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
 const stageLabel = (v: string) => STAGE_OPTIONS.find((s) => s.value === v)?.label || v;
 

@@ -23,11 +23,10 @@ interface MeetingDetail {
 
 // 面试阶段 → 展示文案与颜色
 export const STAGE_LABELS: Record<string, { label: string; cls: string }> = {
-  phone: { label: "电话面", cls: "bg-sky-50 text-sky-700 border-sky-200" },
-  online: { label: "线上面", cls: "bg-violet-50 text-violet-700 border-violet-200" },
-  onsite: { label: "现场面", cls: "bg-amber-50 text-amber-700 border-amber-200" },
-  mock: { label: "模拟面试", cls: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200" },
-  offer: { label: "Offer", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  hr: { label: "HR面", cls: "bg-sky-50 text-sky-700 border-sky-200" },
+  one: { label: "一面", cls: "bg-violet-50 text-violet-700 border-violet-200" },
+  two: { label: "二面", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  three: { label: "三面", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
 };
 
 interface TranscriptChunk {

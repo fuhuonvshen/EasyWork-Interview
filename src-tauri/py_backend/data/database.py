@@ -75,7 +75,7 @@ class Database:
         # 日程阶段
         try:
             await self._conn.execute(
-                "ALTER TABLE scheduled_meetings ADD COLUMN stage TEXT NOT NULL DEFAULT 'apply'"
+                "ALTER TABLE scheduled_meetings ADD COLUMN stage TEXT NOT NULL DEFAULT 'one'"
             )
         except Exception:
             pass  # Column already exists
@@ -354,7 +354,7 @@ class Database:
 
     async def insert_schedule(self, title: str, start_time: str,
                               end_time: str | None = None,
-                              zoom_url: str = "", stage: str = "apply") -> str:
+                              zoom_url: str = "", stage: str = "one") -> str:
         sched_id = uuid.uuid4().hex
         now = datetime.now(timezone.utc).isoformat()
         end = end_time or ""
@@ -385,7 +385,7 @@ class Database:
 
     async def update_schedule(self, sched_id: str, title: str,
                               start_time: str, end_time: str = "",
-                              zoom_url: str = "", stage: str = "apply") -> None:
+                              zoom_url: str = "", stage: str = "one") -> None:
         await self.conn.execute(
             "UPDATE scheduled_meetings SET title = ?, zoom_url = ?, start_time = ?, end_time = ?, stage = ? WHERE id = ?",
             (title, zoom_url, start_time, end_time, stage, sched_id),

@@ -6,14 +6,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import Workbench from "./workbench/Workbench";
 import FeedbackView from "./workbench/FeedbackView";
+import ResumeView from "./workbench/ResumeView";
 import MinutesApp from "./minutes";
 import AgentApp from "./agent/AgentApp";
 import QuestionBankView from "./questions/QuestionBankView";
 import ApplyView from "./apply/ApplyView";
-import SettingsView from "./settings/SettingsView";
 import ReminderModal from "./ReminderModal";
 import TitleBar from "./components/TitleBar";
-import { ToastContainer, showToast } from "./components/Toast";
+import { ToastContainer } from "./components/Toast";
 import UpdateDialog from "./components/UpdateDialog";
 import type { MinutesTab } from "./types";
 
@@ -21,7 +21,7 @@ const MINUTES_TABS: MinutesTab[] = ["today", "history", "schedule", "reports"];
 const isMinutesTab = (v: string): v is MinutesTab => MINUTES_TABS.includes(v as MinutesTab);
 
 export default function App() {
-  const [view, setView] = useState<"workbench" | "minutes" | "agent" | "feedback" | "questions" | "apply" | "settings">("workbench");
+  const [view, setView] = useState<"workbench" | "minutes" | "agent" | "feedback" | "questions" | "apply" | "resume">("workbench");
   const [prefillTitle, setPrefillTitle] = useState("");
   const [initialTab, setInitialTab] = useState<MinutesTab>("today");
 
@@ -165,18 +165,6 @@ export default function App() {
     setView("minutes");
   }, []);
 
-  // 题库「如何回答」：创建新话题并自动发送（隐藏意图前缀，服务端检测后剥离）
-  const handleAskQuestion = useCallback(async (question: string) => {
-    try {
-      const convId = await invoke<string>("agent_create_conversation", { convType: "general" });
-      setAgentPending({ convId, message: `[回答面试题] ${question}` });
-      setView("agent");
-    } catch (e) {
-      console.error("创建回答演练对话失败", e);
-      setView("agent");
-    }
-  }, []);
-
   // 面试详情页「让 AI 深度复盘」：创建 review 对话并注入面试上下文
   const handleReview = useCallback(async (meetingId: string, title: string) => {
     try {
@@ -191,9 +179,17 @@ export default function App() {
     }
   }, []);
 
-  // 工作台卡片入口：resume / mock 直接创建对应角色对话
+  // 工作台卡片入口：resume 打开简历顾问页（简历管理 + AI 侧边栏）
   const handleWorkbenchEnter = useCallback(async (title?: string, action?: string) => {
-    if (action === "agent") {
+    if (action === "agent" || action === "mock") {
+      if (action === "mock") {
+        try {
+          const convId = await invoke<string>("agent_create_conversation", { convType: "mock" });
+          setAgentPending({ convId, message: "开始一场模拟面试，请先问我目标岗位" });
+        } catch (e) {
+          console.error("创建模拟面试对话失败", e);
+        }
+      }
       setView("agent");
     } else if (action === "feedback") {
       setView("feedback");
@@ -201,21 +197,8 @@ export default function App() {
       setView("questions");
     } else if (action === "apply") {
       setView("apply");
-    } else if (action === "settings") {
-      setView("settings");
-    } else if (action === "resume" || action === "mock") {
-      try {
-        const convType = action === "resume" ? "resume" : "mock";
-        const convId = await invoke<string>("agent_create_conversation", { convType });
-        setAgentPending({
-          convId,
-          message: action === "resume" ? "请帮我分析简历，并告诉我需要补充哪些信息" : "开始一场模拟面试，请先问我目标岗位",
-        });
-        setView("agent");
-      } catch (e) {
-        console.error("创建角色对话失败", e);
-        setView("agent");
-      }
+    } else if (action === "resume") {
+      setView("resume");
     } else {
       setPrefillTitle(title || "");
       setCurrentScheduleId(null);
@@ -280,13 +263,13 @@ export default function App() {
         <AgentApp onBack={() => setView("workbench")} initStatus={agentInitStatus} pendingPrompt={agentPending} />
       )}
       {view === "questions" && (
-        <QuestionBankView onBack={() => setView("workbench")} onAsk={handleAskQuestion} />
+        <QuestionBankView onBack={() => setView("workbench")} onExpand={() => setView("agent")} />
       )}
       {view === "apply" && (
         <ApplyView onBack={() => setView("workbench")} />
       )}
-      {view === "settings" && (
-        <SettingsView onBack={() => setView("workbench")} />
+      {view === "resume" && (
+        <ResumeView onBack={() => setView("workbench")} onExpand={() => setView("agent")} />
       )}
       {view === "feedback" && (
         <FeedbackView onBack={() => setView("workbench")} />

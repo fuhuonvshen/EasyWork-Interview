@@ -23,7 +23,7 @@ pub async fn add_scheduled_meeting(
         start_time,
         end_time,
         created_at: now,
-        stage: stage.unwrap_or_else(|| "apply".into()),
+        stage: stage.unwrap_or_else(|| "one".into()),
     };
     crate::database::repo::insert_scheduled_meeting(&db.0, &m)
         .await
@@ -57,7 +57,7 @@ pub async fn update_scheduled_meeting(
         start_time,
         end_time,
         created_at: String::new(),
-        stage: stage.unwrap_or_else(|| "apply".into()),
+        stage: stage.unwrap_or_else(|| "one".into()),
     };
     crate::database::repo::update_scheduled_meeting(&db.0, &m)
         .await

@@ -17,7 +17,7 @@ export interface MeetingRow {
   kind: string;              // "meeting" | "interview"
   company: string | null;
   position: string | null;
-  stage: string | null;      // "phone" | "online" | "onsite" | "mock" | "offer"
+  stage: string | null;      // "hr" | "one" | "two" | "three"
   score: number | null;      // AI 评估总分 0-100
 }
 
@@ -55,7 +55,7 @@ export interface ScheduledMeeting {
   start_time: string;
   end_time: string;
   created_at: string;
-  stage: string;             // "apply" | "phone" | "online" | "onsite" | "offer"
+  stage: string;             // "hr" | "one" | "two" | "three"
 }
 
 export type ModelStatus =
