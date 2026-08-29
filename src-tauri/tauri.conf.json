@@ -1,0 +1,64 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicedoc/schemas/main/tauri/tauri.conf.schema.json",
+  "productName": "EasyWork",
+  "version": "1.0.7",
+  "identifier": "com.easywork",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1421",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "EasyWork",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 615,
+        "center": true,
+        "resizable": true,
+        "decorations": false,
+        "titleBarStyle": "Overlay"
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$APPDATA/**/*"
+        ]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "resources": [
+      "binaries/easywork-agent"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "infoPlist": "Info.plist"
+    },
+    "icon": [
+      "icons/icon.ico",
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE4NUI2QjFGMzcxRjVBRQpSV1N1OVhIenNiYUZBWG5vdEZYeE9rYVV3c04yb1h1SWlZSUVmbmoxYkdiSFkwSzJXT3RkWHNzWAo=",
+      "endpoints": [
+        "https://github.com/fuhuonvshen/EasyWork/releases/latest/download/update.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

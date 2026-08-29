@@ -1,0 +1,71 @@
+/* EasyWork - 全局样式
+   引入 Tailwind CSS + 中英文 Web 字体。
+   包含自定义滚动条样式和全局过渡效果。 */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 全局防文字选中：桌面应用界面文字不可被鼠标选中（input/textarea 例外） */
+* {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Smooth transitions for all interactive elements */
+button, a, input, select, textarea {
+  transition: all 0.15s ease;
+}
+
+/* 玻璃质感背景（底层底图）：浅灰蓝渐变 + 微光光斑。
+   光斑核心较实、边缘快速衰减，让上层遮罩的 backdrop-blur 真正柔化边缘，
+   产生朦胧微光效果。 */
+.app-bg {
+  background:
+    radial-gradient(520px 320px at 12% -8%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.95) 32%, rgba(255, 255, 255, 0) 68%),
+    radial-gradient(480px 300px at 88% -4%, rgba(178, 205, 238, 0.6) 0%, rgba(178, 205, 238, 0.6) 30%, rgba(178, 205, 238, 0) 66%),
+    radial-gradient(420px 280px at 6% 108%, rgba(196, 216, 243, 0.55) 0%, rgba(196, 216, 243, 0.55) 28%, rgba(196, 216, 243, 0) 64%),
+    radial-gradient(400px 260px at 94% 102%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.85) 30%, rgba(255, 255, 255, 0) 62%),
+    linear-gradient(168deg, #edf2fa 0%, #dfe7f2 48%, #e8eef7 100%);
+}
+
+/* Subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}

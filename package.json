@@ -1,0 +1,47 @@
+{
+  "name": "easywork",
+  "version": "1.0.1",
+  "private": true,
+  "type": "module",
+  "description": "EasyWork 办公助手 - 本地 AI 会议纪要，支持音频捕获、Whisper 转写、本地 LLM 纪要生成",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev --release",
+    "tauri:dev:debug": "tauri dev",
+    "tauri:build": "tauri build",
+    "server": "node server-demo.js"
+  },
+  "dependencies": {
+    "@blocknote/core": "^0.36.0",
+    "@blocknote/react": "^0.36.0",
+    "@blocknote/shadcn": "^0.36.0",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-notification": "^2.3.3",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.10.1",
+    "lucide-react": "^0.400.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.5.0",
+    "vite": "^5.3.0"
+  },
+  "optionalDependencies": {
+    "@tauri-apps/cli-darwin-arm64": "^2",
+    "@tauri-apps/cli-darwin-x64": "^2"
+  }
+}

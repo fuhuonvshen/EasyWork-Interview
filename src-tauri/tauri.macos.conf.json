@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicedoc/schemas/main/tauri/tauri.conf.schema.json",
+  "bundle": {
+    "resources": [
+      "binaries/easywork-agent",
+      "binaries/llama-server",
+      "binaries/*.dylib"
+    ]
+  }
+}

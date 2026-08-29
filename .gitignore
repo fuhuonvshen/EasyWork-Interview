@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+
+# Rust build
+src-tauri/target/
+
+# Frontend build
+dist/
+
+# Environment files (may contain API keys)
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Python virtual environment
+.venv/
+
+# Agent runtime directories
+agent_input/
+agent_output/
+src-tauri/py_backend/agent_input/
+src-tauri/py_backend/agent_output/
+src-tauri/py_backend/.coverage
+src-tauri/py_backend/htmlcov/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Claude Code local state (settings, memories, worktrees)
+.claude/
+
+# Build logs
+build_errors.txt
+src-tauri/agent_debug.log
+
+# Platform-specific binaries (llama-server, CUDA DLLs, etc.) — downloaded at runtime
+src-tauri/binaries/
+
+# Local SQLite database (generated at runtime)
+src-tauri/easywork.db
+
+# Downloaded models (Whisper, SenseVoice, GGUF)
+src-tauri/models/
+
+# Prebuilt sherpa-onnx static libraries (downloaded by build script)
+src-tauri/sherpa-lib/
+
+# Cargo build cache (backup files)
+src-tauri/.cargo/config.toml.bak
+
+# Tauri build artifacts
+src-tauri/build/
+src-tauri/gen/
+src-tauri/easywork-build/
+
+# Debug logs
+agent_debug.log
