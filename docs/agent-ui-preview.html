@@ -320,57 +320,36 @@
   }
   .vt.active { background: #fff; color: var(--primary-2); box-shadow: 0 2px 8px -2px rgba(15,23,42,.15); }
 
-  /* ── 主控台（工作台）── */
+  /* ── 主控台（工作台，原版简洁风格）── */
   .wb { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .wb-body { flex: 1; display: flex; align-items: center; justify-content: center; overflow-y: auto; }
-  .wb-inner { width: 100%; max-width: 860px; padding: 0 24px; }
-  .wb-hero { text-align: center; margin-bottom: 26px; }
-  .wb-badge {
-    display: inline-flex; align-items: center; gap: 7px;
-    padding: 5px 14px; border-radius: 999px;
-    background: rgba(255,255,255,.85); border: 1px solid rgba(16,185,129,.25);
-    color: #047857; font-size: 11.5px; font-weight: 600; box-shadow: 0 4px 14px -6px rgba(16,185,129,.3);
-    margin-bottom: 14px;
-  }
-  .wb-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); animation: pulse 1.4s infinite; }
-  .wb-hero h1 { font-size: 30px; font-weight: 800; color: var(--ink); letter-spacing: -.02em; }
-  .wb-hero h1 .grad { background: linear-gradient(90deg, #10b981, #0d9488); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .wb-hero p { font-size: 13px; color: var(--ink-3); margin-top: 6px; }
-  .wb-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .wb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 672px; width: 100%; margin: 0 auto; padding: 16px 16px; }
   .wb-card {
-    position: relative; overflow: hidden;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 26px 18px; min-height: 158px;
-    background: rgba(255,255,255,.88); backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,.65); border-radius: 22px;
-    box-shadow: 0 1px 3px rgba(15,23,42,.05);
-    cursor: pointer; transition: all .2s ease; font-family: inherit;
+    padding: 32px; min-height: 172px;
+    background: #fff; border: 1px solid rgba(15,23,42,.06); border-radius: 24px;
+    box-shadow: 0 1px 2px rgba(15,23,42,.04);
+    cursor: pointer; transition: all .18s ease; font-family: inherit;
   }
-  .wb-card:hover { transform: translateY(-4px); box-shadow: 0 18px 36px -18px rgba(15,23,42,.22); }
-  .wb-card:active { transform: scale(.98); }
-  .wb-card::before {
-    content: ""; position: absolute; inset: 0 0 auto 0; height: 4px;
-    background: linear-gradient(90deg, var(--gc1), var(--gc2)); opacity: 0; transition: opacity .2s ease;
-  }
-  .wb-card:hover::before { opacity: 1; }
+  .wb-card:hover { box-shadow: 0 10px 24px -12px rgba(15,23,42,.18); transform: scale(.985); background: var(--hbg); border-color: var(--hb); }
+  .wb-card:active { transform: scale(.97); }
   .wb-icon {
-    width: 52px; height: 52px; border-radius: 16px;
-    background: linear-gradient(135deg, var(--gc1), var(--gc2));
-    display: flex; align-items: center; justify-content: center; color: #fff;
-    box-shadow: 0 10px 22px -10px var(--gc1);
-    margin-bottom: 14px; transition: transform .2s ease;
+    width: 64px; height: 64px; border-radius: 16px;
+    background: var(--tbg); color: var(--tcolor);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 16px; transition: transform .18s ease;
   }
-  .wb-card:hover .wb-icon { transform: scale(1.1) rotate(3deg); }
-  .wb-card h3 { font-size: 14.5px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
-  .wb-card p { font-size: 11.5px; color: var(--ink-3); }
+  .wb-card:hover .wb-icon { transform: scale(1.1); }
+  .wb-card h3 { font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+  .wb-card p { font-size: 14px; color: var(--ink-3); text-align: center; line-height: 1.5; }
   .wb-foot {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 26px; flex-shrink: 0; font-size: 11.5px; color: var(--ink-3);
+    padding: 12px 32px; flex-shrink: 0; font-size: 12px; color: var(--ink-3);
   }
   .wb-foot .links { display: flex; gap: 4px; }
   .wb-foot .links button {
     border: none; background: none; cursor: pointer; font-family: inherit;
-    font-size: 11.5px; color: var(--ink-3); padding: 6px 10px; border-radius: 8px; transition: color .15s;
+    font-size: 12px; color: var(--ink-3); padding: 6px 12px; border-radius: 8px; transition: color .15s;
   }
   .wb-foot .links button:hover { color: var(--ink-2); background: rgba(15,23,42,.04); }
 </style>
@@ -393,41 +372,34 @@
     </div>
   </div>
 
-  <!-- ═══ 视图 1：主控台（面试工作台）═══ -->
+  <!-- ═══ 视图 1：主控台（面试工作台，原版风格）═══ -->
   <div id="viewWorkbench" class="wb">
     <div class="wb-body">
-      <div class="wb-inner">
-        <div class="wb-hero">
-          <span class="wb-badge"><span class="dot"></span>求职备考 · 隐私优先 · 本地 AI</span>
-          <h1>面试<span class="grad">工作台</span></h1>
-          <p>记录每一场面试，让 AI 帮你复盘、改进、拿下 Offer</p>
-        </div>
-        <div class="wb-grid">
-          <button class="wb-card" style="--gc1:#34d399;--gc2:#14b8a6" onclick="toast('进入：面试记录（录制 → 转写 → AI 复盘）')">
-            <div class="wb-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><path d="M12 18v4"/></svg></div>
-            <h3>面试记录</h3><p>录制 · 转写 · AI 复盘</p>
-          </button>
-          <button class="wb-card" style="--gc1:#38bdf8;--gc2:#6366f1" onclick="toast('进入：面试日程（投递 → 一面 → Offer）')">
-            <div class="wb-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
-            <h3>面试日程</h3><p>投递 · 一面 · Offer 全流程</p>
-          </button>
-          <button class="wb-card" style="--gc1:#a78bfa;--gc2:#a855f7" onclick="toast('进入：复盘报告（投递统计 · 通过率）')">
-            <div class="wb-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></div>
-            <h3>复盘报告</h3><p>投递统计 · 通过率 · 对比</p>
-          </button>
-          <button class="wb-card" style="--gc1:#2dd4bf;--gc2:#06b6d4" onclick="switchView('agent')">
-            <div class="wb-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4m0 4a4 4 0 0 1 4 4v6H8v-6a4 4 0 0 1 4-4z"/><path d="M4 14v1a8 8 0 0 0 16 0v-1"/><circle cx="9" cy="13" r=".8" fill="currentColor"/><circle cx="15" cy="13" r=".8" fill="currentColor"/></svg></div>
-            <h3>面试助手</h3><p>问答 · 复盘 · 求职档案</p>
-          </button>
-          <button class="wb-card" style="--gc1:#fbbf24;--gc2:#f97316" onclick="toast('进入：简历顾问（解析 · JD 匹配 · 优化）')">
-            <div class="wb-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg></div>
-            <h3>简历顾问</h3><p>简历解析 · JD 匹配 · 优化</p>
-          </button>
-          <button class="wb-card" style="--gc1:#e879f9;--gc2:#ec4899" onclick="switchView('agent')">
-            <div class="wb-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".8" fill="currentColor"/></svg></div>
-            <h3>模拟面试</h3><p>按岗位出题 · 逐题点评 · 评分</p>
-          </button>
-        </div>
+      <div class="wb-grid">
+        <button class="wb-card" style="--tbg:#f0f2ff;--tcolor:#2a36e0;--hbg:#f0f2ff;--hb:#bcc5ff" onclick="toast('进入：面试记录（录制 → 转写 → AI 复盘）')">
+          <div class="wb-icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg></div>
+          <h3>面试记录</h3><p>录制 · 转写 · AI 复盘</p>
+        </button>
+        <button class="wb-card" style="--tbg:#eff6ff;--tcolor:#2563eb;--hbg:#eff6ff;--hb:#bfdbfe" onclick="toast('进入：面试日程（投递 → 一面 → Offer）')">
+          <div class="wb-icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+          <h3>面试日程</h3><p>投递 · 一面 · Offer 全流程</p>
+        </button>
+        <button class="wb-card" style="--tbg:#f5f3ff;--tcolor:#7c3aed;--hbg:#f5f3ff;--hb:#ddd6fe" onclick="toast('进入：复盘报告（投递统计 · 通过率）')">
+          <div class="wb-icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></div>
+          <h3>复盘报告</h3><p>投递统计 · 通过率 · 对比</p>
+        </button>
+        <button class="wb-card" style="--tbg:#ecfdf5;--tcolor:#059669;--hbg:#ecfdf5;--hb:#a7f3d0" onclick="switchView('agent')">
+          <div class="wb-icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4m0 4a4 4 0 0 1 4 4v6H8v-6a4 4 0 0 1 4-4z"/><path d="M4 14v1a8 8 0 0 0 16 0v-1"/><circle cx="9" cy="13" r=".8" fill="currentColor"/><circle cx="15" cy="13" r=".8" fill="currentColor"/></svg></div>
+          <h3>面试助手</h3><p>智能问答 · 复盘 · 求职档案</p>
+        </button>
+        <button class="wb-card" style="--tbg:#fffbeb;--tcolor:#d97706;--hbg:#fffbeb;--hb:#fde68a" onclick="toast('进入：简历顾问（解析 · JD 匹配 · 优化）')">
+          <div class="wb-icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg></div>
+          <h3>简历顾问</h3><p>简历分析 · JD 匹配 · 优化</p>
+        </button>
+        <button class="wb-card" style="--tbg:#fdf4ff;--tcolor:#c026d3;--hbg:#fdf4ff;--hb:#f5d0fe" onclick="switchView('agent')">
+          <div class="wb-icon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".8" fill="currentColor"/></svg></div>
+          <h3>模拟面试</h3><p>按岗位出题 · 逐题点评 · 评分报告</p>
+        </button>
       </div>
     </div>
     <div class="wb-foot">
