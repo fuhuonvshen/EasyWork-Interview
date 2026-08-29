@@ -37,6 +37,8 @@ export interface InterviewQuestion {
   question: string;
   expected_answer: string | null;
   created_at: string;
+  source_meeting_id: string | null;  // 来源面试（提取的题目）
+  in_bank: boolean;                  // 是否已加入题库（false=待用户确认）
 }
 
 export interface ScheduledMeeting {

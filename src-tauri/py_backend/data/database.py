@@ -102,6 +102,19 @@ class Database:
             "  created_at TEXT NOT NULL"
             ")"
         )
+        # 迁移：来源面试 + 是否已入题库（0=待确认，1=已入题库）
+        try:
+            await self._conn.execute(
+                "ALTER TABLE interview_questions ADD COLUMN source_meeting_id TEXT"
+            )
+        except Exception:
+            pass  # Column already exists
+        try:
+            await self._conn.execute(
+                "ALTER TABLE interview_questions ADD COLUMN in_bank INTEGER NOT NULL DEFAULT 0"
+            )
+        except Exception:
+            pass  # Column already exists
 
         # Ensure schedule_id column for linking todos to schedules
         try:
@@ -427,12 +440,13 @@ class Database:
                              limit: int = 50) -> list[dict]:
         if category:
             cursor = await self.conn.execute(
-                "SELECT * FROM interview_questions WHERE category = ? "
+                "SELECT * FROM interview_questions WHERE in_bank = 1 AND category = ? "
                 "ORDER BY created_at DESC LIMIT ?", (category, limit)
             )
         else:
             cursor = await self.conn.execute(
-                "SELECT * FROM interview_questions ORDER BY created_at DESC LIMIT ?",
+                "SELECT * FROM interview_questions WHERE in_bank = 1 "
+                "ORDER BY created_at DESC LIMIT ?",
                 (limit,),
             )
         rows = await cursor.fetchall()

@@ -1162,8 +1162,8 @@ pub async fn get_interview_assessment(pool: &SqlitePool, interview_id: &str) -> 
 /// 面试题库 CRUD（AI 从面试转写提取的问题）
 pub async fn insert_interview_question(pool: &SqlitePool, q: &InterviewQuestion) -> Result<()> {
     sqlx::query(
-        "INSERT INTO interview_questions (id, category, difficulty, question, expected_answer, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO interview_questions (id, category, difficulty, question, expected_answer, created_at, source_meeting_id, in_bank)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&q.id)
     .bind(&q.category)
@@ -1171,6 +1171,8 @@ pub async fn insert_interview_question(pool: &SqlitePool, q: &InterviewQuestion)
     .bind(&q.question)
     .bind(&q.expected_answer)
     .bind(&q.created_at)
+    .bind(&q.source_meeting_id)
+    .bind(q.in_bank as i32)
     .execute(pool)
     .await
     .context("插入面试题失败")?;
@@ -1184,7 +1186,7 @@ pub async fn list_interview_questions(
 ) -> Result<Vec<InterviewQuestion>> {
     let rows = if let Some(cat) = category {
         sqlx::query_as::<_, InterviewQuestion>(
-            "SELECT * FROM interview_questions WHERE category = ? ORDER BY created_at DESC LIMIT ?",
+            "SELECT * FROM interview_questions WHERE in_bank = 1 AND category = ? ORDER BY created_at DESC LIMIT ?",
         )
         .bind(cat)
         .bind(limit)
@@ -1193,7 +1195,7 @@ pub async fn list_interview_questions(
         .context("查询面试题失败")?
     } else {
         sqlx::query_as::<_, InterviewQuestion>(
-            "SELECT * FROM interview_questions ORDER BY created_at DESC LIMIT ?",
+            "SELECT * FROM interview_questions WHERE in_bank = 1 ORDER BY created_at DESC LIMIT ?",
         )
         .bind(limit)
         .fetch_all(pool)
@@ -1201,6 +1203,38 @@ pub async fn list_interview_questions(
         .context("查询面试题失败")?
     };
     Ok(rows)
+}
+
+/// 查询某场面试提取出的所有题目（含未入题库的待确认项）
+pub async fn list_meeting_questions(
+    pool: &SqlitePool,
+    meeting_id: &str,
+) -> Result<Vec<InterviewQuestion>> {
+    let rows = sqlx::query_as::<_, InterviewQuestion>(
+        "SELECT * FROM interview_questions WHERE source_meeting_id = ? ORDER BY created_at ASC",
+    )
+    .bind(meeting_id)
+    .fetch_all(pool)
+    .await
+    .context("查询面试题目失败")?;
+    Ok(rows)
+}
+
+/// 将选中的题目加入题库（in_bank = 1）
+pub async fn add_questions_to_bank(pool: &SqlitePool, ids: &[String]) -> Result<usize> {
+    if ids.is_empty() {
+        return Ok(0);
+    }
+    let mut affected = 0usize;
+    for id in ids {
+        let r = sqlx::query("UPDATE interview_questions SET in_bank = 1 WHERE id = ?")
+            .bind(id)
+            .execute(pool)
+            .await
+            .context("加入题库失败")?;
+        affected += r.rows_affected() as usize;
+    }
+    Ok(affected)
 }
 
 pub async fn delete_interview_question(pool: &SqlitePool, id: &str) -> Result<()> {

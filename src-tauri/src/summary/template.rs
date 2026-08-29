@@ -196,6 +196,26 @@ pub fn interview_user_prompt(transcript: &str, company: &str, position: &str) ->
     s
 }
 
+/// 面试问题提取提示词 — 让 LLM 以 JSON 数组返回面试官提出的问题
+pub fn interview_questions_prompt(transcript: &str) -> String {
+    format!(
+        r#"你是一个面试问题提取器。请从以下面试转写内容中，提取**面试官提出的每一个问题**（技术题、行为题、项目深挖、HR 题等）。
+不要提取求职者（"我/候选人"）的发言，只提取提问方（"面试官"）的问题。
+
+要求：
+1. 只输出一个 JSON 数组，不要任何解释、前言或 Markdown 代码块标记。
+2. 数组元素格式：{{"category": "分类", "question": "题目内容", "expected_answer": "参考回答要点（可从转写中面试官的提示/追问推断，无法推断则填空字符串）"}}
+3. category 从以下取值：算法、数据结构、数据库、操作系统、网络、前端、后端、Java、Python、项目、HR、其他
+4. 如果转写中没有明确的问题，输出 []。
+5. 问题尽量保留面试官的原话，不要自行改写。
+
+转写内容：
+---
+{transcript}
+---"#
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

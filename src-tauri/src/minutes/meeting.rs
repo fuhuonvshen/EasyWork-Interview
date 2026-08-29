@@ -154,7 +154,7 @@ pub async fn generate_minutes(
         &Transcript {
             id: uuid::Uuid::new_v4().to_string(),
             meeting_id: meeting_id.clone(),
-            content: full_transcript,
+            content: full_transcript.clone(),
             created_at: now.clone(),
             live_transcript: live_transcript_json.map(|s| {
                 if s.trim().is_empty() || s == "[]" { None } else { Some(s) }
@@ -177,9 +177,38 @@ pub async fn generate_minutes(
     .await
     .map_err(|e| format!("保存纪要失败: {}", e))?;
 
+    // 4. 面试模式：LLM 提取面试官问题（JSON），存为"待确认"（in_bank=0）
+    let mut questions_json: Vec<serde_json::Value> = Vec::new();
+    if is_interview {
+        let extracted = crate::summary::gen::extract_interview_questions(&full_transcript, &llm_state.0).await;
+        for q in extracted {
+            let qid = uuid::Uuid::new_v4().to_string();
+            let question = crate::database::models::InterviewQuestion {
+                id: qid.clone(),
+                category: if q.category.trim().is_empty() { "其他".into() } else { q.category },
+                difficulty: "medium".into(),
+                question: q.question,
+                expected_answer: q.expected_answer.filter(|s| !s.trim().is_empty()),
+                created_at: chrono::Local::now().to_rfc3339(),
+                source_meeting_id: Some(meeting_id.clone()),
+                in_bank: false,
+            };
+            if crate::database::repo::insert_interview_question(&db.0, &question).await.is_ok() {
+                questions_json.push(serde_json::json!({
+                    "id": qid,
+                    "category": question.category,
+                    "question": question.question,
+                    "expected_answer": question.expected_answer,
+                    "in_bank": false,
+                }));
+            }
+        }
+    }
+
     Ok(serde_json::json!({
         "meetingId": meeting_id,
         "content": minutes,
+        "questions": questions_json,
     })
     .to_string())
 }
@@ -440,4 +469,26 @@ pub async fn interview_question_delete(
     crate::database::repo::delete_interview_question(&db.0, &id)
         .await
         .map_err(|e| format!("删除面试题失败: {}", e))
+}
+
+/// 查询某场面试提取出的全部题目（含未入题库的待确认项）— 纪要弹窗/历史记录用
+#[tauri::command]
+pub async fn get_meeting_questions(
+    meeting_id: String,
+    db: State<'_, DbState>,
+) -> Result<Vec<crate::database::models::InterviewQuestion>, String> {
+    crate::database::repo::list_meeting_questions(&db.0, &meeting_id)
+        .await
+        .map_err(|e| format!("查询面试题目失败: {}", e))
+}
+
+/// 将选中的题目加入题库（in_bank = 1）
+#[tauri::command]
+pub async fn add_questions_to_bank(
+    ids: Vec<String>,
+    db: State<'_, DbState>,
+) -> Result<usize, String> {
+    crate::database::repo::add_questions_to_bank(&db.0, &ids)
+        .await
+        .map_err(|e| format!("加入题库失败: {}", e))
 }

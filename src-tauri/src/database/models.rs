@@ -124,7 +124,8 @@ pub struct AgentConversationSummary {
     pub ref_id: Option<String>,
 }
 
-/// 面试题库条目（interview_questions 表）— AI 从面试转写中提取的面试官问题
+/// 面试题库条目（interview_questions 表）— AI 从面试转写中提取的面试官问题。
+/// source_meeting_id 标记来源面试；in_bank=false 表示"待用户确认入题库"（勾选后置 true）。
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct InterviewQuestion {
     pub id: String,
@@ -133,6 +134,8 @@ pub struct InterviewQuestion {
     pub question: String,
     pub expected_answer: Option<String>,
     pub created_at: String,
+    pub source_meeting_id: Option<String>,
+    pub in_bank: bool,
 }
 
 /// 面试评估（interview_assessments 表）— AI 结构化输出落库

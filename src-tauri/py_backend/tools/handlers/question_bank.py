@@ -79,8 +79,8 @@ async def handle(args: dict) -> str:
         now = datetime.now(timezone.utc).isoformat()
         await db.conn.execute(
             "INSERT INTO interview_questions "
-            "(id, category, difficulty, question, expected_answer, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "(id, category, difficulty, question, expected_answer, created_at, source_meeting_id, in_bank) "
+            "VALUES (?, ?, ?, ?, ?, ?, NULL, 1)",
             (uuid.uuid4().hex, category, difficulty, question, expected_answer, now),
         )
         await db.conn.commit()

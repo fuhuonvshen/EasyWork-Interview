@@ -1,12 +1,13 @@
-// EasyWork - History Detail (view/edit interview/meeting minutes + title + transcript)
+// EasyWork - History Detail (view/edit interview/meeting minutes + title + transcript + 面试题目)
 import { useState, useEffect, useRef } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
-import { ArrowLeft, Loader, Pencil, Check, X, MessageSquareText, PlayCircle, Trash2, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader, Pencil, Check, X, MessageSquareText, PlayCircle, Trash2, Sparkles, BookOpen } from "lucide-react";
 import Markdown from "../../components/Markdown";
 import ExportDropdown from "../../components/ExportDropdown";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { ERRORS, toUserError } from "../../errors";
 import { showToast } from "../../components/Toast";
+import type { InterviewQuestion } from "../../types";
 
 interface MeetingDetail {
   id: string;
@@ -61,6 +62,12 @@ export default function HistoryDetail({ meetingId, onBack, onReview }: {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showTranscript, setShowTranscript] = useState(false);
+  // ── 面试题目（勾选入题库）──
+  const [showQuestions, setShowQuestions] = useState(false);
+  const [meetingQuestions, setMeetingQuestions] = useState<InterviewQuestion[]>([]);
+  const [selectedQ, setSelectedQ] = useState<Set<string>>(new Set());
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [addingQuestions, setAddingQuestions] = useState(false);
   const speakerColors = [
     { bg: "#E6EE9C", text: "#5A5F2E" }, { bg: "#FFECB3", text: "#5C4B00" },
     { bg: "#FFCDD2", text: "#7F2020" }, { bg: "#CE93D8", text: "#4A1A52" },
@@ -193,6 +200,36 @@ export default function HistoryDetail({ meetingId, onBack, onReview }: {
     }
   };
 
+  // ── 面试题目：查看 + 勾选入题库 ──
+  const loadQuestions = async () => {
+    setLoadingQuestions(true);
+    setShowQuestions(true);
+    try {
+      const list = await invoke<InterviewQuestion[]>("get_meeting_questions", { meetingId });
+      setMeetingQuestions(list);
+      // 默认全选未入库的题目
+      setSelectedQ(new Set(list.filter((q) => !q.in_bank).map((q) => q.id)));
+    } catch {
+      setMeetingQuestions([]);
+    }
+    setLoadingQuestions(false);
+  };
+
+  const handleAddQuestionsToBank = async () => {
+    if (selectedQ.size === 0 || addingQuestions) return;
+    setAddingQuestions(true);
+    try {
+      await invoke("add_questions_to_bank", { ids: Array.from(selectedQ) });
+      setMeetingQuestions((prev) => prev.map((q) => (selectedQ.has(q.id) ? { ...q, in_bank: true } : q)));
+      const count = selectedQ.size;
+      setSelectedQ(new Set());
+      showToast(`已加入题库 ${count} 道题`, "success");
+    } catch {
+      showToast("加入题库失败", "error");
+    }
+    setAddingQuestions(false);
+  };
+
   return (
     <>
       <header className="px-8 py-4 bg-white flex items-center justify-between">
@@ -262,6 +299,16 @@ export default function HistoryDetail({ meetingId, onBack, onReview }: {
               >
                 <Sparkles size={15} />
                 让 AI 深度复盘
+              </button>
+            )}
+            {detail.kind === "interview" && (
+              <button
+                onClick={loadQuestions}
+                className="px-4 py-2 text-sm font-medium text-violet-700 bg-violet-50 rounded-lg hover:bg-violet-100 transition-colors flex items-center gap-1.5"
+                title="查看本次面试提取的题目并加入题库"
+              >
+                <BookOpen size={15} />
+                面试题目
               </button>
             )}
             <ExportDropdown content={detail.content} />
@@ -403,6 +450,95 @@ export default function HistoryDetail({ meetingId, onBack, onReview }: {
                   })}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 面试题目弹窗：查看 + 勾选入题库 */}
+      {showQuestions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] mx-4 flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <BookOpen size={18} className="text-violet-500" />
+                <h2 className="text-lg font-semibold text-gray-900">本次面试题目</h2>
+                {!loadingQuestions && (
+                  <span className="text-xs text-gray-400">
+                    {meetingQuestions.filter((q) => !q.in_bank).length} 道待入库 · 已入库 {meetingQuestions.filter((q) => q.in_bank).length} 道
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setShowQuestions(false)}
+                className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {loadingQuestions ? (
+                <div className="flex items-center justify-center gap-2 text-sm text-gray-400 py-10">
+                  <Loader size={16} className="animate-spin" /> 加载中...
+                </div>
+              ) : meetingQuestions.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-12 h-12 rounded-2xl bg-violet-50 flex items-center justify-center mx-auto mb-3">
+                    <BookOpen size={22} className="text-violet-300" />
+                  </div>
+                  <p className="text-sm text-gray-400">本次面试未提取到题目</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {meetingQuestions.map((q, i) => (
+                    <div key={q.id} className="flex items-start gap-3 px-4 py-3 rounded-xl bg-white border border-gray-100 shadow-sm">
+                      {q.in_bank ? (
+                        <span className="mt-0.5 w-4 h-4 rounded border border-emerald-200 bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                          <Check size={11} strokeWidth={3} />
+                        </span>
+                      ) : (
+                        <input
+                          type="checkbox"
+                          checked={selectedQ.has(q.id)}
+                          onChange={(e) => {
+                            setSelectedQ((prev) => {
+                              const n = new Set(prev);
+                              if (e.target.checked) n.add(q.id);
+                              else n.delete(q.id);
+                              return n;
+                            });
+                          }}
+                          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 flex-shrink-0"
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-100">{q.category}</span>
+                          {q.in_bank && (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">已在题库</span>
+                          )}
+                          <span className="text-[10px] text-gray-300">#{i + 1}</span>
+                        </div>
+                        <p className="text-sm text-gray-800 leading-relaxed">{q.question}</p>
+                        {q.expected_answer && (
+                          <p className="mt-1 text-xs text-gray-400 leading-relaxed">💡 {q.expected_answer}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-3 border-t border-gray-100">
+              <span className="text-xs text-gray-400 mr-auto">默认全选未入库题目</span>
+              <button
+                onClick={handleAddQuestionsToBank}
+                disabled={selectedQ.size === 0 || addingQuestions || loadingQuestions}
+                className="px-4 py-2 text-xs font-semibold text-white bg-brand-600 rounded-lg hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+              >
+                <Check size={13} />
+                {addingQuestions ? "加入中..." : `加入题库 (${selectedQ.size})`}
+              </button>
             </div>
           </div>
         </div>

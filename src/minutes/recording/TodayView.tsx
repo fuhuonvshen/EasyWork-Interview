@@ -1,12 +1,13 @@
-// EasyWork - Today View (recording + transcript + minutes)
+// EasyWork - Today View (recording + transcript + minutes + 面试题目提取)
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Mic, MicOff, Loader, Sparkles, X, FileAudio } from "lucide-react";
+import { Mic, MicOff, Loader, Sparkles, X, FileAudio, BookOpen, Check } from "lucide-react";
 import Markdown from "../../components/Markdown";
 import Select from "../../components/Select";
 import { ERRORS, toUserError } from "../../errors";
 import ConfirmDialog from "../../components/ConfirmDialog";
-import type { AudioDevice } from "../../types";
+import { showToast } from "../../components/Toast";
+import type { AudioDevice, InterviewQuestion } from "../../types";
 
 export default function TodayView({
   prefillTitle,
@@ -35,6 +36,10 @@ export default function TodayView({
   const [currentMeetingId, setCurrentMeetingId] = useState<string | null>(null);
   const [showMinutes, setShowMinutes] = useState(false);
   const [carouselPage, setCarouselPage] = useState(0);
+  // ── 面试题目提取：纪要弹窗中勾选入题库 ──
+  const [questions, setQuestions] = useState<InterviewQuestion[]>([]);
+  const [selectedQ, setSelectedQ] = useState<Set<string>>(new Set());
+  const [addingQ, setAddingQ] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [liveTranscripts, setLiveTranscripts] = useState<{ speaker: string; text: string }[]>([]);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
@@ -72,10 +77,11 @@ export default function TodayView({
   const handleDragEnd = (clientX: number, clientY?: number) => {
     const dx = clientX - dragStartXRef.current;
     const dy = (clientY ?? 0) - dragStartYRef.current;
+    const pageCount = questions.length > 0 ? 3 : 2;
     // Only flip pages on a clearly horizontal swipe — vertical scrolling
     // must never trigger a page change.
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
-      setCarouselPage(dx > 0 ? 0 : 1);
+      setCarouselPage((p) => Math.max(0, Math.min(pageCount - 1, dx > 0 ? p - 1 : p + 1)));
     }
   };
 
@@ -181,7 +187,7 @@ export default function TodayView({
         position: isInterview ? (position || null) : null,
         stage: isInterview ? (stage || null) : null,
       });
-      let result: { meetingId: string; content: string };
+      let result: { meetingId: string; content: string; questions?: InterviewQuestion[] };
       try {
         const parsed = JSON.parse(raw);
         if (typeof parsed?.meetingId === "string" && typeof parsed?.content === "string") {
@@ -194,6 +200,10 @@ export default function TodayView({
       }
       setCurrentMeetingId(result.meetingId);
       setMinutes(result.content);
+      // 面试题目：默认全选
+      const qs = Array.isArray(result.questions) ? (result.questions as InterviewQuestion[]) : [];
+      setQuestions(qs);
+      setSelectedQ(new Set(qs.map((q) => q.id)));
       setShowMinutes(true);
       setCarouselPage(0);
       setGenerating(false);
@@ -235,7 +245,7 @@ export default function TodayView({
         position: isInterview ? (position || null) : null,
         stage: isInterview ? (stage || null) : null,
       });
-      let result: { meetingId: string; content: string };
+      let result: { meetingId: string; content: string; questions?: InterviewQuestion[] };
       try {
         const parsed = JSON.parse(raw);
         if (typeof parsed?.meetingId === "string" && typeof parsed?.content === "string") {
@@ -248,6 +258,10 @@ export default function TodayView({
       }
       setCurrentMeetingId(result.meetingId);
       setMinutes(result.content);
+      // 面试题目：默认全选
+      const qs = Array.isArray(result.questions) ? (result.questions as InterviewQuestion[]) : [];
+      setQuestions(qs);
+      setSelectedQ(new Set(qs.map((q) => q.id)));
       setShowMinutes(true);
       setCarouselPage(0);
       setGenerating(false);
@@ -255,7 +269,7 @@ export default function TodayView({
       onMeetingCreated();
 
       if ("Notification" in window && Notification.permission === "granted") {
-        new Notification("EasyWork", { body: "会议纪要已生成，点击查看" });
+        new Notification("EasyWork", { body: isInterview ? "面试复盘已生成，点击查看" : "会议纪要已生成，点击查看" });
       }
     } catch (e) {
       setError(toUserError(ERRORS.GENERATE_MINUTES, e));
@@ -265,6 +279,31 @@ export default function TodayView({
       onGeneratingChange(false);
     }
   }, [meetingLabel, scheduleId, onMeetingCreated, onRecordingChange, onGeneratingChange, liveTranscripts, meetingType, isInterview, company, position, stage]);
+
+  // 勾选的题目加入题库（in_bank = 1）
+  const handleAddToBank = async () => {
+    if (selectedQ.size === 0 || addingQ) return;
+    setAddingQ(true);
+    try {
+      await invoke("add_questions_to_bank", { ids: Array.from(selectedQ) });
+      setQuestions((prev) => prev.map((q) => (selectedQ.has(q.id) ? { ...q, in_bank: true } : q)));
+      const count = selectedQ.size;
+      setSelectedQ(new Set());
+      showToast(`已加入题库 ${count} 道题`, "success");
+    } catch {
+      showToast("加入题库失败", "error");
+    }
+    setAddingQ(false);
+  };
+
+  const handleToggleQ = (id: string, checked: boolean) => {
+    setSelectedQ((prev) => {
+      const n = new Set(prev);
+      if (checked) n.add(id);
+      else n.delete(id);
+      return n;
+    });
+  };
 
   // ── Recording mode: full-screen transcript view ──
   if (recording || generating) {
@@ -570,25 +609,69 @@ export default function TodayView({
                     </div>
                   )}
                 </div>
+
+                {/* Page 3: 面试题目（勾选 → 加入题库） */}
+                {questions.length > 0 && (
+                  <div className="min-w-full h-full min-h-0 overflow-y-auto px-6 py-4">
+                    <div className="flex items-center justify-between mb-3 gap-3">
+                      <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                        <BookOpen size={15} className="text-brand-500" />
+                        本次面试题目
+                        <span className="text-xs text-gray-400 font-normal">已选 {selectedQ.size}/{questions.length}</span>
+                      </h3>
+                      <button
+                        onClick={handleAddToBank}
+                        disabled={selectedQ.size === 0 || addingQ}
+                        className="px-4 py-2 text-xs font-semibold text-white bg-brand-600 rounded-lg hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1 flex-shrink-0"
+                      >
+                        <Check size={13} />
+                        {addingQ ? "加入中..." : `加入题库 (${selectedQ.size})`}
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {questions.map((q, i) => (
+                        <label
+                          key={q.id}
+                          className="flex items-start gap-3 px-4 py-3 rounded-xl bg-white border border-gray-100 shadow-sm hover:border-brand-200 cursor-pointer transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedQ.has(q.id)}
+                            onChange={(e) => handleToggleQ(q.id, e.target.checked)}
+                            className="mt-0.5 w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 flex-shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-100">{q.category}</span>
+                              <span className="text-[10px] text-gray-300">#{i + 1}</span>
+                            </div>
+                            <p className="text-sm text-gray-800 leading-relaxed">{q.question}</p>
+                            {q.expected_answer && (
+                              <p className="mt-1 text-xs text-gray-400 leading-relaxed">💡 {q.expected_answer}</p>
+                            )}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Carousel dots */}
             <div className="flex items-center justify-center gap-2 px-6 py-3 border-t border-gray-100">
-              <button
-                onClick={() => setCarouselPage(0)}
-                className={`h-2 rounded-full transition-all duration-300 ${
-                  carouselPage === 0 ? "w-6 bg-brand-500" : "w-2 bg-gray-300 hover:bg-gray-400"
-                }`}
-              />
-              <button
-                onClick={() => setCarouselPage(1)}
-                className={`h-2 rounded-full transition-all duration-300 ${
-                  carouselPage === 1 ? "w-6 bg-brand-500" : "w-2 bg-gray-300 hover:bg-gray-400"
-                }`}
-              />
+              {(["面试复盘", "转写记录", "面试题目"] as const).slice(0, questions.length > 0 ? 3 : 2).map((label, i) => (
+                <button
+                  key={label}
+                  onClick={() => setCarouselPage(i)}
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    carouselPage === i ? "w-6 bg-brand-500" : "w-2 bg-gray-300 hover:bg-gray-400"
+                  }`}
+                  aria-label={label}
+                />
+              ))}
               <span className="ml-2 text-xs text-gray-400">
-                {carouselPage === 0 ? "会议总结" : "转写记录"}
+                {(["面试复盘", "转写记录", "面试题目"] as const)[carouselPage]}
               </span>
             </div>
           </div>
