@@ -27,12 +27,12 @@ SCHEMA = {
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["create", "list", "update_status", "delete", "create_schedule", "delete_schedule", "update_schedule", "list_schedules"],
-                    "description": "操作类型",
+                    "enum": ["create", "list", "update_status", "delete", "delete_schedule", "update_schedule", "list_schedules"],
+                    "description": "操作类型（创建日程请使用 meeting_notice 工具）",
                 },
                 "title": {
                     "type": "string",
-                    "description": "待办或会议标题（create/create_schedule 时必填）",
+                    "description": "待办或日程标题（create 时必填）",
                 },
                 "deadline": {
                     "type": "string",
@@ -63,6 +63,19 @@ SCHEMA = {
                 "zoom_url": {
                     "type": "string",
                     "description": "会议链接（可选）",
+                },
+                "company": {
+                    "type": "string",
+                    "description": "公司名称（可选，从会议通知/邮件中提取，如「XX科技」）",
+                },
+                "position": {
+                    "type": "string",
+                    "description": "岗位名称（可选，从会议通知/邮件中提取，如「前端工程师」）",
+                },
+                "stage": {
+                    "type": "string",
+                    "enum": ["hr", "one", "two", "three"],
+                    "description": "面试阶段（可选）：hr=HR面, one=一面, two=二面, three=三面",
                 },
             },
             "required": ["action"],
@@ -114,26 +127,6 @@ async def handle(args: dict) -> str:
         await db.delete_todo(todo_id)
         return "✅ 已删除待办"
 
-    elif action == "create_schedule":
-        title = (args.get("title") or "").strip()
-        start_time = args.get("start_time", "")
-        if not title or not start_time:
-            return "❌ 创建日程失败：缺少标题或开始时间"
-        end_time = args.get("end_time") or ""
-        if end_time and end_time < start_time:
-            return "❌ 创建日程失败：结束时间早于开始时间"
-        zoom_url = args.get("zoom_url", "")
-        sched_id = await db.insert_schedule(title, start_time, end_time, zoom_url)
-        # Also create a linked todo as reminder
-        await db.insert_todo(
-            title=title,
-            deadline=start_time[:10],
-            priority="medium",
-            source="meeting",
-            schedule_id=sched_id,
-        )
-        return f"✅ 已创建日程「{title}」（{start_time}）并添加了待办提醒"
-
     elif action == "delete_schedule":
         sched_id = args.get("id")
         if not sched_id:
@@ -149,7 +142,10 @@ async def handle(args: dict) -> str:
             return "❌ 修改日程失败：缺少日程ID、标题或开始时间"
         end_time = args.get("end_time", "")
         zoom_url = args.get("zoom_url", "")
-        await db.update_schedule(sched_id, title, start_time, end_time, zoom_url)
+        company = (args.get("company") or "").strip()
+        position = (args.get("position") or "").strip()
+        stage = args.get("stage") or "one"
+        await db.update_schedule(sched_id, title, start_time, end_time, zoom_url, stage, company, position)
         return f"✅ 已修改日程「{title}」（{start_time}）及关联的待办提醒"
 
     elif action == "list_schedules":
@@ -158,7 +154,8 @@ async def handle(args: dict) -> str:
             return "暂无日程"
         lines = ["日程列表："]
         for s in schedules:
-            lines.append(f"- {s['title']}（{s['start_time']}）[ID: {s['id'][:8]}]")
+            extra = f"（{s['company']}·{s['position']}）" if s.get("company") or s.get("position") else ""
+            lines.append(f"- {s['title']}{extra}（{s['start_time']}）[ID: {s['id'][:8]}]")
         return "\n".join(lines)
 
     return f"❌ 未知操作: {action}"

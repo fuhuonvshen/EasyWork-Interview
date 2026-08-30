@@ -133,12 +133,6 @@ if _IN_BUNDLE and _data_dir:
 else:
     LOG_FILE = str(_package_dir.parent / "agent_debug.log")
 
-# Docker sandbox
-DOCKER_MODE = os.environ.get("DOCKER_MODE", "auto").lower()
-DOCKER_IMAGE = os.environ.get("DOCKER_IMAGE", "easywork-sandbox:latest")
-DOCKER_MEMORY_LIMIT = os.environ.get("DOCKER_MEMORY_LIMIT", "512m")
-DOCKER_CPU_LIMIT = float(os.environ.get("DOCKER_CPU_LIMIT", "1.0"))
-DOCKER_BUILD_TIMEOUT = int(os.environ.get("DOCKER_BUILD_TIMEOUT", "120"))
 
 # Tool execution
 TOOL_TIMEOUT = int(os.environ.get("TOOL_TIMEOUT", "120"))

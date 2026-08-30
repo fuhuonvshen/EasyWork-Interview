@@ -181,15 +181,7 @@ export default function App() {
 
   // 工作台卡片入口：resume 打开简历顾问页（简历管理 + AI 侧边栏）
   const handleWorkbenchEnter = useCallback(async (title?: string, action?: string) => {
-    if (action === "agent" || action === "mock") {
-      if (action === "mock") {
-        try {
-          const convId = await invoke<string>("agent_create_conversation", { convType: "mock" });
-          setAgentPending({ convId, message: "开始一场模拟面试，请先问我目标岗位" });
-        } catch (e) {
-          console.error("创建模拟面试对话失败", e);
-        }
-      }
+    if (action === "agent") {
       setView("agent");
     } else if (action === "feedback") {
       setView("feedback");
@@ -245,7 +237,7 @@ export default function App() {
       {/* 内容层 */}
       <div className="relative h-full flex flex-col">
       <TitleBar />
-      <div className={`flex-1 min-h-0 ${view === "workbench" ? "" : "p-2.5 pt-0"}`}>
+      <div key={view} className={`view-enter flex-1 min-h-0 ${view === "workbench" ? "" : "p-2.5 pt-0"}`}>
       {view === "workbench" && (
         <Workbench onEnter={handleWorkbenchEnter} />
       )}

@@ -16,10 +16,9 @@ interface PendingPrompt {
 
 // 角色选择卡片（新建对话）
 const ROLE_OPTIONS: { type: AgentConversationType; title: string; desc: string; iconBg: string }[] = [
-  { type: "mock", title: "模拟面试官", desc: "按目标岗位出题、逐题点评，结束后生成维度评分报告", iconBg: "bg-violet-100" },
   { type: "review", title: "复盘分析师", desc: "基于面试转写深度复盘，输出亮点、不足与改进建议", iconBg: "bg-emerald-100" },
   { type: "resume", title: "简历顾问", desc: "解析简历，按目标 JD 逐节优化，输出匹配度分析", iconBg: "bg-amber-100" },
-  { type: "general", title: "通用助手", desc: "面试相关任何问答：岗位调研、面经、薪资谈判", iconBg: "bg-sky-100" },
+  { type: "general", title: "通用助手", desc: "面试相关任何问答：会议通知排日程、岗位调研、面经", iconBg: "bg-sky-100" },
 ];
 
 export default function AgentApp({

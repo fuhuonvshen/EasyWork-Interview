@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse
 
 from .config import AGENT_PORT, DB_PATH, LOG_FILE, MEMORIES_DIR
 from .data.database import db
-from .routes import ensure_docker_image, router
+from .routes import router
 from .tools.registry import load_skill_registry
 from .llm.memory import ensure_memories_file
 
@@ -70,26 +70,6 @@ async def lifespan(app: FastAPI):
     await asyncio.to_thread(ensure_memories_file, Path(MEMORIES_DIR))
     os.makedirs(AGENT_INPUT_DIR, exist_ok=True)
     os.makedirs(AGENT_OUTPUT_DIR, exist_ok=True)
-
-    # Non-blocking Docker sandbox image build
-    app.state.docker_ready = False
-    app.state.docker_building = False
-
-    async def _build_docker():
-        app.state.docker_building = True
-        try:
-            # Outer timeout (180s) is a safety net for the full flow including
-            # check_available(). build_image() inside has its own 120s timeout.
-            await asyncio.wait_for(ensure_docker_image(), timeout=180)
-            app.state.docker_ready = True
-        except asyncio.TimeoutError:
-            logger.warning("Docker build timed out after 180s — will use subprocess")
-        except Exception:
-            logger.exception("Docker sandbox build failed — will use subprocess")
-        finally:
-            app.state.docker_building = False
-
-    asyncio.create_task(_build_docker())
 
     logger.info("Agent server ready on port %s", AGENT_PORT)
     yield

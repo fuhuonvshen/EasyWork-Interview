@@ -61,7 +61,7 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
     // 日程阶段: "apply" | "phone" | "online" | "onsite" | "offer"
     sqlx::query("ALTER TABLE scheduled_meetings ADD COLUMN stage TEXT NOT NULL DEFAULT 'apply'")
         .execute(pool).await.ok();
-    // 对话角色: "general" | "mock" | "review" | "resume"；ref_id 关联面试/简历
+    // 对话角色: "general" | "review" | "resume"；ref_id 关联面试/简历
     sqlx::query("ALTER TABLE agent_conversations ADD COLUMN type TEXT NOT NULL DEFAULT 'general'")
         .execute(pool).await.ok();
     sqlx::query("ALTER TABLE agent_conversations ADD COLUMN ref_id TEXT")
@@ -160,6 +160,15 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
     .execute(pool)
     .await
     .context("创建 scheduled_meetings 表失败")?;
+    // 日程阶段 + 公司/岗位（AI 从会议通知提取）
+    sqlx::query("ALTER TABLE scheduled_meetings ADD COLUMN stage TEXT NOT NULL DEFAULT 'one'")
+        .execute(pool).await.ok();
+    sqlx::query("ALTER TABLE scheduled_meetings ADD COLUMN company TEXT NOT NULL DEFAULT ''")
+        .execute(pool).await.ok();
+    sqlx::query("ALTER TABLE scheduled_meetings ADD COLUMN position TEXT NOT NULL DEFAULT ''")
+        .execute(pool).await.ok();
+    sqlx::query("ALTER TABLE scheduled_meetings ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
+        .execute(pool).await.ok();
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS reports (
@@ -746,8 +755,8 @@ pub async fn list_meetings_in_range(
 
 pub async fn insert_scheduled_meeting(pool: &SqlitePool, m: &ScheduledMeeting) -> Result<()> {
     sqlx::query(
-        "INSERT INTO scheduled_meetings (id, title, zoom_url, start_time, end_time, created_at, stage)
-         VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO scheduled_meetings (id, title, zoom_url, start_time, end_time, created_at, stage, company, position, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&m.id)
     .bind(&m.title)
@@ -756,6 +765,9 @@ pub async fn insert_scheduled_meeting(pool: &SqlitePool, m: &ScheduledMeeting) -
     .bind(&m.end_time)
     .bind(&m.created_at)
     .bind(&m.stage)
+    .bind(&m.company)
+    .bind(&m.position)
+    .bind(&m.notes)
     .execute(pool)
     .await
     .context("插入 scheduled_meeting 失败")?;
@@ -794,13 +806,16 @@ pub async fn list_scheduled_meetings(pool: &SqlitePool) -> Result<Vec<ScheduledM
 
 pub async fn update_scheduled_meeting(pool: &SqlitePool, m: &ScheduledMeeting) -> Result<()> {
     sqlx::query(
-        "UPDATE scheduled_meetings SET title = ?, zoom_url = ?, start_time = ?, end_time = ?, stage = ? WHERE id = ?",
+        "UPDATE scheduled_meetings SET title = ?, zoom_url = ?, start_time = ?, end_time = ?, stage = ?, company = ?, position = ?, notes = ? WHERE id = ?",
     )
     .bind(&m.title)
     .bind(&m.zoom_url)
     .bind(&m.start_time)
     .bind(&m.end_time)
     .bind(&m.stage)
+    .bind(&m.company)
+    .bind(&m.position)
+    .bind(&m.notes)
     .bind(&m.id)
     .execute(pool)
     .await

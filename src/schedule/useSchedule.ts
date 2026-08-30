@@ -60,6 +60,7 @@ export function useSchedule(onReportsChanged: () => void) {
 
     if (editingMeeting) {
       try {
+        // 公司/岗位/备注保留原值（AI 从会议通知提取的，手动编辑表单不修改）
         await invoke("update_scheduled_meeting", {
           id: editingMeeting.id,
           title,
@@ -67,6 +68,9 @@ export function useSchedule(onReportsChanged: () => void) {
           startTime,
           endTime: "",
           stage,
+          company: editingMeeting.company || "",
+          position: editingMeeting.position || "",
+          notes: editingMeeting.notes || "",
         });
         setShowForm(false);
         setEditingMeeting(null);
@@ -77,7 +81,7 @@ export function useSchedule(onReportsChanged: () => void) {
     } else {
       try {
         await invoke<string>("add_scheduled_meeting", {
-          title, zoomUrl, startTime, endTime: "", stage,
+          title, zoomUrl, startTime, endTime: "", stage, company: "", position: "", notes: "",
         });
       } catch (e: unknown) {
         showToast(toUserError(ERRORS.CREATE_SCHEDULE, e), "error");

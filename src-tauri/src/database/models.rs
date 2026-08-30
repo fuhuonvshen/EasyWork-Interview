@@ -53,7 +53,10 @@ pub struct ScheduledMeeting {
     pub start_time: String,
     pub end_time: String,
     pub created_at: String,
-    pub stage: String, // "apply" | "phone" | "online" | "onsite" | "offer"
+    pub stage: String, // "hr" | "one" | "two" | "three"
+    pub company: String,
+    pub position: String,
+    pub notes: String,
 }
 
 /// Summary row for the sidebar list.
@@ -97,7 +100,7 @@ pub struct AgentConversation {
     pub summary: String,
     pub created_at: String,
     #[serde(rename = "type")]
-    pub kind: String,        // "general" | "mock" | "review" | "resume"
+    pub kind: String,        // "general" | "review" | "resume"
     pub ref_id: Option<String>, // 关联面试/简历 ID（上下文注入）
 }
 
@@ -120,7 +123,7 @@ pub struct AgentConversationSummary {
     pub created_at: String,
     pub last_message: Option<String>,
     #[serde(rename = "type")]
-    pub kind: String,        // "general" | "mock" | "review" | "resume"
+    pub kind: String,        // "general" | "review" | "resume"
     pub ref_id: Option<String>,
 }
 

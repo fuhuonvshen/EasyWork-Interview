@@ -13,7 +13,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
 
 from .llm import chat
-from .config import AGENT_INPUT_DIR, DOCKER_BUILD_TIMEOUT, MEMORIES_DIR
+from .config import AGENT_INPUT_DIR, MEMORIES_DIR
 from .data.database import db
 from .export import render_export
 from .data.models import (
@@ -244,26 +244,3 @@ def _copy_to_input(src: Path, input_dir: str) -> None:
     except OSError:
         pass
     logger.info("Copied %s -> %s", src, dest)
-
-
-# ── Docker (called from lifespan) ──────────────────────────
-
-
-async def ensure_docker_image():
-    """Check Docker availability and build the sandbox image in the background."""
-    from .tools.sandbox import get_sandbox
-
-    try:
-        sandbox = get_sandbox()
-        available = await sandbox.check_available()
-        if not available:
-            logger.info("Docker not available — code execution will use subprocess fallback")
-            return
-        logger.info("Docker available, building sandbox image (timeout=%ds)...", DOCKER_BUILD_TIMEOUT)
-        success = await sandbox.build_image()
-        if success:
-            logger.info("Docker sandbox image ready — future executions will use Docker")
-        else:
-            logger.warning("Docker image build failed — falling back to subprocess execution")
-    except Exception:
-        logger.exception("Unexpected error during Docker sandbox setup")

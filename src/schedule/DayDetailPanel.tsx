@@ -63,10 +63,20 @@ export default function DayDetailPanel({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 leading-snug group-hover:text-brand-600 transition-colors">{m.title}</p>
-                {m.stage && (
-                  <span className={`inline-block mt-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${STAGE_STYLE[m.stage] || STAGE_STYLE.apply}`}>
-                    {stageLabel(m.stage)}
-                  </span>
+                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                  {(m.company || m.position) && (
+                    <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                      {[m.company, m.position].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
+                  {m.stage && (
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${STAGE_STYLE[m.stage] || STAGE_STYLE.apply}`}>
+                      {stageLabel(m.stage)}
+                    </span>
+                  )}
+                </div>
+                {m.notes && (
+                  <p className="mt-1 text-[11px] text-gray-400 leading-snug truncate" title={m.notes}>📌 {m.notes}</p>
                 )}
               </div>
             </button>

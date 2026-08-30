@@ -58,7 +58,7 @@ class Database:
             pass  # Column already exists
 
         # ── 面试语义迁移（与 Rust 侧 repo.rs 对齐）──
-        # 对话角色: "general" | "mock" | "review" | "resume"
+        # 对话角色: "general" | "review" | "resume"
         try:
             await self._conn.execute(
                 "ALTER TABLE agent_conversations ADD COLUMN type TEXT NOT NULL DEFAULT 'general'"
@@ -76,6 +76,26 @@ class Database:
         try:
             await self._conn.execute(
                 "ALTER TABLE scheduled_meetings ADD COLUMN stage TEXT NOT NULL DEFAULT 'one'"
+            )
+        except Exception:
+            pass  # Column already exists
+
+        # 日程公司/岗位（AI 从会议通知提取）
+        try:
+            await self._conn.execute(
+                "ALTER TABLE scheduled_meetings ADD COLUMN company TEXT NOT NULL DEFAULT ''"
+            )
+        except Exception:
+            pass  # Column already exists
+        try:
+            await self._conn.execute(
+                "ALTER TABLE scheduled_meetings ADD COLUMN position TEXT NOT NULL DEFAULT ''"
+            )
+        except Exception:
+            pass  # Column already exists
+        try:
+            await self._conn.execute(
+                "ALTER TABLE scheduled_meetings ADD COLUMN notes TEXT NOT NULL DEFAULT ''"
             )
         except Exception:
             pass  # Column already exists
@@ -354,14 +374,16 @@ class Database:
 
     async def insert_schedule(self, title: str, start_time: str,
                               end_time: str | None = None,
-                              zoom_url: str = "", stage: str = "one") -> str:
+                              zoom_url: str = "", stage: str = "one",
+                              company: str = "", position: str = "",
+                              notes: str = "") -> str:
         sched_id = uuid.uuid4().hex
         now = datetime.now(timezone.utc).isoformat()
         end = end_time or ""
         await self.conn.execute(
-            "INSERT INTO scheduled_meetings (id, title, zoom_url, start_time, end_time, created_at, stage) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (sched_id, title, zoom_url, start_time, end, now, stage),
+            "INSERT INTO scheduled_meetings (id, title, zoom_url, start_time, end_time, created_at, stage, company, position, notes) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (sched_id, title, zoom_url, start_time, end, now, stage, company, position, notes),
         )
         await self.conn.commit()
         return sched_id
@@ -385,10 +407,12 @@ class Database:
 
     async def update_schedule(self, sched_id: str, title: str,
                               start_time: str, end_time: str = "",
-                              zoom_url: str = "", stage: str = "one") -> None:
+                              zoom_url: str = "", stage: str = "one",
+                              company: str = "", position: str = "",
+                              notes: str = "") -> None:
         await self.conn.execute(
-            "UPDATE scheduled_meetings SET title = ?, zoom_url = ?, start_time = ?, end_time = ?, stage = ? WHERE id = ?",
-            (title, zoom_url, start_time, end_time, stage, sched_id),
+            "UPDATE scheduled_meetings SET title = ?, zoom_url = ?, start_time = ?, end_time = ?, stage = ?, company = ?, position = ?, notes = ? WHERE id = ?",
+            (title, zoom_url, start_time, end_time, stage, company, position, notes, sched_id),
         )
         # Sync linked todo
         await self.conn.execute(

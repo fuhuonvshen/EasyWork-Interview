@@ -56,6 +56,9 @@ export interface ScheduledMeeting {
   end_time: string;
   created_at: string;
   stage: string;             // "hr" | "one" | "two" | "three"
+  company: string;           // AI 从会议通知提取
+  position: string;          // AI 从会议通知提取
+  notes: string;             // 其他要点（面试官/准备材料等）
 }
 
 export type ModelStatus =
@@ -78,7 +81,7 @@ export interface ModelInfo {
 export type MinutesTab = "today" | "history" | "schedule" | "reports";
 
 // Agent types
-export type AgentConversationType = "general" | "mock" | "review" | "resume";
+export type AgentConversationType = "general" | "review" | "resume";
 
 export interface AgentConversationSummary {
   id: string;

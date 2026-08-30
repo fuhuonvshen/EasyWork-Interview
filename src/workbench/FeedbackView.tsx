@@ -65,7 +65,7 @@ export default function FeedbackView({ onBack }: { onBack: () => void }) {
                 type="email"
                 value={sender}
                 onChange={(e) => setSender(e.target.value)}
-                placeholder="you@ab-inbev.com"
+                placeholder="你的163邮箱，如 xxx@163.com"
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 focus:bg-white transition-colors"
               />
             </div>
@@ -97,7 +97,7 @@ export default function FeedbackView({ onBack }: { onBack: () => void }) {
             <button
               onClick={handleSend}
               disabled={!canSend}
-              className="inline-flex items-center gap-2 px-6 py-2.5 bg-amber-600 text-white text-sm font-medium rounded-full hover:bg-amber-700 active:scale-95 transition-all shadow-md shadow-amber-500/25 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-6 py-2.5 bg-rose-600 text-white text-sm font-medium rounded-full hover:bg-rose-700 active:scale-95 transition-all shadow-md shadow-rose-500/25 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {sending ? <Loader size={14} className="animate-spin" /> : <Send size={14} />}
               {sending ? "发送中..." : "发送反馈"}

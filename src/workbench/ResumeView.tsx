@@ -1,10 +1,53 @@
 // EasyWork - 简历顾问：左中简历管理（全局资产）+ 右侧 AI 侧边栏（简历角色对话）
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowLeft, FileText, Upload, Trash2, Check, Loader, Sparkles, Bot, Maximize2, PanelRightClose } from "lucide-react";
+import { ArrowLeft, FileText, Upload, Trash2, Check, Loader, Sparkles, Bot, Maximize2, PanelRightClose, ShieldCheck } from "lucide-react";
 import type { Resume, AgentConversationSummary } from "../types";
 import { showToast } from "../components/Toast";
 import AgentChat from "../agent/AgentChat";
+import { sanitizePrivacy } from "../utils/privacy";
+import * as pdfjsLib from "pdfjs-dist";
+import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import JSZip from "jszip";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+
+// 从 PDF / DOCX / TXT / MD 提取文本
+async function extractText(file: File): Promise<string> {
+  const ext = file.name.split(".").pop()?.toLowerCase() || "";
+  if (ext === "pdf") {
+    const buf = await file.arrayBuffer();
+    const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+    let text = "";
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map((it) => ("str" in it ? it.str : "")).join(" ") + "\n";
+    }
+    return text;
+  }
+  if (ext === "docx") {
+    const zip = await JSZip.loadAsync(await file.arrayBuffer());
+    const xml = await zip.file("word/document.xml")?.async("string");
+    if (!xml) return "";
+    // 段落换行 + 提取 <w:t> 文本
+    return xml
+      .replace(/<w:p[^>]*>/g, "\n")
+      .replace(/<w:t[^>]*>([^<]*)<\/w:t>/g, "$1")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .trim();
+  }
+  // txt / md：直接按文本读
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("读取文件失败"));
+    reader.readAsText(file);
+  });
+}
 
 export default function ResumeView({ onBack, onExpand }: { onBack: () => void; onExpand: () => void }) {
   const [resume, setResume] = useState<Resume | null>(null);
@@ -56,23 +99,31 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
     if (!content.trim()) { showToast("简历内容为空", "error"); return; }
     setUploading(true);
     try {
-      await invoke("save_resume", { fileName, content });
-      setResume({ id: "", file_name: fileName, content, created_at: new Date().toISOString() });
+      // 保存前自动脱敏：姓名/电话/邮箱/微信/身份证打码
+      const sanitized = sanitizePrivacy(content);
+      await invoke("save_resume", { fileName, content: sanitized });
+      setResume({ id: "", file_name: fileName, content: sanitized, created_at: new Date().toISOString() });
       setPasteText("");
       setShowPaste(false);
-      showToast("简历已保存，面试回答时会自动参考", "success");
+      showToast("已保存（隐私信息已自动脱敏）", "success");
     } catch {
       showToast("保存简历失败", "error");
     }
     setUploading(false);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => doSaveResume(file.name, String(reader.result || ""));
-    reader.onerror = () => showToast("读取文件失败", "error");
+    setUploading(true);
+    try {
+      const content = await extractText(file);
+      if (!content.trim()) { showToast("未能从文件中提取到文字", "error"); }
+      else { await doSaveResume(file.name, content); }
+    } catch {
+      showToast("解析文件失败，请尝试另存为 .txt 后上传", "error");
+    }
+    setUploading(false);
     e.target.value = "";
   };
 
@@ -103,7 +154,7 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
                   我的简历
                   <span className="text-[10px] font-medium text-gray-400">面试回答演练时 AI 会参考你的项目/实习经历</span>
                 </h3>
-                <p className="text-xs text-gray-400 mb-4">支持 .txt / .md 或直接粘贴文本</p>
+                <p className="text-xs text-gray-400 mb-4">支持 .pdf / .docx / .txt / .md 或直接粘贴文本 · <span className="text-emerald-600 inline-flex items-center gap-0.5"><ShieldCheck size={11} />保存时自动脱敏</span>（姓名只留姓、电话/邮箱/微信打码）</p>
 
                 {loadingResume ? (
                   <div className="flex items-center gap-2 text-xs text-gray-400 py-4">
@@ -142,7 +193,7 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".txt,.md"
+                    accept=".txt,.md,.pdf,.docx"
                     onChange={handleFileChange}
                     className="hidden"
                   />

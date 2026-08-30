@@ -126,8 +126,10 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
   const [dockLoading, setDockLoading] = useState(true);
   const [dockCreating, setDockCreating] = useState(false);
 
-  // ── 气泡物理：六个模块在左侧区域自由漂浮 + 互相碰撞不重叠 ──
-  const areaRef = useRef<HTMLDivElement>(null);
+  // ── 气泡物理：六个模块在场景内自由漂浮 + 互相碰撞不重叠 ──
+  // 注意：.wb-pos 的 left/top 是相对 wb-scene 的坐标系，边界必须用场景尺寸，
+  // 用主区域尺寸会导致卡片飘出场景（上距远/下出界）。
+  const sceneRef = useRef<HTMLDivElement>(null);
   const cardElRefs = useRef<(HTMLDivElement | null)[]>([]);
   const physRef = useRef<{ x: number; y: number; vx: number; vy: number; w: number }[] | null>(null);
   useEffect(() => {
@@ -144,9 +146,9 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
     const tick = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
-      const area = areaRef.current;
-      const W = area?.offsetWidth || 720;
-      const H = area?.offsetHeight || 460;
+      const scene = sceneRef.current;
+      const W = scene?.offsetWidth || 720;
+      const H = scene?.offsetHeight || 460;
       const t = now / 1000;
       const MARGIN = 6;
       const radiusOf = (w: number) => (w / 2) * 0.85; // 水滴形比圆略小
@@ -204,12 +206,12 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
     getVersion().then(setAppVersion).catch(() => setAppVersion(""));
   }, []);
 
-  // 加载最近一个对话供面板使用
+  // 主控台侧边栏每次打开软件都是新话题：直接创建新对话
   useEffect(() => {
-    invoke<AgentConversationSummary[]>("agent_list_conversations")
-      .then((list) => {
-        setDockConvs(list);
-        if (list.length > 0) setDockConvId(list[0].id);
+    invoke<string>("agent_create_conversation", { convType: "general" })
+      .then((id) => {
+        setDockConvId(id);
+        setDockConvs([{ id, title: "", created_at: new Date().toISOString(), last_message: null, type: "general", ref_id: null }]);
       })
       .catch(() => {})
       .finally(() => setDockLoading(false));
@@ -231,8 +233,8 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
     <div className="h-full flex flex-col relative">
       {/* 主内容：气泡场景 + 右侧对话面板（dock 上下满高，底部栏仅占左下） */}
       <div className="flex-1 min-h-0 flex gap-2.5 pl-3 pr-3 pt-3 pb-[22px]">
-        <div ref={areaRef} className="flex-1 min-w-0 flex items-center justify-center overflow-hidden">
-          <div className="wb-scene">
+        <div className="flex-1 min-w-0 flex items-center justify-center overflow-hidden">
+          <div ref={sceneRef} className="wb-scene">
             {WORKBENCH_CARDS.map((card, i) => {
               const Icon = card.icon;
               return (

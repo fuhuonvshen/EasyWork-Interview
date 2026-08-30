@@ -34,7 +34,7 @@ class RenameRequest(BaseModel):
 
 
 class CreateConversationRequest(BaseModel):
-    type: str = "general"   # "general" | "mock" | "review" | "resume"
+    type: str = "general"   # "general" | "review" | "resume"
     ref_id: str | None = None
 
 

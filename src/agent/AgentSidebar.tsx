@@ -5,13 +5,12 @@ import type { AgentConversationSummary, AgentConversationType, TodoItem } from "
 
 // 角色元信息：展示名 / 图标 / 徽标样式
 export const ROLE_META: Record<AgentConversationType, { label: string; icon: string; badge: string; iconBg: string }> = {
-  mock: { label: "模拟面试", icon: "🎯", badge: "bg-violet-50 text-violet-700 border-violet-200", iconBg: "bg-violet-100" },
   review: { label: "复盘分析", icon: "🔍", badge: "bg-emerald-50 text-emerald-700 border-emerald-200", iconBg: "bg-emerald-100" },
   resume: { label: "简历顾问", icon: "📄", badge: "bg-amber-50 text-amber-700 border-amber-200", iconBg: "bg-amber-100" },
   general: { label: "通用助手", icon: "💬", badge: "bg-sky-50 text-sky-700 border-sky-200", iconBg: "bg-sky-100" },
 };
 
-const GROUP_ORDER: AgentConversationType[] = ["mock", "review", "resume", "general"];
+const GROUP_ORDER: AgentConversationType[] = ["review", "resume", "general"];
 
 interface Props {
   conversations: AgentConversationSummary[];

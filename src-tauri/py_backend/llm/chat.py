@@ -1,6 +1,6 @@
 """ReAct chat loop — Plan-then-Execute with tool calls.
 
-Code execution via the execute_python tool (handled in the tool call branch).
+Tool calls are handled by the ReAct loop (tools/registry.py).
 """
 
 import asyncio
@@ -42,12 +42,12 @@ def _detect_intent(message: str) -> tuple[str, str]:
 async def _conversation_setup(conversation_id: str, intent: str = "general") -> tuple[str, str, dict | None]:
     """Return (sys_prompt, context_block, meta) for a conversation.
 
-    Applies the role prompt based on conversation type ("mock" | "review" |
+    Applies the role prompt based on conversation type ("review" |
     "resume" | "general") and injects the linked interview context for review.
     For the "answer" intent, appends the answer-coach prompt and injects the
     user's latest resume (project/internship experience) as context.
     """
-    from .prompt import answer_prompt, mock_prompt, review_prompt, resume_prompt, system_prompt
+    from .prompt import answer_prompt, review_prompt, resume_prompt, system_prompt
 
     meta = await db.get_conversation_meta(conversation_id)
     conv_type = (meta or {}).get("type") or "general"
@@ -73,9 +73,7 @@ async def _conversation_setup(conversation_id: str, intent: str = "general") -> 
             )
         return sys_prompt, context_block, meta
 
-    if conv_type == "mock":
-        sys_prompt += "\n\n" + mock_prompt()
-    elif conv_type == "review":
+    if conv_type == "review":
         sys_prompt += "\n\n" + review_prompt()
         if ref_id:
             try:
@@ -432,8 +430,6 @@ async def _extract_assessment(content: str, conversation_id: str, meta: dict | N
     """Extract a ```assessment JSON block into interview_assessments, returning cleaned content.
 
     - review 对话：直接写入 ref_id 关联的面试记录
-    - mock 对话：若无关联面试，自动创建一条模拟面试记录（kind='interview', stage='mock'）
-      并回写对话 ref_id，让评估出现在"面试记录"历史中
     """
     m = _ASSESSMENT_RE.search(content)
     if not m:
@@ -444,15 +440,8 @@ async def _extract_assessment(content: str, conversation_id: str, meta: dict | N
         logger.warning("[assessment] 解析失败，跳过")
         return content
 
-    conv_type = (meta or {}).get("type") or "general"
     ref_id = (meta or {}).get("ref_id")
     interview_id = ref_id
-
-    if conv_type == "mock" and not interview_id:
-        interview_id = await _create_mock_interview(conversation_id)
-        if interview_id:
-            await db.update_conversation_meta(conversation_id, "mock", interview_id)
-            logger.info("[assessment] mock 对话已关联面试记录: %s", interview_id[:8])
 
     if not interview_id:
         logger.info("[assessment] 无关联面试记录，跳过落库")
@@ -474,30 +463,6 @@ async def _extract_assessment(content: str, conversation_id: str, meta: dict | N
         logger.warning("[assessment] save failed: %s", e)
 
     return _ASSESSMENT_RE.sub("", content).strip()
-
-
-async def _create_mock_interview(conversation_id: str) -> str | None:
-    """Create a minimal interview record for a finished mock conversation."""
-    import uuid as _uuid
-
-    cursor = await db.conn.execute(
-        "SELECT title FROM agent_conversations WHERE id = ?", (conversation_id,)
-    )
-    row = await cursor.fetchone()
-    title = (row[0] if row else "") or "模拟面试"
-    meeting_id = _uuid.uuid4().hex
-    now = datetime.now(timezone.utc).isoformat()
-    try:
-        await db.conn.execute(
-            "INSERT INTO meetings (id, title, created_at, duration_secs, wav_path, pinned, kind, stage) "
-            "VALUES (?, ?, ?, 0, '', 0, 'interview', 'mock')",
-            (meeting_id, title, now),
-        )
-        await db.conn.commit()
-        return meeting_id
-    except Exception as e:
-        logger.warning("[assessment] 创建模拟面试记录失败: %s", e)
-        return None
 
 
 async def chat_stream(req: ChatRequest, skills: SkillRegistry) -> AsyncGenerator[str, None]:

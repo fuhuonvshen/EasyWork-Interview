@@ -101,7 +101,7 @@ pub async fn agent_list_conversations(
 }
 
 /// Create a new conversation, returns its id.
-/// `conv_type`: "general" | "mock" | "review" | "resume"
+/// `conv_type`: "general" | "review" | "resume"
 /// `ref_id`: 关联面试记录 ID（review 类型注入上下文用）
 #[tauri::command]
 pub async fn agent_create_conversation(
