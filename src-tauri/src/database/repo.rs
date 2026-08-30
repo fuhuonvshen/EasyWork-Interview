@@ -104,12 +104,18 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
             id          TEXT PRIMARY KEY,
             file_name   TEXT NOT NULL DEFAULT '',
             content     TEXT NOT NULL,
-            created_at  TEXT NOT NULL
+            created_at  TEXT NOT NULL,
+            fields      TEXT
         )",
     )
     .execute(pool)
     .await
     .context("创建 resumes 表失败")?;
+    // Migration: add fields column (AI 提取的结构化字段 JSON)
+    sqlx::query("ALTER TABLE resumes ADD COLUMN fields TEXT")
+        .execute(pool)
+        .await
+        .ok();
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS transcripts (
@@ -1310,15 +1316,16 @@ pub async fn update_interview_question(
 use super::models::Resume;
 
 /// 保存一份新简历（追加一行，get_resume 取最新）
-pub async fn save_resume(pool: &SqlitePool, file_name: &str, content: &str) -> Result<String> {
+pub async fn save_resume(pool: &SqlitePool, file_name: &str, content: &str, fields: Option<&str>) -> Result<String> {
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
-        "INSERT INTO resumes (id, file_name, content, created_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO resumes (id, file_name, content, created_at, fields) VALUES (?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(file_name)
     .bind(content)
     .bind(chrono::Local::now().to_rfc3339())
+    .bind(fields)
     .execute(pool)
     .await
     .context("保存简历失败")?;

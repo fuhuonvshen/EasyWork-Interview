@@ -46,6 +46,26 @@ export interface Resume {
   file_name: string;
   content: string;
   created_at: string;
+  fields: string | null;  // AI 提取的结构化字段（JSON 字符串）
+}
+
+export interface ResumeEducation {
+  school: string; major: string; degree: string; start_time: string; end_time: string;
+}
+export interface ResumeWork {
+  company: string; position: string; start_time: string; end_time: string; description: string;
+}
+export interface ResumeProject {
+  name: string; role: string; start_time: string; end_time: string; description: string;
+}
+export interface ResumeFields {
+  name: string; phone: string; email: string; gender: string; age: string;
+  education: ResumeEducation[];
+  work_experience: ResumeWork[];
+  projects: ResumeProject[];
+  skills: string[];
+  job_intention: { position: string; salary_expectation: string; location: string };
+  summary: string;
 }
 
 export interface ScheduledMeeting {

@@ -15,6 +15,7 @@ mod summary;
 mod whisper;
 mod update;
 mod feedback;
+mod resume;
 
 mod state;
 
@@ -214,6 +215,7 @@ pub fn run() {
             minutes::meeting::add_questions_to_bank,
             minutes::meeting::save_resume,
             minutes::meeting::get_resume,
+            resume::commands::extract_resume_fields,
             minutes::schedule::add_scheduled_meeting,
             minutes::schedule::delete_scheduled_meeting,
             minutes::schedule::update_scheduled_meeting,
@@ -356,7 +358,7 @@ async fn init_background(app_handle: &tauri::AppHandle, app_dir: &std::path::Pat
     let bin_dir = settings::resolve_path(&app_dir, &settings, "", "bin");
     let resource_dir = app_handle.path().resource_dir().ok();
     let dev_bin_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries");
-    match llm::init(&llm_dir, &bin_dir, resource_dir.as_deref(), Some(&dev_bin_dir)).await {
+    match llm::init(&llm_dir, &bin_dir, resource_dir.as_deref(), Some(&dev_bin_dir), settings).await {
         Ok(engine) => {
             app_handle.manage(LlmState(engine));
             emit_init_status(app_handle, "llm", "ok", "LLM 引擎就绪");

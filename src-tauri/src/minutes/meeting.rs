@@ -42,11 +42,41 @@ pub async fn generate_minutes(
         guard.clone()
     };
 
+    // 在线转写（设置 agent_speech_backend = online 时优先，失败回退本地）
+    let speech_backend = crate::database::repo::get_setting(&db.0, "agent_speech_backend")
+        .await.map_err(|e| format!("读取语音设置失败: {}", e))?.unwrap_or_default();
+    let speech_key = crate::database::repo::get_setting(&db.0, "agent_speech_key")
+        .await.map_err(|e| format!("读取语音设置失败: {}", e))?.unwrap_or_default();
+    let speech_url = crate::database::repo::get_setting(&db.0, "agent_speech_url")
+        .await.map_err(|e| format!("读取语音设置失败: {}", e))?
+        .unwrap_or_else(|| "https://api.siliconflow.cn".into());
+    let speech_model = crate::database::repo::get_setting(&db.0, "agent_speech_model")
+        .await.map_err(|e| format!("读取语音设置失败: {}", e))?
+        .unwrap_or_else(|| "SenseVoice-Small".into());
+    let speech_online = speech_backend == "online" && !speech_key.trim().is_empty();
+
     // Prefer SenseVoice for final transcription; fallback to Whisper on any failure.
     // SenseVoice (ONNX) has O(n²) memory on long audio, so we fall back to Whisper
     // which processes audio in chunks and handles long recordings gracefully.
     // Both return segments with timestamps for click-to-seek audio playback.
-    let (wav_transcript, segments) = if let Some(ref sv) = sv_engine {
+    let (wav_transcript, segments) = {
+        let mut online_ok: Option<(String, Vec<crate::whisper::engine::SegmentInfo>)> = None;
+        if speech_online {
+            match crate::whisper::engine::transcribe_online(&audio, &speech_key, &speech_url, &speech_model).await {
+                Ok(segs) if !segs.is_empty() => {
+                    log::info!("generate_minutes: using online transcription ({} segs)", segs.len());
+                    let text = segs.iter().map(|s| s.text.as_str()).collect::<Vec<_>>().join("\n");
+                    online_ok = Some((text, segs));
+                }
+                other => {
+                    log::warn!("generate_minutes: online transcription failed, falling back to local: {:?}",
+                        other.as_ref().err().map(|e| e.to_string()));
+                }
+            }
+        }
+        if let Some(r) = online_ok {
+            r
+        } else if let Some(ref sv) = sv_engine {
         let sv_result = match sv.ensure_model_loaded().await {
             Ok(()) => {
                 sv.transcribe_segments(&audio).await.map_err(|e| format!("SenseVoice 转写失败: {}", e))
@@ -74,18 +104,19 @@ pub async fn generate_minutes(
                 }
             }
         }
-    } else if let Some(ref w) = whisper_engine {
-        w.ensure_model_loaded().await.map_err(|e| format!("Whisper 模型加载失败: {}", e))?;
-        log::info!("generate_minutes: using Whisper for final transcription");
-        let segs = w.transcribe_segments(&audio)
-            .await
-            .map_err(|e| format!("Whisper 转写失败: {}", e))?;
-        let text = segs.iter().map(|s| s.text.as_str()).collect::<Vec<_>>().join("\n");
-        (text, segs)
-    } else {
-        return Err(
-            "没有可用的语音识别模型。请在「模型管理」中下载 SenseVoice 或 ggml-small 模型。".into(),
-        );
+        } else if let Some(ref w) = whisper_engine {
+            w.ensure_model_loaded().await.map_err(|e| format!("Whisper 模型加载失败: {}", e))?;
+            log::info!("generate_minutes: using Whisper for final transcription");
+            let segs = w.transcribe_segments(&audio)
+                .await
+                .map_err(|e| format!("Whisper 转写失败: {}", e))?;
+            let text = segs.iter().map(|s| s.text.as_str()).collect::<Vec<_>>().join("\n");
+            (text, segs)
+        } else {
+            return Err(
+                "没有可用的语音识别模型。请在「模型管理」中下载 SenseVoice 或 ggml-small 模型。".into(),
+            );
+        }
     };
 
     let segments_json = if segments.is_empty() {
@@ -523,12 +554,13 @@ pub async fn add_questions_to_bank(
 pub async fn save_resume(
     file_name: String,
     content: String,
+    fields: Option<String>,
     db: State<'_, DbState>,
 ) -> Result<String, String> {
     if content.trim().is_empty() {
         return Err("简历内容为空".into());
     }
-    crate::database::repo::save_resume(&db.0, &file_name, &content)
+    crate::database::repo::save_resume(&db.0, &file_name, &content, fields.as_deref())
         .await
         .map_err(|e| format!("保存简历失败: {}", e))
 }

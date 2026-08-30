@@ -3,9 +3,21 @@
 
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { viteStaticCopy } from "vite-plugin-static-copy";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // pdf.js 中文 CID 字体解码需要 cMap 表；Tesseract OCR 的 worker/core 需本地化（离线可用）
+    viteStaticCopy({
+      targets: [
+        { src: "node_modules/pdfjs-dist/cmaps/*", dest: "cmaps" },
+        { src: "node_modules/tesseract.js/dist/worker.min.js", dest: "tesseract" },
+        { src: "node_modules/tesseract.js-core/tesseract-core*.js", dest: "tesseract" },
+        { src: "node_modules/tesseract.js-core/tesseract-core*.wasm", dest: "tesseract" },
+      ],
+    }),
+  ],
 
   // Tauri expects a fixed port in dev
   server: {

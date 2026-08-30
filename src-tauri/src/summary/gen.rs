@@ -19,42 +19,45 @@ pub async fn generate_minutes(
     let prompt_chars = system.chars().count() + user.chars().count();
     log::info!("Generating minutes via local LLM, prompt_chars={}", prompt_chars);
 
-    // Lazy-load: if server not running but a model exists, auto-start it
-    {
-        let eng = engine.read().await;
-        if !eng.is_server_healthy().await {
-            let models = eng.list_models();
-            let model = models.iter()
-                .find(|m| m.downloaded && m.is_recommended)
-                .or_else(|| models.iter().find(|m| m.downloaded));
-            drop(eng);
+    // 在线后端（设置中配置）不需要本地 llama-server
+    if !engine.read().await.is_online() {
+        // Lazy-load: if server not running but a model exists, auto-start it
+        {
+            let eng = engine.read().await;
+            if !eng.is_server_healthy().await {
+                let models = eng.list_models();
+                let model = models.iter()
+                    .find(|m| m.downloaded && m.is_recommended)
+                    .or_else(|| models.iter().find(|m| m.downloaded));
+                drop(eng);
 
-            if let Some(m) = model {
-                log::info!("Lazy-loading LLM model: {}", m.name);
-                let eng = engine.read().await;
-                if let Err(e) = eng.start_server(&m.name).await {
-                    return Err(anyhow::anyhow!("自动加载 LLM 模型失败: {}", e));
-                }
-            } else {
-                let eng = engine.read().await;
-                if !eng.is_binary_ready() {
-                    return Err(anyhow::anyhow!("llama-server 未就绪，请在「模型管理」中下载后使用"));
+                if let Some(m) = model {
+                    log::info!("Lazy-loading LLM model: {}", m.name);
+                    let eng = engine.read().await;
+                    if let Err(e) = eng.start_server(&m.name).await {
+                        return Err(anyhow::anyhow!("自动加载 LLM 模型失败: {}", e));
+                    }
                 } else {
-                    return Err(anyhow::anyhow!("未下载本地模型，请在「模型管理」中下载后使用"));
+                    let eng = engine.read().await;
+                    if !eng.is_binary_ready() {
+                        return Err(anyhow::anyhow!("llama-server 未就绪，请在「模型管理」中下载后使用"));
+                    } else {
+                        return Err(anyhow::anyhow!("未下载本地模型，请在「模型管理」中下载后使用"));
+                    }
                 }
             }
         }
-    }
 
-    // Wait for server to be healthy
-    for i in 0..60 {
-        if engine.read().await.is_server_healthy().await {
-            break;
+        // Wait for server to be healthy
+        for i in 0..60 {
+            if engine.read().await.is_server_healthy().await {
+                break;
+            }
+            if i == 59 {
+                return Err(anyhow::anyhow!("LLM 服务启动超时，请重试"));
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
-        if i == 59 {
-            return Err(anyhow::anyhow!("LLM 服务启动超时，请重试"));
-        }
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
 
     log::info!("LLM server is healthy, sending generate request...");
@@ -90,42 +93,45 @@ pub async fn generate_interview_minutes(
     let prompt_chars = system.chars().count() + user.chars().count();
     log::info!("Generating interview minutes via local LLM, prompt_chars={} (title={})", prompt_chars, interview_title);
 
-    // Lazy-load: if server not running but a model exists, auto-start it
-    {
-        let eng = engine.read().await;
-        if !eng.is_server_healthy().await {
-            let models = eng.list_models();
-            let model = models.iter()
-                .find(|m| m.downloaded && m.is_recommended)
-                .or_else(|| models.iter().find(|m| m.downloaded));
-            drop(eng);
+    // 在线后端（设置中配置）不需要本地 llama-server
+    if !engine.read().await.is_online() {
+        // Lazy-load: if server not running but a model exists, auto-start it
+        {
+            let eng = engine.read().await;
+            if !eng.is_server_healthy().await {
+                let models = eng.list_models();
+                let model = models.iter()
+                    .find(|m| m.downloaded && m.is_recommended)
+                    .or_else(|| models.iter().find(|m| m.downloaded));
+                drop(eng);
 
-            if let Some(m) = model {
-                log::info!("Lazy-loading LLM model: {}", m.name);
-                let eng = engine.read().await;
-                if let Err(e) = eng.start_server(&m.name).await {
-                    return Err(anyhow::anyhow!("自动加载 LLM 模型失败: {}", e));
-                }
-            } else {
-                let eng = engine.read().await;
-                if !eng.is_binary_ready() {
-                    return Err(anyhow::anyhow!("llama-server 未就绪，请在「模型管理」中下载后使用"));
+                if let Some(m) = model {
+                    log::info!("Lazy-loading LLM model: {}", m.name);
+                    let eng = engine.read().await;
+                    if let Err(e) = eng.start_server(&m.name).await {
+                        return Err(anyhow::anyhow!("自动加载 LLM 模型失败: {}", e));
+                    }
                 } else {
-                    return Err(anyhow::anyhow!("未下载本地模型，请在「模型管理」中下载后使用"));
+                    let eng = engine.read().await;
+                    if !eng.is_binary_ready() {
+                        return Err(anyhow::anyhow!("llama-server 未就绪，请在「模型管理」中下载后使用"));
+                    } else {
+                        return Err(anyhow::anyhow!("未下载本地模型，请在「模型管理」中下载后使用"));
+                    }
                 }
             }
         }
-    }
 
-    // Wait for server to be healthy
-    for i in 0..60 {
-        if engine.read().await.is_server_healthy().await {
-            break;
+        // Wait for server to be healthy
+        for i in 0..60 {
+            if engine.read().await.is_server_healthy().await {
+                break;
+            }
+            if i == 59 {
+                return Err(anyhow::anyhow!("LLM 服务启动超时，请重试"));
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
-        if i == 59 {
-            return Err(anyhow::anyhow!("LLM 服务启动超时，请重试"));
-        }
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
 
     log::info!("LLM server is healthy, sending interview generate request...");
@@ -189,36 +195,39 @@ pub async fn extract_interview_questions(
     }
     let system = super::template::interview_questions_prompt(transcript);
 
-    // Lazy-load + 等待就绪（与纪要生成一致）
-    {
-        let eng = engine.read().await;
-        if !eng.is_server_healthy().await {
-            let models = eng.list_models();
-            let model = models.iter()
-                .find(|m| m.downloaded && m.is_recommended)
-                .or_else(|| models.iter().find(|m| m.downloaded));
-            drop(eng);
-            if let Some(m) = model {
-                log::info!("Lazy-loading LLM model: {}", m.name);
-                let eng = engine.read().await;
-                if let Err(e) = eng.start_server(&m.name).await {
-                    log::warn!("提取面试问题：LLM 加载失败: {}", e);
+    // 在线后端（设置中配置）不需要本地 llama-server
+    if !engine.read().await.is_online() {
+        // Lazy-load + 等待就绪（与纪要生成一致）
+        {
+            let eng = engine.read().await;
+            if !eng.is_server_healthy().await {
+                let models = eng.list_models();
+                let model = models.iter()
+                    .find(|m| m.downloaded && m.is_recommended)
+                    .or_else(|| models.iter().find(|m| m.downloaded));
+                drop(eng);
+                if let Some(m) = model {
+                    log::info!("Lazy-loading LLM model: {}", m.name);
+                    let eng = engine.read().await;
+                    if let Err(e) = eng.start_server(&m.name).await {
+                        log::warn!("提取面试问题：LLM 加载失败: {}", e);
+                        return Vec::new();
+                    }
+                } else {
                     return Vec::new();
                 }
-            } else {
-                return Vec::new();
             }
         }
-    }
-    for i in 0..60 {
-        if engine.read().await.is_server_healthy().await {
-            break;
+        for i in 0..60 {
+            if engine.read().await.is_server_healthy().await {
+                break;
+            }
+            if i == 59 {
+                log::warn!("提取面试问题：LLM 服务启动超时");
+                return Vec::new();
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
-        if i == 59 {
-            log::warn!("提取面试问题：LLM 服务启动超时");
-            return Vec::new();
-        }
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
 
     let raw = match engine.read().await.generate(&system, "").await {

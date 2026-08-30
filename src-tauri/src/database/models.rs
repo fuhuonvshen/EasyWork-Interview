@@ -159,6 +159,8 @@ pub struct Resume {
     pub file_name: String,
     pub content: String,
     pub created_at: String,
+    /// AI 提取的结构化字段（JSON 字符串），如姓名/教育/工作经历等
+    pub fields: Option<String>,
 }
 
 /// A todo/task item.

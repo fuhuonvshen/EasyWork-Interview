@@ -25,3 +25,41 @@ export function sanitizePrivacy(text: string): string {
   }
   return lines.join("\n");
 }
+
+// 简历结构化字段脱敏：姓名只留姓、电话/邮箱/描述类字段整体走 sanitizePrivacy
+export function sanitizeResumeFields(fieldsJson: string): string {
+  try {
+    const obj = JSON.parse(fieldsJson);
+    if (obj && typeof obj === "object") {
+      if (typeof obj.name === "string" && obj.name.length > 1) {
+        obj.name = obj.name[0] + "**";
+      }
+      for (const key of ["phone", "email", "gender", "age", "summary"]) {
+        if (typeof obj[key] === "string") obj[key] = sanitizePrivacy(obj[key]);
+      }
+      for (const arrKey of ["education", "work_experience", "projects"]) {
+        if (Array.isArray(obj[arrKey])) {
+          obj[arrKey] = obj[arrKey].map((item: Record<string, unknown>) => {
+            const clean: Record<string, unknown> = {};
+            for (const [k, v] of Object.entries(item)) {
+              clean[k] = typeof v === "string" ? sanitizePrivacy(v) : v;
+            }
+            return clean;
+          });
+        }
+      }
+      if (Array.isArray(obj.skills)) {
+        obj.skills = obj.skills.map((s: unknown) => typeof s === "string" ? sanitizePrivacy(s) : s);
+      }
+      if (obj.job_intention && typeof obj.job_intention === "object") {
+        for (const [k, v] of Object.entries(obj.job_intention)) {
+          if (typeof v === "string") obj.job_intention[k] = sanitizePrivacy(v);
+        }
+      }
+      return JSON.stringify(obj, null, 2);
+    }
+    return sanitizePrivacy(fieldsJson);
+  } catch {
+    return sanitizePrivacy(fieldsJson);
+  }
+}

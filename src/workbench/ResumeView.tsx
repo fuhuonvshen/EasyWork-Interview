@@ -2,27 +2,40 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ArrowLeft, FileText, Upload, Trash2, Check, Loader, Sparkles, Bot, Maximize2, PanelRightClose, ShieldCheck } from "lucide-react";
-import type { Resume, AgentConversationSummary } from "../types";
+import type { Resume, AgentConversationSummary, ResumeFields } from "../types";
 import { showToast } from "../components/Toast";
 import AgentChat from "../agent/AgentChat";
-import { sanitizePrivacy } from "../utils/privacy";
+import { sanitizePrivacy, sanitizeResumeFields } from "../utils/privacy";
+import { ocrPdf } from "../utils/ocr";
 import * as pdfjsLib from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import JSZip from "jszip";
+import ResumeFieldsForm from "./ResumeFieldsForm";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
-// 从 PDF / DOCX / TXT / MD 提取文本
-async function extractText(file: File): Promise<string> {
+// 从 PDF / DOCX / TXT / MD 提取文本。
+// PDF：cMap 修复中文 CID 字体编码；文本过短（每页不足 10 字）判定为扫描件 → OCR
+async function extractText(file: File, onOcr?: () => void): Promise<string> {
   const ext = file.name.split(".").pop()?.toLowerCase() || "";
   if (ext === "pdf") {
     const buf = await file.arrayBuffer();
-    const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+    const doc = await pdfjsLib.getDocument({
+      data: buf,
+      cMapUrl: import.meta.env.BASE_URL + "cmaps/",
+      cMapPacked: true,
+    }).promise;
     let text = "";
     for (let i = 1; i <= doc.numPages; i++) {
       const page = await doc.getPage(i);
       const content = await page.getTextContent();
       text += content.items.map((it) => ("str" in it ? it.str : "")).join(" ") + "\n";
+    }
+    // 扫描件（图片 PDF）没有文本层 → OCR 兜底
+    if (text.trim().length < Math.max(50, doc.numPages * 10)) {
+      onOcr?.();
+      const ocrText = await ocrPdf(doc);
+      if (ocrText.trim()) return ocrText;
     }
     return text;
   }
@@ -57,6 +70,14 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
   const [showPaste, setShowPaste] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 字段表单：当前编辑中的字段 / AI 提取状态 / OCR 状态 / 视图（表单 or 原文）
+  const [fields, setFields] = useState<ResumeFields | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [ocring, setOcring] = useState(false);
+  const [viewMode, setViewMode] = useState<"form" | "raw">("form");
+  const [pendingContent, setPendingContent] = useState<string | null>(null);
+  const [pendingFileName, setPendingFileName] = useState<string | null>(null);
+
   // 右侧 AI 侧边栏（简历角色对话）
   const [dockOpen, setDockOpen] = useState(true);
   const [convId, setConvId] = useState<string | null>(null);
@@ -66,7 +87,12 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
 
   useEffect(() => {
     invoke<Resume | null>("get_resume")
-      .then(setResume)
+      .then((r) => {
+        setResume(r);
+        if (r?.fields) {
+          try { setFields(JSON.parse(r.fields)); } catch { setFields(null); }
+        }
+      })
       .catch(() => {})
       .finally(() => setLoadingResume(false));
   }, []);
@@ -95,16 +121,19 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
     setDockCreating(false);
   };
 
-  const doSaveResume = async (fileName: string, content: string) => {
+  const doSaveResume = async (fileName: string, content: string, fieldsObj: ResumeFields | null) => {
     if (!content.trim()) { showToast("简历内容为空", "error"); return; }
     setUploading(true);
     try {
-      // 保存前自动脱敏：姓名/电话/邮箱/微信/身份证打码
+      // 保存前自动脱敏：姓名/电话/邮箱/微信/身份证打码（全文与字段均脱敏）
       const sanitized = sanitizePrivacy(content);
-      await invoke("save_resume", { fileName, content: sanitized });
-      setResume({ id: "", file_name: fileName, content: sanitized, created_at: new Date().toISOString() });
+      const fieldsJson = fieldsObj ? sanitizeResumeFields(JSON.stringify(fieldsObj)) : null;
+      await invoke("save_resume", { fileName, content: sanitized, fields: fieldsJson });
+      setResume({ id: "", file_name: fileName, content: sanitized, fields: fieldsJson, created_at: new Date().toISOString() });
       setPasteText("");
       setShowPaste(false);
+      setPendingContent(null);
+      setPendingFileName(null);
       showToast("已保存（隐私信息已自动脱敏）", "success");
     } catch {
       showToast("保存简历失败", "error");
@@ -112,18 +141,37 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
     setUploading(false);
   };
 
+  // 提取文本 → AI 提取字段 → 展示表单待确认保存
+  const doExtractAndShow = async (fileName: string, rawContent: string) => {
+    setExtracting(true);
+    try {
+      const fieldsJson = await invoke<string>("extract_resume_fields", { content: rawContent });
+      const parsed = JSON.parse(fieldsJson) as ResumeFields;
+      setFields(parsed);
+      setViewMode("form");
+      setPendingContent(rawContent);
+      setPendingFileName(fileName);
+    } catch (err) {
+      // 字段提取失败（无 LLM/网络问题）→ 退回原文本保存流程
+      showToast("AI 字段提取失败，已按文本保存", "info");
+      await doSaveResume(fileName, rawContent, null);
+    }
+    setExtracting(false);
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
     try {
-      const content = await extractText(file);
+      const content = await extractText(file, () => setOcring(true));
       if (!content.trim()) { showToast("未能从文件中提取到文字", "error"); }
-      else { await doSaveResume(file.name, content); }
+      else { await doExtractAndShow(file.name, content); }
     } catch {
       showToast("解析文件失败，请尝试另存为 .txt 后上传", "error");
     }
     setUploading(false);
+    setOcring(false);
     e.target.value = "";
   };
 
@@ -176,10 +224,62 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
                         <Check size={10} /> 已保存
                       </span>
                     </div>
-                    <div className="px-4 pb-3">
-                      <div className="max-h-56 overflow-y-auto rounded-xl bg-white/80 border border-amber-100 p-3 text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">
-                        {resume.content}
-                      </div>
+                    <div className="px-4 pb-4">
+                      {fields && viewMode === "form" ? (
+                        <>
+                          <div className="flex items-center justify-between mb-3">
+                            <p className="text-[11px] text-gray-400">
+                              {pendingContent ? "已提取字段，确认无误后保存" : "结构化字段表单"}
+                            </p>
+                            <button
+                              onClick={() => setViewMode(viewMode === "form" ? "raw" : "form")}
+                              className="px-2.5 py-1 text-[10px] font-medium text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                            >
+                              {viewMode === "form" ? "查看原文" : "返回表单"}
+                            </button>
+                          </div>
+                          {viewMode === "form" ? (
+                            <>
+                              <ResumeFieldsForm
+                                fields={fields}
+                                onChange={setFields}
+                                extracting={extracting}
+                                onReExtract={() => doExtractAndShow(pendingFileName || resume.file_name, pendingContent || resume.content)}
+                              />
+                              <div className="flex justify-end mt-3">
+                                <button
+                                  onClick={() => doSaveResume(pendingFileName || resume.file_name, pendingContent || resume.content, fields)}
+                                  disabled={uploading || extracting}
+                                  className="px-5 py-2 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-md shadow-amber-500/25 hover:opacity-90 disabled:opacity-50 transition-all"
+                                >
+                                  {uploading ? <Loader size={13} className="animate-spin" /> : null}
+                                  保存简历
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="max-h-64 overflow-y-auto rounded-xl bg-white/80 border border-amber-100 p-3 text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">
+                              {resume.content}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div className="max-h-56 overflow-y-auto rounded-xl bg-white/80 border border-amber-100 p-3 text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">
+                            {resume.content}
+                          </div>
+                          <div className="flex justify-end mt-2">
+                            <button
+                              onClick={() => doExtractAndShow(resume.file_name, resume.content)}
+                              disabled={extracting}
+                              className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-medium text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 disabled:opacity-50 transition-colors"
+                            >
+                              {extracting ? <Loader size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                              {extracting ? "AI 正在提取字段..." : "AI 提取字段"}
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -199,11 +299,11 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
                   />
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
+                    disabled={uploading || extracting}
                     className="px-4 py-2 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-md shadow-amber-500/25 hover:opacity-90 disabled:opacity-50 transition-all flex items-center gap-1.5"
                   >
-                    {uploading ? <Loader size={13} className="animate-spin" /> : <Upload size={13} />}
-                    {resume ? "更新简历" : "上传简历"}
+                    {uploading || extracting ? <Loader size={13} className="animate-spin" /> : <Upload size={13} />}
+                    {ocring ? "扫描件识别中（OCR）..." : extracting ? "AI 提取字段中..." : resume ? "更新简历" : "上传简历"}
                   </button>
                   <button
                     onClick={() => setShowPaste((v) => !v)}
@@ -213,7 +313,7 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
                   </button>
                   {resume && (
                     <button
-                      onClick={() => { setResume(null); showToast("请重新上传以替换简历", "info"); }}
+                      onClick={() => { setResume(null); setFields(null); setPendingContent(null); setPendingFileName(null); setViewMode("form"); showToast("请重新上传以替换简历", "info"); }}
                       className="p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
                       title="移除简历（重新上传即替换）"
                     >
@@ -233,11 +333,11 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
                     />
                     <div className="flex justify-end mt-2">
                       <button
-                        onClick={() => doSaveResume("粘贴的简历.txt", pasteText)}
-                        disabled={uploading || !pasteText.trim()}
+                        onClick={() => doExtractAndShow("粘贴的简历.txt", pasteText)}
+                        disabled={uploading || extracting || !pasteText.trim()}
                         className="px-4 py-1.5 text-xs font-semibold text-white bg-amber-500 rounded-lg hover:bg-amber-600 disabled:opacity-40 transition-colors"
                       >
-                        保存
+                        {extracting ? "提取中..." : "提取字段并保存"}
                       </button>
                     </div>
                   </div>

@@ -36,6 +36,12 @@ pub struct LlmEngine {
     pub server_url: String,
     pub gpu_layers: u32,
 
+    // Online backend (OpenAI-compatible API), configured from settings at startup
+    online: bool,
+    online_base_url: String,
+    online_model: String,
+    online_api_key: String,
+
     // Server process
     server_process: Arc<Mutex<Option<tokio::process::Child>>>,
     /// Which model name (e.g. "qwen3.5:2b") is loaded, if any
@@ -65,6 +71,10 @@ impl LlmEngine {
             bin_dir,
             server_url: format!("http://127.0.0.1:{}", LLAMA_SERVER_PORT),
             gpu_layers: 0,  // Updated after binary copy in init()
+            online: false,
+            online_base_url: String::new(),
+            online_model: String::new(),
+            online_api_key: String::new(),
             server_process: Arc::new(Mutex::new(None)),
             current_model: RwLock::new(None),
             cancel_download: AtomicBool::new(false),
@@ -75,6 +85,21 @@ impl LlmEngine {
             download_speed: AtomicU64::new(0),
             last_used: Arc::new(Mutex::new(std::time::Instant::now())),
         }
+    }
+
+    // ── Online backend config (from settings, applied at startup) ──
+
+    /// Configure the OpenAI-compatible online backend. Call before generate().
+    pub fn set_online(&mut self, base_url: String, model: String, api_key: String) {
+        self.online = true;
+        self.online_base_url = base_url;
+        self.online_model = model;
+        self.online_api_key = api_key;
+    }
+
+    /// True when inference goes through the online API (纪要/报告/题目提取共用办公助手配置)。
+    pub fn is_online(&self) -> bool {
+        self.online
     }
 
     // ── Binary management ──
@@ -748,13 +773,16 @@ impl LlmEngine {
 
     // ── Inference ──
 
-    /// Generate text by calling llama-server's OpenAI-compatible API
+    /// Generate text via the configured backend (online API or llama-server).
     pub async fn generate(
         &self,
         system_prompt: &str,
         user_prompt: &str,
     ) -> Result<String> {
         *self.last_used.lock().unwrap() = std::time::Instant::now();
+        if self.online {
+            return self.generate_online(system_prompt, user_prompt).await;
+        }
         if !self.is_server_healthy().await {
             return Err(anyhow::anyhow!("llama-server 未运行，请先加载模型"));
         }
@@ -816,6 +844,78 @@ impl LlmEngine {
             let response_text = serde_json::to_string(&json).unwrap_or_default();
             log::error!("llama-server 返回空内容，完整响应(前500字): {}", &response_text[..response_text.len().min(500)]);
             return Err(anyhow::anyhow!("llama-server 返回了空内容"));
+        }
+
+        Ok(content)
+    }
+
+    /// Generate via an OpenAI-compatible online API (设置中配置的在线模型)。
+    async fn generate_online(
+        &self,
+        system_prompt: &str,
+        user_prompt: &str,
+    ) -> Result<String> {
+        // 兼容用户填入带 /v1 的完整地址，避免拼出 /v1/v1/chat/completions
+        let base = self.online_base_url.trim_end_matches('/');
+        let base = base.strip_suffix("/v1").unwrap_or(base);
+        let url = format!("{}/v1/chat/completions", base);
+
+        let body = serde_json::json!({
+            "model": self.online_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "stream": false,
+            "temperature": 0.5,
+            "max_tokens": 4096,
+        });
+
+        let client = Client::builder()
+            .timeout(REQUEST_TIMEOUT)
+            .build()
+            .context("创建 HTTP 客户端失败")?;
+
+        let resp = client
+            .post(&url)
+            .bearer_auth(&self.online_api_key)
+            .json(&body)
+            .send()
+            .await
+            .context("连接在线模型失败")?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let text = resp.text().await.unwrap_or_default();
+            if status == 401 {
+                return Err(anyhow::anyhow!("在线模型 API Key 无效，请在设置中检查"));
+            }
+            return Err(anyhow::anyhow!("在线模型返回错误 {}: {}", status, text));
+        }
+
+        let json: serde_json::Value = resp
+            .json()
+            .await
+            .context("解析在线模型响应失败")?;
+
+        let choice = &json["choices"][0];
+        let msg = &choice["message"];
+
+        // Try content field first, then reasoning_content (for Qwen/R1 models)
+        let content = msg["content"].as_str()
+            .filter(|s| !s.trim().is_empty())
+            .or_else(|| msg["reasoning_content"].as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+
+        // Strip thinking/reasoning content (e.g., <think>...</think>)
+        let content = Self::strip_thinking_tags(&content);
+
+        if content.is_empty() {
+            let response_text = serde_json::to_string(&json).unwrap_or_default();
+            log::error!("在线模型返回空内容，完整响应(前500字): {}", &response_text[..response_text.len().min(500)]);
+            return Err(anyhow::anyhow!("在线模型返回了空内容"));
         }
 
         Ok(content)

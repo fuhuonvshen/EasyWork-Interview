@@ -8,6 +8,9 @@ import ModelDownloadDialog from "../settings/ModelDownloadDialog";
 import type { AgentConversationSummary } from "../types";
 import type { CSSProperties } from "react";
 
+// 模块级标志：应用进程内主控台会话只创建一次（启动新话题），之后进入复用最近会话
+let DOCK_SESSION_CREATED = false;
+
 // 每张卡片的形状三态（形态蠕动）、水色配色、大尺寸/旋转/位置（黄金比例场景内夸张散落）
 const WORKBENCH_CARDS: {
   key: string;
@@ -206,12 +209,34 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
     getVersion().then(setAppVersion).catch(() => setAppVersion(""));
   }, []);
 
-  // 主控台侧边栏每次打开软件都是新话题：直接创建新对话
+  // 主控台侧边栏：每次启动软件是新话题（仅应用进程首次进入时创建，并清理上次遗留的空会话）；
+  // 之后从其他模块返回时复用最近的会话，不再重复创建
   useEffect(() => {
-    invoke<string>("agent_create_conversation", { convType: "general" })
-      .then((id) => {
-        setDockConvId(id);
-        setDockConvs([{ id, title: "", created_at: new Date().toISOString(), last_message: null, type: "general", ref_id: null }]);
+    if (DOCK_SESSION_CREATED) {
+      invoke<AgentConversationSummary[]>("agent_list_conversations")
+        .then((list) => {
+          const general = list.filter((c) => c.type === "general");
+          if (general.length > 0) {
+            setDockConvId(general[0].id);
+            setDockConvs(general);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setDockLoading(false));
+      return;
+    }
+    DOCK_SESSION_CREATED = true;
+    invoke<AgentConversationSummary[]>("agent_list_conversations")
+      .then((list) => {
+        // 清理没有内容的空会话（只保留有对话内容的）
+        const emptyIds = list.filter((c) => !c.last_message && !c.title).map((c) => c.id);
+        const cleanup = Promise.allSettled(
+          emptyIds.map((id) => invoke("agent_delete_conversation", { id }))
+        );
+        cleanup.then(() => invoke<string>("agent_create_conversation", { convType: "general" })).then((id) => {
+          setDockConvId(id);
+          setDockConvs([{ id, title: "", created_at: new Date().toISOString(), last_message: null, type: "general", ref_id: null }]);
+        });
       })
       .catch(() => {})
       .finally(() => setDockLoading(false));

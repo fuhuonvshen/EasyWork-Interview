@@ -11,7 +11,8 @@ use tokio::sync::RwLock;
 use crate::llm::engine::LlmEngine;
 
 /// 初始化 LLM 引擎：创建引擎，复制二进制，自动加载模型。
-pub async fn init(models_dir: &Path, bin_dir: &Path, resource_dir: Option<&Path>, dev_bin_dir: Option<&Path>) -> Result<Arc<RwLock<LlmEngine>>> {
+/// `settings` 用于读取在线模型配置（agent_llm_backend / agent_online_*），重启生效。
+pub async fn init(models_dir: &Path, bin_dir: &Path, resource_dir: Option<&Path>, dev_bin_dir: Option<&Path>, settings: &std::collections::HashMap<String, String>) -> Result<Arc<RwLock<LlmEngine>>> {
     std::fs::create_dir_all(models_dir)
         .context("创建 LLM 模型目录失败")?;
     std::fs::create_dir_all(bin_dir)
@@ -22,6 +23,32 @@ pub async fn init(models_dir: &Path, bin_dir: &Path, resource_dir: Option<&Path>
         models_dir.to_path_buf(),
         bin_dir.to_path_buf(),
     )));
+
+    // 1.5 Apply online backend config from settings (与 sidecar::set_llm_env 默认值一致)
+    {
+        let backend = settings.get("agent_llm_backend")
+            .filter(|s| !s.is_empty())
+            .map(|s| s.as_str())
+            .unwrap_or("local");
+        if backend == "online" {
+            let base = settings.get("agent_online_url")
+                .filter(|s| !s.is_empty())
+                .map(|s| s.as_str())
+                .unwrap_or("https://api.openai.com");
+            let model = settings.get("agent_online_model")
+                .filter(|s| !s.is_empty())
+                .map(|s| s.as_str())
+                .unwrap_or("gpt-4o");
+            let key = settings.get("agent_online_key")
+                .filter(|s| !s.is_empty())
+                .cloned()
+                .unwrap_or_default();
+            engine.write().await.set_online(base.to_string(), model.to_string(), key);
+            log::info!("LLM backend: online ({} @ {})", model, base);
+        } else {
+            log::info!("LLM backend: local (llama.cpp)");
+        }
+    }
 
     // 2. GPU driver detection FIRST, so ensure_binary (which reads gpu_layers)
     //    can pick the CUDA archive instead of the CPU one. macOS: Metal always.

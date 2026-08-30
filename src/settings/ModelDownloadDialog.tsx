@@ -403,6 +403,61 @@ export default function ModelDownloadDialog({
           {/* ── Tab: 会议纪要 ── */}
           {tab === "speech" && (
             <>
+              {/* 语音识别后端（本地模型 / 在线 API） */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Mic size={15} className="text-accent-500" />
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">语音识别</span>
+                </div>
+                <div className="p-3 rounded-xl border border-gray-100 bg-white space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-700">语音识别后端</label>
+                    <select
+                      value={agentSettings["agent_speech_backend"] || "local"}
+                      onChange={(e) => updateAgentSetting("agent_speech_backend", e.target.value)}
+                      className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg"
+                    >
+                      <option value="local">本地模型 (SenseVoice / Whisper)</option>
+                      <option value="online">在线 API (硅基流动 SenseVoice)</option>
+                    </select>
+                  </div>
+
+                  {agentSettings["agent_speech_backend"] === "online" && (
+                    <>
+                      <div>
+                        <label className="text-xs font-medium text-gray-700">API Key</label>
+                        <input type="password"
+                          value={agentSettings["agent_speech_key"] || ""}
+                          onChange={(e) => updateAgentSetting("agent_speech_key", e.target.value)}
+                          placeholder="sk-..." className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-700">模型名称</label>
+                        <input type="text"
+                          value={agentSettings["agent_speech_model"] || ""}
+                          onChange={(e) => updateAgentSetting("agent_speech_model", e.target.value)}
+                          placeholder="SenseVoice-Small" className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-700">API 地址</label>
+                        <input type="text"
+                          value={agentSettings["agent_speech_url"] || ""}
+                          onChange={(e) => updateAgentSetting("agent_speech_url", e.target.value)}
+                          placeholder="https://api.siliconflow.cn" className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg"
+                        />
+                      </div>
+                      <p className="text-[10px] text-gray-400 -mt-1">
+                        在线转写为整段上传识别（录制中的实时字幕仍使用本地模型）；失败时自动回退本地。保存后重启生效
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {agentSettings["agent_speech_backend"] !== "online" && (
+                <>
               {speech.loading && (
                 <div className="flex items-center gap-3 text-sm text-gray-400 py-8 justify-center">
                   <Loader size={16} className="animate-spin" />
@@ -441,6 +496,8 @@ export default function ModelDownloadDialog({
                   ))}
                 </div>
               </div>
+                </>
+              )}
 
               {/* 纪要生成 LLM */}
               <div>
