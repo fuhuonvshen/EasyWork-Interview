@@ -358,7 +358,7 @@ async fn init_background(app_handle: &tauri::AppHandle, app_dir: &std::path::Pat
     let bin_dir = settings::resolve_path(&app_dir, &settings, "", "bin");
     let resource_dir = app_handle.path().resource_dir().ok();
     let dev_bin_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries");
-    match llm::init(&llm_dir, &bin_dir, resource_dir.as_deref(), Some(&dev_bin_dir), settings).await {
+    match llm::init(&llm_dir, &bin_dir, resource_dir.as_deref(), Some(&dev_bin_dir), &settings).await {
         Ok(engine) => {
             app_handle.manage(LlmState(engine));
             emit_init_status(app_handle, "llm", "ok", "LLM 引擎就绪");
