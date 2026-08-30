@@ -39,8 +39,7 @@ export default function ApplyView({ onBack }: { onBack: () => void }) {
       const content = String(data.content || "");
       if (!content.trim()) return;
       try {
-        // 投递页同步的简历保持原文（投递表单自动填充需要完整信息，不做脱敏；
-        // 简历顾问页上传的才脱敏）
+        // 投递页同步的简历保持原文（投递表单自动填充需要完整信息）
         await invoke("save_resume", { fileName, content });
         setSyncedResume(fileName);
         showToast("已从投递页同步简历，投递表单可自动填充", "success");

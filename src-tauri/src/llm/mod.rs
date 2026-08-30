@@ -24,7 +24,8 @@ pub async fn init(models_dir: &Path, bin_dir: &Path, resource_dir: Option<&Path>
         bin_dir.to_path_buf(),
     )));
 
-    // 1.5 Apply online backend config from settings (与 sidecar::set_llm_env 默认值一致)
+    // 1.5 Apply online backend config from settings (与 sidecar::set_llm_env 默认值一致)。
+    // 在线模式完全不需要本地 llama-server：跳过二进制复制与 GPU 检测，直接返回。
     {
         let backend = settings.get("agent_llm_backend")
             .filter(|s| !s.is_empty())
@@ -44,10 +45,10 @@ pub async fn init(models_dir: &Path, bin_dir: &Path, resource_dir: Option<&Path>
                 .cloned()
                 .unwrap_or_default();
             engine.write().await.set_online(base.to_string(), model.to_string(), key);
-            log::info!("LLM backend: online ({} @ {})", model, base);
-        } else {
-            log::info!("LLM backend: local (llama.cpp)");
+            log::info!("LLM backend: online ({} @ {}) — 跳过本地 llama-server 初始化", model, base);
+            return Ok(engine);
         }
+        log::info!("LLM backend: local (llama.cpp)");
     }
 
     // 2. GPU driver detection FIRST, so ensure_binary (which reads gpu_layers)

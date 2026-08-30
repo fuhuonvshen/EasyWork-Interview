@@ -1,11 +1,10 @@
 // EasyWork - 简历顾问：左中简历管理（全局资产）+ 右侧 AI 侧边栏（简历角色对话）
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowLeft, FileText, Upload, Trash2, Check, Loader, Sparkles, Bot, Maximize2, PanelRightClose, ShieldCheck } from "lucide-react";
+import { ArrowLeft, FileText, Upload, Trash2, Check, Loader, Sparkles, Bot, Maximize2, PanelRightClose } from "lucide-react";
 import type { Resume, AgentConversationSummary, ResumeFields } from "../types";
 import { showToast } from "../components/Toast";
 import AgentChat from "../agent/AgentChat";
-import { sanitizePrivacy, sanitizeResumeFields } from "../utils/privacy";
 import { ocrPdf } from "../utils/ocr";
 import * as pdfjsLib from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -125,16 +124,14 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
     if (!content.trim()) { showToast("简历内容为空", "error"); return; }
     setUploading(true);
     try {
-      // 保存前自动脱敏：姓名/电话/邮箱/微信/身份证打码（全文与字段均脱敏）
-      const sanitized = sanitizePrivacy(content);
-      const fieldsJson = fieldsObj ? sanitizeResumeFields(JSON.stringify(fieldsObj)) : null;
-      await invoke("save_resume", { fileName, content: sanitized, fields: fieldsJson });
-      setResume({ id: "", file_name: fileName, content: sanitized, fields: fieldsJson, created_at: new Date().toISOString() });
+      const fieldsJson = fieldsObj ? JSON.stringify(fieldsObj) : null;
+      await invoke("save_resume", { fileName, content, fields: fieldsJson });
+      setResume({ id: "", file_name: fileName, content, fields: fieldsJson, created_at: new Date().toISOString() });
       setPasteText("");
       setShowPaste(false);
       setPendingContent(null);
       setPendingFileName(null);
-      showToast("已保存（隐私信息已自动脱敏）", "success");
+      showToast("已保存", "success");
     } catch {
       showToast("保存简历失败", "error");
     }
@@ -202,7 +199,7 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
                   我的简历
                   <span className="text-[10px] font-medium text-gray-400">面试回答演练时 AI 会参考你的项目/实习经历</span>
                 </h3>
-                <p className="text-xs text-gray-400 mb-4">支持 .pdf / .docx / .txt / .md 或直接粘贴文本 · <span className="text-emerald-600 inline-flex items-center gap-0.5"><ShieldCheck size={11} />保存时自动脱敏</span>（姓名只留姓、电话/邮箱/微信打码）</p>
+                <p className="text-xs text-gray-400 mb-4">支持 .pdf / .docx / .txt / .md 或直接粘贴文本，AI 自动提取字段填充表单</p>
 
                 {loadingResume ? (
                   <div className="flex items-center gap-2 text-xs text-gray-400 py-4">

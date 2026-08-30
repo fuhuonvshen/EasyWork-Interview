@@ -23,6 +23,23 @@ function Field({ label, value, onChange, placeholder }: {
   );
 }
 
+function TextAreaField({ label, value, onChange, placeholder }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="block text-[10px] font-medium text-gray-400 mb-1">{label}</span>
+      <textarea
+        className={`${inputCls} resize-y leading-relaxed`}
+        rows={3}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
+  );
+}
+
 function SectionCard({ title, onAdd, addLabel, children }: {
   title: string; onAdd?: () => void; addLabel?: string; children: React.ReactNode;
 }) {
@@ -140,7 +157,7 @@ export default function ResumeFieldsForm({ fields, onChange, onReExtract, extrac
               <Field label="结束" value={item.end_time} onChange={(v) => setListItem("work_experience", i, "end_time", v)} />
             </div>
             <div className="mt-2">
-              <Field label="职责描述" value={item.description} onChange={(v) => setListItem("work_experience", i, "description", v)} />
+              <TextAreaField label="职责描述" value={item.description} onChange={(v) => setListItem("work_experience", i, "description", v)} />
             </div>
           </div>
         ))}
@@ -165,7 +182,7 @@ export default function ResumeFieldsForm({ fields, onChange, onReExtract, extrac
               <Field label="结束" value={item.end_time} onChange={(v) => setListItem("projects", i, "end_time", v)} />
             </div>
             <div className="mt-2">
-              <Field label="项目描述" value={item.description} onChange={(v) => setListItem("projects", i, "description", v)} />
+              <TextAreaField label="项目描述" value={item.description} onChange={(v) => setListItem("projects", i, "description", v)} />
             </div>
           </div>
         ))}

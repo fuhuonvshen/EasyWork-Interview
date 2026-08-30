@@ -218,7 +218,7 @@ export default function ModelDownloadDialog({
   const tabs = [
     { key: "general" as const, label: "通用设置", icon: Settings },
     { key: "speech" as const, label: "会议纪要", icon: Mic },
-    { key: "llm" as const, label: "办公助手", icon: Bot },
+    { key: "llm" as const, label: "面试助手", icon: Bot },
   ];
 
   // ── LLM model list (used in both speech and llm tabs) ──
@@ -355,7 +355,7 @@ export default function ModelDownloadDialog({
                     >
                       <option value="workbench">工作台</option>
                       <option value="minutes">会议纪要</option>
-                      <option value="agent">办公助手</option>
+                      <option value="agent">面试助手</option>
                     </select>
                   </div>
                 </div>
@@ -403,7 +403,7 @@ export default function ModelDownloadDialog({
           {/* ── Tab: 会议纪要 ── */}
           {tab === "speech" && (
             <>
-              {/* 语音识别后端（本地模型 / 在线 API） */}
+              {/* 语音识别（后端选择 + 在线配置 + 本地模型） */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Mic size={15} className="text-accent-500" />
@@ -411,7 +411,7 @@ export default function ModelDownloadDialog({
                 </div>
                 <div className="p-3 rounded-xl border border-gray-100 bg-white space-y-3">
                   <div>
-                    <label className="text-xs font-medium text-gray-700">语音识别后端</label>
+                    <label className="text-xs font-medium text-gray-700">识别方式</label>
                     <select
                       value={agentSettings["agent_speech_backend"] || "local"}
                       onChange={(e) => updateAgentSetting("agent_speech_backend", e.target.value)}
@@ -453,64 +453,57 @@ export default function ModelDownloadDialog({
                       </p>
                     </>
                   )}
+
+                  {agentSettings["agent_speech_backend"] !== "online" && (
+                    <>
+                      {speech.loading && (
+                        <div className="flex items-center gap-3 text-sm text-gray-400 py-4 justify-center">
+                          <Loader size={16} className="animate-spin" />
+                          加载模型列表...
+                        </div>
+                      )}
+                      {speech.error && (
+                        <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">{speech.error}</div>
+                      )}
+                      {!speech.loading && speech.models.map((m) => (
+                        <ModelCard
+                          key={m.kind + ":" + m.name}
+                          displayName={m.displayName}
+                          sizeDisplay={m.size_display}
+                          downloaded={m.downloaded}
+                          isRecommended={m.is_recommended}
+                          isDownloading={speech.downloading === m.name}
+                          downloadProgress={speech.progress}
+                          downloadedBytes={speech.downloadedBytes}
+                          totalBytes={speech.totalBytes}
+                          speed={speech.speed}
+                          disabled={speech.downloading !== null}
+                          onDownload={() => speech.startDownload(m.name)}
+                          onCancel={speech.cancelDownload}
+                          onDelete={() => speech.setDeleteTarget(m)}
+                        />
+                      ))}
+                    </>
+                  )}
                 </div>
               </div>
 
-              {agentSettings["agent_speech_backend"] !== "online" && (
-                <>
-              {speech.loading && (
-                <div className="flex items-center gap-3 text-sm text-gray-400 py-8 justify-center">
-                  <Loader size={16} className="animate-spin" />
-                  加载模型列表...
-                </div>
-              )}
-
-              {speech.error && (
-                <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">{speech.error}</div>
-              )}
-
-              {/* 语音识别模型 */}
+              {/* 纪要生成说明（语言模型与 AI 对话共用，在「面试助手」页签配置） */}
               <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Mic size={15} className="text-accent-500" />
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">语音识别模型</span>
-                </div>
-                <div className="space-y-2">
-                  {!speech.loading && speech.models.map((m) => (
-                    <ModelCard
-                      key={m.kind + ":" + m.name}
-                      displayName={m.displayName}
-                      sizeDisplay={m.size_display}
-                      downloaded={m.downloaded}
-                      isRecommended={m.is_recommended}
-                      isDownloading={speech.downloading === m.name}
-                      downloadProgress={speech.progress}
-                      downloadedBytes={speech.downloadedBytes}
-                      totalBytes={speech.totalBytes}
-                      speed={speech.speed}
-                      disabled={speech.downloading !== null}
-                      onDownload={() => speech.startDownload(m.name)}
-                      onCancel={speech.cancelDownload}
-                      onDelete={() => speech.setDeleteTarget(m)}
-                    />
-                  ))}
-                </div>
-              </div>
-                </>
-              )}
-
-              {/* 纪要生成 LLM */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-center gap-2 mb-2">
                   <Brain size={15} className="text-violet-500" />
                   <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">纪要生成</span>
                 </div>
-                <LlmModelList />
+                <div className="p-3 rounded-xl border border-gray-100 bg-white">
+                  <p className="text-[11px] text-gray-500 leading-relaxed">
+                    纪要生成、周报与 AI 对话共用同一个语言模型（要么都本地，要么都在线），请到「面试助手」页签统一配置。
+                  </p>
+                </div>
               </div>
             </>
           )}
 
-          {/* ── Tab: 办公助手 ── */}
+          {/* ── Tab: 面试助手 ── */}
           {tab === "llm" && (
             <div>
               <div className="flex items-center gap-2 mb-3">
@@ -518,7 +511,7 @@ export default function ModelDownloadDialog({
                 <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">语言模型</span>
               </div>
               <p className="text-[10px] text-gray-400 mb-2">
-                办公助手需要较强的工具调用能力，可选择在线模型
+                AI 对话、纪要生成与周报共用此模型。本地小模型可能无法稳定调用工具，推荐使用在线模型
               </p>
               <div className="p-3 rounded-xl border border-gray-100 bg-white space-y-3">
                 <div>
