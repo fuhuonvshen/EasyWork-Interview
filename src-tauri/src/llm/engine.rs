@@ -92,11 +92,12 @@ impl LlmEngine {
     // ── Online backend config (from settings, applied at startup) ──
 
     /// Configure the OpenAI-compatible online backend. Call before generate().
-    pub fn set_online(&mut self, base_url: String, model: String, api_key: String) {
+    pub fn set_online(&mut self, base_url: String, model: String, api_key: String, enable_thinking: bool) {
         self.online = true;
         self.online_base_url = base_url;
         self.online_model = model;
         self.online_api_key = api_key;
+        self.enable_thinking = enable_thinking;
     }
 
     /// True when inference goes through the online API (纪要/报告/题目提取共用办公助手配置)。
