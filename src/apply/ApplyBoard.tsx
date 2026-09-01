@@ -7,6 +7,7 @@ import {
   Loader, Puzzle, Copy, Check, X, Send, Link2,
 } from "lucide-react";
 import { showToast } from "../components/Toast";
+import ModuleGuide from "../components/ModuleGuide";
 import ApplyRecordModal from "./ApplyRecordModal";
 import CompanyModal from "./CompanyModal";
 import {
@@ -302,8 +303,12 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
         </button>
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <Rocket size={16} className="text-teal-600 flex-shrink-0" />
-          <span className="text-sm font-medium text-gray-700">投递工作台</span>
-          <span className="text-[10px] text-gray-400">公司投递 + OfferSubmit 扩展同步</span>
+          <span className="text-sm font-medium text-gray-700 flex-shrink-0">投递工作台</span>
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <span className="block whitespace-nowrap animate-marquee text-[11px] text-teal-500/80">
+              若未找到目标公司，可点击右侧“新增公司”手动补充，添加的招聘信息将同步至云端共享库，帮助大家都能找到心仪的offer。
+            </span>
+          </div>
         </div>
         <button
           onClick={() => { setLoading(true); setCompaniesLoading(true); reload(); reloadCompanies(); }}
@@ -420,6 +425,11 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
       {/* ── 公司库 ── */}
       {tab === "companies" && (
         <div className="flex-1 min-h-0 flex flex-col px-5 pt-3 pb-2">
+          <ModuleGuide
+            storageKey="apply_guide_done"
+            accent="teal"
+            text="公司库云端共享：找不到的公司点「新增公司」，AI 校验后同步给所有使用者；「去投递」可打开招聘网站并记录投递进度。"
+          />
           {/* 搜索 + 行业筛选 */}
           <div className="flex items-center gap-2 flex-wrap pb-2 flex-shrink-0">
             <button

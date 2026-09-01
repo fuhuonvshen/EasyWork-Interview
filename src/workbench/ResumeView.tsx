@@ -5,6 +5,7 @@ import { ArrowLeft, FileText, Upload, Trash2, Check, Loader, Sparkles, Bot, Maxi
 import type { Resume, AgentConversationSummary, ResumeFields } from "../types";
 import { showToast } from "../components/Toast";
 import AgentChat from "../agent/AgentChat";
+import ModuleGuide from "../components/ModuleGuide";
 import { ocrPdf } from "../utils/ocr";
 import * as pdfjsLib from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -206,6 +207,11 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
 
           <div className="flex-1 overflow-y-auto px-8 py-6">
             <div className="max-w-2xl mx-auto space-y-6">
+              <ModuleGuide
+                storageKey="resume_guide_done"
+                accent="amber"
+                text="上传简历后 AI 自动提取成结构化字段，可直接修改保存；建议安装 OfferSubmit 浏览器扩展，投递时一键自动填充简历。"
+              />
               <section>
                 <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2 mb-1">
                   我的简历

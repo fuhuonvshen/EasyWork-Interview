@@ -75,7 +75,6 @@
 | [agent/AgentSidebar.tsx](src/agent/AgentSidebar.tsx) | 左侧边栏：对话按角色分组（模拟面试/复盘分析/简历顾问/通用助手）+ 待办列表(checkbox/优先级徽标/截止日期/待办数量角标)；新建对话入口 |
 | [agent/AgentChat.tsx](src/agent/AgentChat.tsx) | 聊天区域：消息气泡(含 plan/thinking/tool 流式事件) + 输入框(Enter 发送) + 文件拖拽/选择上传(Excel/CSV/TXT)；**mock 模式**（面试横幅/计时器/结束面试按钮）+ 带上下文唤起自动发送 |
 | [agent/AgentTodo.tsx](src/agent/AgentTodo.tsx) | 待办完整视图：待完成/已完成分组 + 新建表单(标题/截止日期/优先级) + 空状态提示 |
-| [agent/memories/MEMORY.md](src/agent/memories/MEMORY.md) | Agent 长期记忆文件（求职档案：目标岗位/偏好/决策/静态背景，由 Python 侧维护） |
 
 #### 后端 (Rust)
 
@@ -96,7 +95,7 @@
 | [llm/client.py](src-tauri/py_backend/llm/client.py) | LLM API 通信（OpenAI 兼容 / Ollama） |
 | [llm/context.py](src-tauri/py_backend/llm/context.py) | 对话上下文构建（支持注入面试背景 context_block） |
 | [llm/prompt.py](src-tauri/py_backend/llm/prompt.py) | 系统提示词（**面试助手人设**）+ 分角色提示词（mock_prompt/review_prompt/resume_prompt） |
-| [llm/memory.py](src-tauri/py_backend/llm/memory.py) | 短期对话摘要 + 长期记忆文件(MEMORY.md) |
+| [llm/memory.py](src-tauri/py_backend/llm/memory.py) | 短期对话摘要 + 长期记忆文件（memories 目录下的 MEMORY.md，运行时自动维护） |
 | [data/database.py](src-tauri/py_backend/data/database.py)、[db_config.py](src-tauri/py_backend/data/db_config.py)、[models.py](src-tauri/py_backend/data/models.py) | Python 侧 SQLite 访问（aiosqlite，共享 easywork.db） |
 | [tools/registry.py](src-tauri/py_backend/tools/registry.py) | Skill/工具注册表（从 SKILL.md / handlers 加载；**按对话角色过滤工具面**） |
 | [tools/handlers/](src-tauri/py_backend/tools/handlers/) | 工具实现：email(发邮件), execute_python(沙箱执行), todo(待办), xlsx(Excel 处理), **interview_summary(读面试转写/纪要)**, **question_bank(题库 CRUD)** |

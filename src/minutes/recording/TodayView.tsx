@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Mic, MicOff, Loader, Sparkles, X, FileAudio, BookOpen, Check } from "lucide-react";
 import Markdown from "../../components/Markdown";
 import Select from "../../components/Select";
+import ModuleGuide from "../../components/ModuleGuide";
 import { ERRORS, toUserError } from "../../errors";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { showToast } from "../../components/Toast";
@@ -408,6 +409,11 @@ export default function TodayView({
         </header>
         <div className="flex-1 flex items-center justify-center px-8 py-8">
           <div className="w-full max-w-md space-y-6">
+          <ModuleGuide
+            storageKey="minutes_guide_done"
+            accent="teal"
+            text="选择音频设备后点开始：录制面试/会议有实时字幕，结束后自动转写生成纪要，面试官问题自动进题库。"
+          />
           {error && (
             <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">
               {error}

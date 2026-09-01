@@ -5,8 +5,24 @@ import { FileText, BookOpen, Rocket, Bot, FileSearch, MessageSquareHeart, Settin
 import { getVersion } from "@tauri-apps/api/app";
 import AgentChat from "../agent/AgentChat";
 import ModelDownloadDialog from "../settings/ModelDownloadDialog";
+import FtueTour, { type FtueStep } from "../components/FtueTour";
 import type { AgentConversationSummary } from "../types";
 import type { CSSProperties } from "react";
+
+// 首屏新手指引（仅首次启动展示，完成后写 ftue_done 标记；
+// 各模块的引导在首次进入该模块时展示，见 ModuleGuide）
+const FTUE_STEPS: FtueStep[] = [
+  {
+    target: '[data-ftue="settings"]',
+    title: "先配置 AI 模型",
+    desc: "AI 功能（纪要生成、智能问答、简历提取）都需要模型支撑：在设置里可下载本地模型，或填入在线 API。不配置的话 AI 无法正常工作。",
+  },
+  {
+    target: '[data-ftue="dock"]',
+    title: "右侧 AI 面板，随时可用",
+    desc: "把面试邮件（含会议链接）直接发给 AI，它会自动记录面试信息并安排提醒；平时也能快速问答、复盘面试。",
+  },
+];
 
 // 模块级标志：应用进程内主控台会话只创建一次（启动新话题），之后进入复用最近会话
 let DOCK_SESSION_CREATED = false;
@@ -122,6 +138,21 @@ const WORKBENCH_CARDS: {
 export default function Workbench({ onEnter }: { onEnter: (title?: string, action?: string) => void }) {
   const [appVersion, setAppVersion] = useState("");
   const [showModel, setShowModel] = useState(false);
+  const [showTour, setShowTour] = useState(false);
+
+  // 首屏新手指引：仅首次启动展示
+  useEffect(() => {
+    invoke<Record<string, string>>("get_settings")
+      .then((s) => {
+        if (s["ftue_done"] !== "1") setShowTour(true);
+      })
+      .catch(() => {});
+  }, []);
+
+  const finishTour = () => {
+    setShowTour(false);
+    invoke("update_setting", { key: "ftue_done", value: "1" }).catch(() => {});
+  };
   // 右侧常驻对话面板
   const [dockOpen, setDockOpen] = useState(true);
   const [dockConvId, setDockConvId] = useState<string | null>(null);
@@ -272,6 +303,7 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
                   <button
                     onClick={() => onEnter(undefined, card.action)}
                     className="wb-card"
+                    data-ftue={card.action}
                     style={card.style}
                   >
                     <span className="wb-ring" aria-hidden="true" />
@@ -287,7 +319,7 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
           </div>
         </div>
         {/* 右侧对话面板（常驻，可折叠） */}
-        <aside className={`wb-dock ${dockOpen ? "" : "wb-dock-collapsed"}`}>
+        <aside data-ftue="dock" className={`wb-dock ${dockOpen ? "" : "wb-dock-collapsed"}`}>
           {dockOpen ? (
             <>
               <div className="wb-dock-head">
@@ -362,12 +394,15 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
         <span className="text-xs text-gray-400 select-none pointer-events-auto">EasyWork 面试助手 v{appVersion}</span>
         <button
           onClick={() => setShowModel(true)}
+          data-ftue="settings"
           className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-gray-500 rounded-lg transition-colors pointer-events-auto"
         >
           <Settings size={14} />
           设置
         </button>
       </div>
+
+      {showTour && <FtueTour steps={FTUE_STEPS} onDone={finishTour} />}
 
       {showModel && (
         <ModelDownloadDialog

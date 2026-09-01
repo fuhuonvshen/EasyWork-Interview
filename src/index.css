@@ -334,3 +334,12 @@ button, a, input, select, textarea {
   font-weight: 600;
   letter-spacing: 0.2em;
 }
+
+/* 顶部滚动提示条 */
+@keyframes marquee-left {
+  from { transform: translateX(100%); }
+  to { transform: translateX(-100%); }
+}
+.animate-marquee {
+  animation: marquee-left 16s linear infinite;
+}
