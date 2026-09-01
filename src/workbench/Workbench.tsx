@@ -138,21 +138,6 @@ const WORKBENCH_CARDS: {
 export default function Workbench({ onEnter }: { onEnter: (title?: string, action?: string) => void }) {
   const [appVersion, setAppVersion] = useState("");
   const [showModel, setShowModel] = useState(false);
-  const [showTour, setShowTour] = useState(false);
-
-  // 首屏新手指引：仅首次启动展示
-  useEffect(() => {
-    invoke<Record<string, string>>("get_settings")
-      .then((s) => {
-        if (s["ftue_done"] !== "1") setShowTour(true);
-      })
-      .catch(() => {});
-  }, []);
-
-  const finishTour = () => {
-    setShowTour(false);
-    invoke("update_setting", { key: "ftue_done", value: "1" }).catch(() => {});
-  };
   // 右侧常驻对话面板
   const [dockOpen, setDockOpen] = useState(true);
   const [dockConvId, setDockConvId] = useState<string | null>(null);
@@ -402,7 +387,7 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
         </button>
       </div>
 
-      {showTour && <FtueTour steps={FTUE_STEPS} onDone={finishTour} />}
+      <FtueTour storageKey="ftue_done" steps={FTUE_STEPS} />
 
       {showModel && (
         <ModelDownloadDialog

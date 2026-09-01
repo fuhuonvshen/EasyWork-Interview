@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Mic, MicOff, Loader, Sparkles, X, FileAudio, BookOpen, Check } from "lucide-react";
 import Markdown from "../../components/Markdown";
 import Select from "../../components/Select";
-import ModuleGuide from "../../components/ModuleGuide";
+import FtueTour from "../../components/FtueTour";
 import { ERRORS, toUserError } from "../../errors";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { showToast } from "../../components/Toast";
@@ -409,11 +409,6 @@ export default function TodayView({
         </header>
         <div className="flex-1 flex items-center justify-center px-8 py-8">
           <div className="w-full max-w-md space-y-6">
-          <ModuleGuide
-            storageKey="minutes_guide_done"
-            accent="teal"
-            text="选择音频设备后点开始：录制面试/会议有实时字幕，结束后自动转写生成纪要，面试官问题自动进题库。"
-          />
           {error && (
             <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">
               {error}
@@ -533,6 +528,7 @@ export default function TodayView({
           <button
             onClick={startRecording}
             disabled={!selectedDevice}
+            data-ftue="minutes-record"
             className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-brand-600 text-white text-sm font-medium rounded-full hover:bg-brand-700 active:scale-95 transition-all shadow-lg shadow-brand-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Mic size={16} />开始录制
@@ -682,6 +678,13 @@ export default function TodayView({
           </div>
         </div>
       )}
+
+      <FtueTour
+        storageKey="minutes_guide_done"
+        steps={[
+          { target: '[data-ftue="minutes-record"]', title: "一键开始录制", desc: "选择音频设备后点「开始录制」：实时字幕，结束后自动转写生成纪要，面试官问题自动进题库。" },
+        ]}
+      />
     </>
   );
 }

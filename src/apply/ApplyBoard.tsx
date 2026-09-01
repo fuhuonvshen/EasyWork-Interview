@@ -7,7 +7,7 @@ import {
   Loader, Puzzle, Copy, Check, X, Send, Link2,
 } from "lucide-react";
 import { showToast } from "../components/Toast";
-import ModuleGuide from "../components/ModuleGuide";
+import FtueTour from "../components/FtueTour";
 import ApplyRecordModal from "./ApplyRecordModal";
 import CompanyModal from "./CompanyModal";
 import {
@@ -329,6 +329,7 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
             <button
               onClick={syncFeishu}
               disabled={feishuSyncing}
+              data-ftue="apply-sync"
               className="px-3 py-1.5 text-xs font-medium text-teal-600 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors flex items-center gap-1 disabled:opacity-50"
               title="拉取最新的共享公司数据"
             >
@@ -337,6 +338,7 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
             </button>
             <button
               onClick={() => setCompanyModal({ open: true })}
+              data-ftue="apply-add"
               className="px-3 py-1.5 text-xs font-medium text-teal-600 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors flex items-center gap-1"
             >
               <Plus size={13} /> 新增公司
@@ -425,11 +427,6 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
       {/* ── 公司库 ── */}
       {tab === "companies" && (
         <div className="flex-1 min-h-0 flex flex-col px-5 pt-3 pb-2">
-          <ModuleGuide
-            storageKey="apply_guide_done"
-            accent="teal"
-            text="公司库云端共享：找不到的公司点「新增公司」，AI 校验后同步给所有使用者；「去投递」可打开招聘网站并记录投递进度。"
-          />
           {/* 搜索 + 行业筛选 */}
           <div className="flex items-center gap-2 flex-wrap pb-2 flex-shrink-0">
             <button
@@ -520,6 +517,14 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
       )}
 
       {/* ── 投递记录 ── */}
+      <FtueTour
+        storageKey="apply_guide_done"
+        steps={[
+          { target: '[data-ftue="apply-add"]', title: "云端共享公司库", desc: "找不到的公司点「新增公司」：AI 会校验公司名、行业与招聘网址是否准确，通过后同步给所有使用者。" },
+          { target: '[data-ftue="apply-sync"]', title: "一键同步", desc: "点「同步」拉取最新的共享公司数据；「去投递」打开招聘网站并记录投递进度。" },
+        ]}
+      />
+
       {tab === "records" && (
         <div className="flex-1 min-h-0 flex flex-col px-5 pt-3 pb-2">
           {/* 状态筛选 */}
