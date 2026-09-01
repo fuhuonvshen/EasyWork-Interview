@@ -154,17 +154,19 @@ fn browser_exe(which: &str) -> Option<(&'static str, &'static str)> {
 }
 
 /// 打开浏览器扩展管理页（chrome://extensions / edge://extensions）。
-/// 用浏览器可执行文件直接启动——经系统默认浏览器打开这些协议 URL 会
-/// 被误判为未知协议（如 Edge 跳到微软商店）。
+/// 先校验浏览器已安装，再用 cmd start（ShellExecute）按系统协议路由打开：
+/// 直接调浏览器 exe 传 URL 时，已运行的浏览器实例可能忽略参数（表现为
+/// 新开窗口但不导航到扩展页）；协议路由由浏览器注册的 chrome:// / edge://
+/// handler 处理，可确保落在扩展管理页。
 #[tauri::command]
 pub async fn open_extensions_page(browser: String) -> Result<(), String> {
-    let (_, exe) = browser_exe(&browser)
+    let _ = browser_exe(&browser)
         .ok_or_else(|| format!("未找到 {} 浏览器，请手动打开浏览器扩展页面", if browser == "edge" { "Edge" } else { "Chrome" }))?;
-    let url = if browser == "edge" { "edge://extensions" } else { "chrome://extensions" };
-    std::process::Command::new(exe)
-        .arg(url)
+    let url = if browser == "edge" { "edge://extensions/" } else { "chrome://extensions/" };
+    std::process::Command::new("cmd")
+        .args(["/c", "start", "", url])
         .spawn()
-        .map_err(|e| format!("启动浏览器失败: {}", e))?;
+        .map_err(|e| format!("打开浏览器失败: {}", e))?;
     Ok(())
 }
 

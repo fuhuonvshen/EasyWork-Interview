@@ -67,11 +67,10 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 字段表单：当前编辑中的字段 / AI 提取状态 / OCR 状态 / 视图（表单 or 原文）
+  // 字段表单：当前编辑中的字段 / AI 提取状态 / OCR 状态
   const [fields, setFields] = useState<ResumeFields | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [ocring, setOcring] = useState(false);
-  const [viewMode, setViewMode] = useState<"form" | "raw">("form");
   const [pendingContent, setPendingContent] = useState<string | null>(null);
   const [pendingFileName, setPendingFileName] = useState<string | null>(null);
 
@@ -143,7 +142,6 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
       setFields(null);
       setPendingContent(null);
       setPendingFileName(null);
-      setViewMode("form");
       showToast("已删除", "success");
     } catch (e) {
       showToast(`删除失败: ${e}`, "error");
@@ -157,14 +155,14 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
       const fieldsJson = await invoke<string>("extract_resume_fields", { content: rawContent });
       const parsed = JSON.parse(fieldsJson) as ResumeFields;
       setFields(parsed);
-      setViewMode("form");
       setPendingContent(rawContent);
       setPendingFileName(fileName);
       // 首次上传（resume 为空）时也要展示表单，pending 状态不落库
       setResume((prev) => prev ?? { id: "", file_name: fileName, content: rawContent, fields: fieldsJson, created_at: "" });
     } catch (err) {
-      // 字段提取失败（无 LLM/网络问题）→ 退回原文本保存流程
-      showToast("AI 字段提取失败，已按文本保存", "info");
+      // 字段提取失败（模型未加载/Key 无效/网络问题）→ 退回原文本保存流程
+      const reason = err instanceof Error ? err.message : String(err);
+      showToast(`AI 字段提取失败：${reason}，已按文本保存`, "info");
       await doSaveResume(fileName, rawContent, null);
     }
     setExtracting(false);
@@ -242,60 +240,37 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
                       )}
                     </div>
                     <div className="px-4 pb-4">
-                      {fields && viewMode === "form" ? (
+                      {fields ? (
                         <>
-                          <div className="flex items-center justify-between mb-3">
-                            <p className="text-[11px] text-gray-400">
-                              {pendingContent ? "已提取字段，确认无误后保存" : "结构化字段表单"}
-                            </p>
+                          <ResumeFieldsForm
+                            fields={fields}
+                            onChange={setFields}
+                            extracting={extracting}
+                            onReExtract={() => doExtractAndShow(pendingFileName || resume.file_name, pendingContent || resume.content)}
+                          />
+                          <div className="flex justify-end mt-3">
                             <button
-                              onClick={() => setViewMode(viewMode === "form" ? "raw" : "form")}
-                              className="px-2.5 py-1 text-[10px] font-medium text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                              onClick={() => doSaveResume(pendingFileName || resume.file_name, pendingContent || resume.content, fields)}
+                              disabled={uploading || extracting}
+                              className="px-5 py-2 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-md shadow-amber-500/25 hover:opacity-90 disabled:opacity-50 transition-all"
                             >
-                              {viewMode === "form" ? "查看原文" : "返回表单"}
+                              {uploading ? <Loader size={13} className="animate-spin" /> : null}
+                              保存简历
                             </button>
                           </div>
-                          {viewMode === "form" ? (
-                            <>
-                              <ResumeFieldsForm
-                                fields={fields}
-                                onChange={setFields}
-                                extracting={extracting}
-                                onReExtract={() => doExtractAndShow(pendingFileName || resume.file_name, pendingContent || resume.content)}
-                              />
-                              <div className="flex justify-end mt-3">
-                                <button
-                                  onClick={() => doSaveResume(pendingFileName || resume.file_name, pendingContent || resume.content, fields)}
-                                  disabled={uploading || extracting}
-                                  className="px-5 py-2 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-md shadow-amber-500/25 hover:opacity-90 disabled:opacity-50 transition-all"
-                                >
-                                  {uploading ? <Loader size={13} className="animate-spin" /> : null}
-                                  保存简历
-                                </button>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="max-h-64 overflow-y-auto rounded-xl bg-white/80 border border-amber-100 p-3 text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">
-                              {resume.content}
-                            </div>
-                          )}
                         </>
                       ) : (
-                        <>
-                          <div className="max-h-56 overflow-y-auto rounded-xl bg-white/80 border border-amber-100 p-3 text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">
-                            {resume.content}
-                          </div>
-                          <div className="flex justify-end mt-2">
-                            <button
-                              onClick={() => doExtractAndShow(resume.file_name, resume.content)}
-                              disabled={extracting}
-                              className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-medium text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 disabled:opacity-50 transition-colors"
-                            >
-                              {extracting ? <Loader size={11} className="animate-spin" /> : <Sparkles size={11} />}
-                              {extracting ? "AI 正在提取字段..." : "AI 提取字段"}
-                            </button>
-                          </div>
-                        </>
+                        <div className="flex flex-col items-center gap-2 py-4">
+                          <p className="text-[11px] text-gray-400">暂无结构化字段，可让 AI 从简历原文中提取</p>
+                          <button
+                            onClick={() => doExtractAndShow(resume.file_name, resume.content)}
+                            disabled={extracting}
+                            className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-medium text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 disabled:opacity-50 transition-colors"
+                          >
+                            {extracting ? <Loader size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                            {extracting ? "AI 正在提取字段..." : "AI 提取字段"}
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>

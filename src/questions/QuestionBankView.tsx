@@ -144,7 +144,7 @@ export default function QuestionBankView({ onBack, onExpand }: {
               </span>
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 leading-tight">我的题库</h2>
-                <p className="text-[11px] text-gray-400">AI 复盘时提取的面试官问题 · 共 {questions.length} 题 · 可点铅笔纠正</p>
+                <p className="text-[11px] text-gray-400">共 {questions.length} 题</p>
               </div>
             </div>
             {questions.length === 0 && !loading && (
@@ -243,8 +243,8 @@ export default function QuestionBankView({ onBack, onExpand }: {
                   <Bot size={15} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-gray-900 leading-tight">问问 AI</p>
-                  <p className="text-[10px] text-gray-400 leading-tight">点题目按钮即答 · 可选完整助手</p>
+                  <p className="text-xs font-bold text-gray-900 leading-tight">答题助手</p>
+                  <p className="text-[10px] text-gray-400 leading-tight">可从左侧题目列表中选择提问</p>
                 </div>
                 <button
                   onClick={onExpand}
@@ -295,7 +295,6 @@ export default function QuestionBankView({ onBack, onExpand }: {
                   </div>
                 )}
               </div>
-              <p className="wb-dock-hint">点右上角展开完整面试助手</p>
             </>
           ) : (
             <button className="wb-dock-bar" onClick={() => setDockOpen(true)} title="展开对话面板">

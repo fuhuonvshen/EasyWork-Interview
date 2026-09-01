@@ -81,11 +81,6 @@ export default function ResumeFieldsForm({ fields, onChange, onReExtract, extrac
     set({ [key]: fields[key].filter((_, i) => i !== idx) } as Partial<ResumeFields>);
   };
 
-  const addSkill = (v: string) => {
-    const s = v.trim();
-    if (s && !fields.skills.includes(s)) set({ skills: [...fields.skills, s] });
-  };
-
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -190,26 +185,14 @@ export default function ResumeFieldsForm({ fields, onChange, onReExtract, extrac
 
       {/* 技能 */}
       <SectionCard title="技能">
-        <div className="flex flex-wrap gap-1.5 mb-2">
-          {fields.skills.map((s, i) => (
-            <span key={i} className="flex items-center gap-1 px-2 py-0.5 text-[11px] bg-amber-50 text-amber-800 rounded-full">
-              {s}
-              <button onClick={() => set({ skills: fields.skills.filter((_, j) => j !== i) })} className="text-amber-400 hover:text-red-500" aria-label={`删除技能 ${s}`}>
-                <Trash2 size={10} />
-              </button>
-            </span>
-          ))}
-          {fields.skills.length === 0 && <p className="text-[11px] text-gray-300">暂无技能</p>}
-        </div>
-        <input
-          className={inputCls}
-          placeholder="输入技能后回车添加，如 React、Python"
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && e.currentTarget.value.trim()) {
-              addSkill(e.currentTarget.value);
-              e.currentTarget.value = "";
-            }
-          }}
+        <textarea
+          className={`${inputCls} resize-y leading-relaxed`}
+          rows={3}
+          value={fields.skills.join("\n")}
+          placeholder={"每行一个技能，如：\nReact\nTypeScript"}
+          onChange={(e) =>
+            set({ skills: e.target.value.split(/[\n,，、;；]/).map((s) => s.trim()).filter(Boolean) })
+          }
         />
       </SectionCard>
 

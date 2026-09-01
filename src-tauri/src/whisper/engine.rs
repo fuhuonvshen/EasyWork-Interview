@@ -128,7 +128,7 @@ impl WhisperEngine {
                     size_bytes: *size,
                     size_display: format_bytes(*size),
                     downloaded,
-                    is_recommended: *name == "ggml-small.bin",
+                    is_recommended: *name == "ggml-medium.bin",
                     has_partial,
                     partial_bytes,
                 }
@@ -532,84 +532,6 @@ pub fn convert_audio_for_whisper(
 
         resampled
     }
-}
-
-/// 在线语音转写（OpenAI 兼容 /v1/audio/transcriptions，如硅基流动 SenseVoice）。
-/// 输入为 16kHz mono f32 采样 → 16-bit PCM WAV 上传。在线接口不返回时间戳，
-/// 故返回单条 segment（start/end = 0）。
-pub async fn transcribe_online(
-    audio: &[f32],
-    api_key: &str,
-    base_url: &str,
-    model: &str,
-) -> Result<Vec<SegmentInfo>> {
-    if api_key.trim().is_empty() {
-        return Err(anyhow::anyhow!("在线语音识别未配置 API Key，请在「模型管理」中填写"));
-    }
-    let wav_bytes = f32_to_wav_bytes(audio);
-    let base = base_url.trim_end_matches('/');
-    let base = base.strip_suffix("/v1").unwrap_or(base);
-    let url = format!("{}/v1/audio/transcriptions", base);
-
-    let part = reqwest::multipart::Part::bytes(wav_bytes)
-        .file_name("audio.wav")
-        .mime_str("audio/wav")?;
-    let form = reqwest::multipart::Form::new()
-        .text("model", model.to_string())
-        .text("language", "zh".to_string())
-        .part("file", part);
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(300))
-        .build()?;
-    let resp = client
-        .post(&url)
-        .bearer_auth(api_key)
-        .multipart(form)
-        .send()
-        .await
-        .context("连接在线语音识别失败")?;
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let text = resp.text().await.unwrap_or_default();
-        if status == 401 {
-            return Err(anyhow::anyhow!("在线语音识别 API Key 无效，请在设置中检查"));
-        }
-        return Err(anyhow::anyhow!("在线语音识别返回错误 {}: {}", status, text));
-    }
-    let json: serde_json::Value = resp.json().await.context("解析在线语音识别响应失败")?;
-    let text = json["text"].as_str().unwrap_or("").trim().to_string();
-    if text.is_empty() {
-        return Err(anyhow::anyhow!("在线语音识别返回了空文本"));
-    }
-    Ok(vec![SegmentInfo { start: 0.0, end: 0.0, text }])
-}
-
-/// 16kHz mono f32 采样 → 16-bit PCM WAV 字节
-fn f32_to_wav_bytes(audio: &[f32]) -> Vec<u8> {
-    let sample_rate: u32 = 16000;
-    let channels: u16 = 1;
-    let bits: u16 = 16;
-    let data_len = audio.len() * 2;
-    let mut out = Vec::with_capacity(44 + data_len);
-    out.extend_from_slice(b"RIFF");
-    out.extend_from_slice(&(36 + data_len as u32).to_le_bytes());
-    out.extend_from_slice(b"WAVE");
-    out.extend_from_slice(b"fmt ");
-    out.extend_from_slice(&16u32.to_le_bytes());
-    out.extend_from_slice(&1u16.to_le_bytes()); // PCM
-    out.extend_from_slice(&channels.to_le_bytes());
-    out.extend_from_slice(&sample_rate.to_le_bytes());
-    out.extend_from_slice(&(sample_rate * bits as u32 / 8).to_le_bytes());
-    out.extend_from_slice(&(channels * bits / 8).to_le_bytes());
-    out.extend_from_slice(&bits.to_le_bytes());
-    out.extend_from_slice(b"data");
-    out.extend_from_slice(&(data_len as u32).to_le_bytes());
-    for &s in audio {
-        let v = (s.clamp(-1.0, 1.0) * 32767.0) as i16;
-        out.extend_from_slice(&v.to_le_bytes());
-    }
-    out
 }
 
 /// Format seconds into a human-readable ETA string.
