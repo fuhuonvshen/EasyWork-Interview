@@ -1,0 +1,221 @@
+// EasyWork - 投递记录命令（前端投递工作台调用，与 OfferSubmit 扩展共享 apply_records 表）
+
+use std::path::{Path, PathBuf};
+use tauri::{Manager, State};
+use crate::state::DbState;
+
+/// 把内置的 OfferSubmit 扩展（dist）解压到用户文档目录，返回路径。
+/// 幂等：目标已存在则跳过复制（已加载的扩展路径引用不变）。
+#[tauri::command]
+pub async fn prepare_extension(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let src = extension_source_dir(&app)?;
+    let dest = extension_dest_dir()?;
+
+    let already = dest.join("manifest.json").exists();
+    if !already {
+        copy_dir_recursive(&src, &dest)?;
+    }
+
+    Ok(serde_json::json!({
+        "path": dest.to_string_lossy(),
+        "copied": !already,
+        "browser": detect_browser(),
+    }))
+}
+
+fn extension_source_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    // 开发模式：项目 binaries 目录；发布模式：安装包资源目录
+    let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries").join("offersubmit-dist");
+    if dev.join("manifest.json").exists() {
+        return Ok(dev);
+    }
+    let res = app
+        .path()
+        .resource_dir()
+        .ok_or_else(|| "无法定位应用资源目录".to_string())?
+        .join("binaries")
+        .join("offersubmit-dist");
+    if res.join("manifest.json").exists() {
+        return Ok(res);
+    }
+    Err("扩展资源缺失（offersubmit-dist/manifest.json 不存在）".to_string())
+}
+
+fn extension_dest_dir() -> Result<PathBuf, String> {
+    let docs = dirs::document_dir().ok_or_else(|| "无法定位用户文档目录".to_string())?;
+    Ok(docs.join("EasyWork-OfferSubmit"))
+}
+
+fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(dest).map_err(|e| format!("创建目录失败: {}", e))?;
+    let entries = std::fs::read_dir(src).map_err(|e| format!("读取扩展资源失败: {}", e))?;
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("读取扩展资源失败: {}", e))?;
+        let from = entry.path();
+        let to = dest.join(entry.file_name());
+        if from.is_dir() {
+            copy_dir_recursive(&from, &to)?;
+        } else {
+            std::fs::copy(&from, &to).map_err(|e| format!("复制扩展文件失败: {}", e))?;
+        }
+    }
+    Ok(())
+}
+
+// ── 公司库 ──
+
+/// 公司列表（内置 + 自定义）
+#[tauri::command]
+pub async fn company_list(
+    db: State<'_, DbState>,
+) -> Result<Vec<crate::database::models::Company>, String> {
+    crate::database::repo::company_list(&db.0)
+        .await
+        .map_err(|e| format!("查询公司列表失败: {}", e))
+}
+
+/// 新增公司（返回新记录）
+#[tauri::command]
+pub async fn company_add(
+    db: State<'_, DbState>,
+    name: String,
+    industry: Option<String>,
+    url: Option<String>,
+) -> Result<crate::database::models::Company, String> {
+    let id = crate::database::repo::company_insert(
+        &db.0,
+        &name,
+        &industry.unwrap_or_default(),
+        &url.unwrap_or_default(),
+    )
+    .await
+    .map_err(|e| format!("新增公司失败: {}", e))?;
+    let list = crate::database::repo::company_list(&db.0)
+        .await
+        .map_err(|e| format!("查询公司列表失败: {}", e))?;
+    list.into_iter()
+        .find(|c| c.id == id)
+        .ok_or_else(|| "新增公司后查询失败".to_string())
+}
+
+/// 更新公司（None 字段保持不变）
+#[tauri::command]
+pub async fn company_update(
+    db: State<'_, DbState>,
+    id: String,
+    name: Option<String>,
+    industry: Option<String>,
+    url: Option<String>,
+) -> Result<(), String> {
+    crate::database::repo::company_update(
+        &db.0,
+        &id,
+        name.as_deref(),
+        industry.as_deref(),
+        url.as_deref(),
+    )
+    .await
+    .map_err(|e| format!("更新公司失败: {}", e))
+}
+
+/// 删除公司
+#[tauri::command]
+pub async fn company_delete(
+    db: State<'_, DbState>,
+    id: String,
+) -> Result<(), String> {
+    crate::database::repo::company_delete(&db.0, &id)
+        .await
+        .map_err(|e| format!("删除公司失败: {}", e))
+}
+
+fn detect_browser() -> String {
+    // 简单探测常见浏览器默认安装路径，仅供前端提示（不阻塞流程）
+    let candidates: &[(&str, &str)] = &[
+        ("chrome", r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+        ("edge", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+        ("edge-arm", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
+    ];
+    for (name, p) in candidates {
+        if Path::new(p).exists() {
+            return (*name).to_string();
+        }
+    }
+    "unknown".to_string()
+}
+
+/// 全部投递记录（按最近更新倒序）
+#[tauri::command]
+pub async fn apply_list_records(
+    db: State<'_, DbState>,
+) -> Result<Vec<crate::database::models::ApplyRecord>, String> {
+    crate::database::repo::apply_list_records(&db.0)
+        .await
+        .map_err(|e| format!("查询投递记录失败: {}", e))
+}
+
+/// 新增一条投递记录（服务端生成 id 与时间戳）
+#[tauri::command]
+pub async fn apply_add_record(
+    db: State<'_, DbState>,
+    company: String,
+    position: Option<String>,
+    url: Option<String>,
+    site: Option<String>,
+    status: Option<String>,
+    notes: Option<String>,
+) -> Result<crate::database::models::ApplyRecord, String> {
+    let now = chrono::Local::now().timestamp_millis();
+    let rec = crate::database::models::ApplyRecord {
+        id: uuid::Uuid::new_v4().to_string(),
+        company,
+        position: position.unwrap_or_default(),
+        url: url.unwrap_or_default(),
+        site: site.unwrap_or_default(),
+        status: status.unwrap_or_else(|| "pending".into()),
+        notes: notes.unwrap_or_default(),
+        applied_at: now,
+        updated_at: now,
+    };
+    crate::database::repo::apply_insert_record(&db.0, &rec)
+        .await
+        .map_err(|e| format!("新增投递记录失败: {}", e))?;
+    Ok(rec)
+}
+
+/// 更新一条投递记录（None 字段保持不变，刷新 updated_at）
+#[tauri::command]
+pub async fn apply_update_record(
+    db: State<'_, DbState>,
+    id: String,
+    company: Option<String>,
+    position: Option<String>,
+    url: Option<String>,
+    site: Option<String>,
+    status: Option<String>,
+    notes: Option<String>,
+) -> Result<(), String> {
+    crate::database::repo::apply_update_record(
+        &db.0,
+        &id,
+        company.as_deref(),
+        position.as_deref(),
+        url.as_deref(),
+        site.as_deref(),
+        status.as_deref(),
+        notes.as_deref(),
+    )
+    .await
+    .map_err(|e| format!("更新投递记录失败: {}", e))
+}
+
+/// 删除一条投递记录（写入删除墓碑，防对端同步复活）
+#[tauri::command]
+pub async fn apply_delete_record(
+    db: State<'_, DbState>,
+    id: String,
+) -> Result<(), String> {
+    crate::database::repo::apply_delete_record(&db.0, &id)
+        .await
+        .map_err(|e| format!("删除投递记录失败: {}", e))
+}

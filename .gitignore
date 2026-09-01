@@ -42,7 +42,8 @@ build_errors.txt
 src-tauri/agent_debug.log
 
 # Platform-specific binaries (llama-server, CUDA DLLs, etc.) — downloaded at runtime
-src-tauri/binaries/
+src-tauri/binaries/*
+!src-tauri/binaries/offersubmit-dist/
 
 # Local SQLite database (generated at runtime)
 src-tauri/easywork.db
@@ -63,3 +64,7 @@ src-tauri/easywork-build/
 
 # Debug logs
 agent_debug.log
+
+# Temp test artifacts
+.sync_test/
+.qqdoc_*

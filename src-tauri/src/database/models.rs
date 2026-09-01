@@ -176,6 +176,32 @@ pub struct TodoItem {
     pub schedule_id: Option<String>,  // links to scheduled_meetings.id
 }
 
+/// 投递记录（apply_records 表）— 与 OfferSubmit 扩展双向同步。
+/// status: "pending" | "applied" | "interview" | "offer" | "rejected" | "archived"
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ApplyRecord {
+    pub id: String,          // 扩展 uid 字符串或 EasyWork 生成的 uuid
+    pub company: String,
+    pub position: String,
+    pub url: String,
+    pub site: String,
+    pub status: String,
+    pub notes: String,
+    pub applied_at: i64,     // epoch ms
+    pub updated_at: i64,     // epoch ms（双向合并的新者胜依据）
+}
+
+/// 公司库（companies 表）— 名称 / 业务类型 / 招聘网站
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct Company {
+    pub id: String,
+    pub name: String,
+    pub industry: String,    // 业务类型
+    pub url: String,         // 招聘网站
+    pub builtin: bool,       // 是否为内置清单（可删除，不重新 seed）
+    pub created_at: String,
+}
+
 /// Meeting detail returned by get_meeting (title + minutes content + audio path).
 #[derive(Debug, Clone, Serialize)]
 pub struct MeetingDetail {

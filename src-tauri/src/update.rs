@@ -13,7 +13,7 @@ use tokio::io::AsyncWriteExt;
 
 use crate::cleanup_child_process;
 
-const UPDATE_JSON_URL: &str = "https://github.com/fuhuonvshen/EasyWork/releases/latest/download/update.json";
+const UPDATE_JSON_URL: &str = "https://github.com/fuhuonvshen/EasyWork-Interview/releases/latest/download/update.json";
 
 #[derive(Deserialize)]
 struct UpdateManifest {

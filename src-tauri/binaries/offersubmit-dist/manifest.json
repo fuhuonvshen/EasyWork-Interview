@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "OfferSubmit - 简历自动填写助手",
+  "short_name": "OfferSubmit",
+  "version": "0.1.0",
+  "description": "自用免费的简历自动填写与投递记录助手：一键填充招聘网站表单，跟踪投递进度。",
+  "minimum_chrome_version": "102",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "OfferSubmit",
+    "default_popup": "popup/index.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "options/index.html",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["<all_urls>"]
+}

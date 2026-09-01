@@ -17,6 +17,25 @@ interface Props {
   onPromptConsumed?: () => void;
 }
 
+// 按会话类型显示不同的空状态提示与输入框 placeholder
+const HINTS_BY_TYPE: Record<string, { title: string; hint: string; placeholder: string }> = {
+  general: {
+    title: "开始对话吧",
+    hint: "面试准备、复盘、简历分析……或直接粘贴收到的会议邮件通知，AI 自动安排日程",
+    placeholder: "问任何问题，或粘贴会议邮件通知安排日程 (Enter 发送)",
+  },
+  resume: {
+    title: "简历顾问已就绪",
+    hint: "上传简历或粘贴目标岗位 JD，AI 帮你做匹配度分析与逐节优化建议",
+    placeholder: "粘贴 JD 或简历内容，获取优化建议 (Enter 发送)",
+  },
+  review: {
+    title: "复盘分析师已就绪",
+    hint: "粘贴面试转写，AI 生成结构化复盘：问答要点、维度评分与下一步建议",
+    placeholder: "粘贴面试转写，生成结构化复盘 (Enter 发送)",
+  },
+};
+
 // DeepSeek 风格的可折叠过程块（执行计划 / 思考过程，灰色小字）
 function MessageCollapsible({ title, icon, content }: { title: string; icon: string; content: string }) {
   const [open, setOpen] = useState(false);
@@ -54,6 +73,7 @@ export default function AgentChat({ conversationId, onConversationUpdate, conver
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const autoSentRef = useRef<string | null>(null);
+  const hints = HINTS_BY_TYPE[conversationType] ?? HINTS_BY_TYPE.general;
 
   const loadMessages = useCallback(() => {
     invoke<AgentMessage[]>("agent_get_messages", { conversationId })
@@ -251,8 +271,8 @@ export default function AgentChat({ conversationId, onConversationUpdate, conver
         {messages.length === 0 && !dragOver && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center space-y-2">
-              <p className="text-sm text-gray-400">开始对话吧</p>
-              <p className="text-xs text-gray-300">直接粘贴收到的会议邮件通知，AI 自动安排日程</p>
+              <p className="text-sm text-gray-400">{hints.title}</p>
+              <p className="text-xs text-gray-300">{hints.hint}</p>
             </div>
           </div>
         )}
@@ -409,7 +429,7 @@ export default function AgentChat({ conversationId, onConversationUpdate, conver
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) handleSend(); }}
-            placeholder="粘贴收到的会议邮件通知，AI 自动安排日程 (Enter 发送)"
+            placeholder={hints.placeholder}
             disabled={sending}
             className="flex-1 px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:border-emerald-400 focus:bg-white disabled:opacity-50 transition-colors"
           />

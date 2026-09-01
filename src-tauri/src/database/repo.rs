@@ -232,14 +232,6 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
     .await
     .context("创建 settings 表失败")?;
 
-    // 首次初始化时种入默认投递页地址（已存在则不覆盖，用户可在设置页修改）
-    sqlx::query(
-        "INSERT OR IGNORE INTO settings (key, value) VALUES ('apply_url', 'http://8.159.128.153:8000/')",
-    )
-    .execute(pool)
-    .await
-    .context("初始化默认投递页地址失败")?;
-
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS agent_todos (
             id          TEXT PRIMARY KEY,
@@ -255,6 +247,100 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
     .execute(pool)
     .await
     .context("创建 agent_todos 表失败")?;
+
+    // 投递记录（与 OfferSubmit 扩展双向同步；updated_at 为新者胜合并依据）
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS apply_records (
+            id         TEXT PRIMARY KEY,
+            company    TEXT NOT NULL,
+            position   TEXT NOT NULL DEFAULT '',
+            url        TEXT NOT NULL DEFAULT '',
+            site       TEXT NOT NULL DEFAULT '',
+            status     TEXT NOT NULL DEFAULT 'pending',
+            notes      TEXT NOT NULL DEFAULT '',
+            applied_at INTEGER NOT NULL DEFAULT 0,
+            updated_at INTEGER NOT NULL DEFAULT 0
+        )",
+    )
+    .execute(pool)
+    .await
+    .context("创建 apply_records 表失败")?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_apply_records_updated_at ON apply_records(updated_at)")
+        .execute(pool)
+        .await
+        .ok();
+
+    // 删除墓碑（防对端旧数据复活）
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS sync_tombstones (
+            id         TEXT PRIMARY KEY,
+            deleted_at INTEGER NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await
+    .context("创建 sync_tombstones 表失败")?;
+
+    // 公司库（投递工作台：名称/业务类型/招聘网站，内置清单 + 用户自定义）
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS companies (
+            id         TEXT PRIMARY KEY,
+            name       TEXT NOT NULL,
+            industry   TEXT NOT NULL DEFAULT '',
+            url        TEXT NOT NULL DEFAULT '',
+            builtin    INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await
+    .context("创建 companies 表失败")?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_companies_name ON companies(name)")
+        .execute(pool)
+        .await
+        .ok();
+
+    // 首次启动 seed 内置公司清单（seed 版本 v2，仅一次整体替换；
+    // 用户删除的内置公司不会重新出现）
+    let seeded = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM settings WHERE key = 'companies_seeded_v2'")
+        .fetch_one(pool)
+        .await
+        .unwrap_or(0);
+    if seeded == 0 {
+        let raw = include_str!("../apply/builtin_companies.json");
+        let companies: Vec<serde_json::Value> = serde_json::from_str(raw)
+            .context("解析内置公司清单失败")?;
+        let mut tx = pool.begin().await.context("开始 seed 公司清单事务失败")?;
+        // 旧版内置清单（v1）整体移除，保证 v2 全量替换
+        sqlx::query("DELETE FROM companies WHERE builtin = 1")
+            .execute(&mut *tx)
+            .await
+            .context("清理旧内置公司失败")?;
+        let now = chrono::Local::now().to_rfc3339();
+        for c in &companies {
+            let name = c["name"].as_str().unwrap_or("").trim();
+            let industry = c["industry"].as_str().unwrap_or("").trim();
+            let url = c["url"].as_str().unwrap_or("").trim();
+            if name.is_empty() {
+                continue;
+            }
+            sqlx::query("INSERT OR IGNORE INTO companies (id, name, industry, url, builtin, created_at) VALUES (?, ?, ?, ?, 1, ?)")
+                .bind(uuid::Uuid::new_v4().to_string())
+                .bind(name)
+                .bind(industry)
+                .bind(url)
+                .bind(&now)
+                .execute(&mut *tx)
+                .await
+                .context("seed 公司清单失败")?;
+        }
+        sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES ('companies_seeded_v2', '1')")
+            .execute(&mut *tx)
+            .await
+            .context("标记公司清单 seed 状态失败")?;
+        tx.commit().await.context("提交公司清单 seed 失败")?;
+        log::info!("已 seed 内置公司清单（{} 家）", companies.len());
+    }
 
     Ok(())
 }
@@ -1341,4 +1427,173 @@ pub async fn get_resume(pool: &SqlitePool) -> Result<Option<Resume>> {
     .await
     .context("查询简历失败")?;
     Ok(row)
+}
+
+// ── 投递记录（Apply）────────────────────────────────────────────
+
+use super::models::ApplyRecord;
+
+/// 全部投递记录，按最近更新倒序
+pub async fn apply_list_records(pool: &SqlitePool) -> Result<Vec<ApplyRecord>> {
+    let rows = sqlx::query_as::<_, ApplyRecord>(
+        "SELECT * FROM apply_records ORDER BY updated_at DESC",
+    )
+    .fetch_all(pool)
+    .await
+    .context("查询投递记录失败")?;
+    Ok(rows)
+}
+
+/// 插入一条投递记录
+pub async fn apply_insert_record(
+    pool: &SqlitePool,
+    rec: &ApplyRecord,
+) -> Result<()> {
+    sqlx::query(
+        "INSERT INTO apply_records (id, company, position, url, site, status, notes, applied_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&rec.id)
+    .bind(&rec.company)
+    .bind(&rec.position)
+    .bind(&rec.url)
+    .bind(&rec.site)
+    .bind(&rec.status)
+    .bind(&rec.notes)
+    .bind(rec.applied_at)
+    .bind(rec.updated_at)
+    .execute(pool)
+    .await
+    .context("插入投递记录失败")?;
+    Ok(())
+}
+
+/// 更新一条投递记录（传 None 的字段保持不变），并刷新 updated_at
+pub async fn apply_update_record(
+    pool: &SqlitePool,
+    id: &str,
+    company: Option<&str>,
+    position: Option<&str>,
+    url: Option<&str>,
+    site: Option<&str>,
+    status: Option<&str>,
+    notes: Option<&str>,
+) -> Result<()> {
+    let now = chrono::Local::now().timestamp_millis();
+    sqlx::query(
+        "UPDATE apply_records SET
+             company = COALESCE(?, company),
+             position = COALESCE(?, position),
+             url = COALESCE(?, url),
+             site = COALESCE(?, site),
+             status = COALESCE(?, status),
+             notes = COALESCE(?, notes),
+             updated_at = ?
+         WHERE id = ?",
+    )
+    .bind(company)
+    .bind(position)
+    .bind(url)
+    .bind(site)
+    .bind(status)
+    .bind(notes)
+    .bind(now)
+    .bind(id)
+    .execute(pool)
+    .await
+    .context("更新投递记录失败")?;
+    Ok(())
+}
+
+/// 删除一条投递记录并写入删除墓碑（防止对端同步时旧数据复活）
+pub async fn apply_delete_record(pool: &SqlitePool, id: &str) -> Result<()> {
+    let now = chrono::Local::now().timestamp_millis();
+    sqlx::query("DELETE FROM apply_records WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await
+        .context("删除投递记录失败")?;
+    sqlx::query("INSERT OR REPLACE INTO sync_tombstones (id, deleted_at) VALUES (?, ?)")
+        .bind(id)
+        .bind(now)
+        .execute(pool)
+        .await
+        .context("写入删除墓碑失败")?;
+    Ok(())
+}
+
+/// 同步删除墓碑 id 列表
+pub async fn apply_list_tombstones(pool: &SqlitePool) -> Result<Vec<String>> {
+    let rows = sqlx::query("SELECT id FROM sync_tombstones")
+        .fetch_all(pool)
+        .await
+        .context("查询删除墓碑失败")?;
+    Ok(rows.into_iter().map(|r| r.get::<String, _>("id")).collect())
+}
+
+// ── 公司库（Company）────────────────────────────────────────────
+
+use super::models::Company;
+
+/// 全部公司，按名称排序
+pub async fn company_list(pool: &SqlitePool) -> Result<Vec<Company>> {
+    let rows = sqlx::query_as::<_, Company>(
+        "SELECT * FROM companies ORDER BY name COLLATE NOCASE",
+    )
+    .fetch_all(pool)
+    .await
+    .context("查询公司列表失败")?;
+    Ok(rows)
+}
+
+/// 插入一家公司
+pub async fn company_insert(pool: &SqlitePool, name: &str, industry: &str, url: &str) -> Result<String> {
+    let id = uuid::Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO companies (id, name, industry, url, builtin, created_at) VALUES (?, ?, ?, ?, 0, ?)",
+    )
+    .bind(&id)
+    .bind(name)
+    .bind(industry)
+    .bind(url)
+    .bind(chrono::Local::now().to_rfc3339())
+    .execute(pool)
+    .await
+    .context("新增公司失败")?;
+    Ok(id)
+}
+
+/// 更新一家公司（None 字段保持不变）
+pub async fn company_update(
+    pool: &SqlitePool,
+    id: &str,
+    name: Option<&str>,
+    industry: Option<&str>,
+    url: Option<&str>,
+) -> Result<()> {
+    sqlx::query(
+        "UPDATE companies SET
+             name = COALESCE(?, name),
+             industry = COALESCE(?, industry),
+             url = COALESCE(?, url)
+         WHERE id = ?",
+    )
+    .bind(name)
+    .bind(industry)
+    .bind(url)
+    .bind(id)
+    .execute(pool)
+    .await
+    .context("更新公司失败")?;
+    Ok(())
+}
+
+/// 删除一家公司（含内置清单条目；删除后不重新 seed）
+pub async fn company_delete(pool: &SqlitePool, id: &str) -> Result<()> {
+    sqlx::query("DELETE FROM companies WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await
+        .context("删除公司失败")?;
+    Ok(())
 }

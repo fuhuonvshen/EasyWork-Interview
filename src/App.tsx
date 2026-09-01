@@ -10,7 +10,7 @@ import ResumeView from "./workbench/ResumeView";
 import MinutesApp from "./minutes";
 import AgentApp from "./agent/AgentApp";
 import QuestionBankView from "./questions/QuestionBankView";
-import ApplyView from "./apply/ApplyView";
+import ApplyBoard from "./apply/ApplyBoard";
 import ReminderModal from "./ReminderModal";
 import TitleBar from "./components/TitleBar";
 import { ToastContainer } from "./components/Toast";
@@ -258,7 +258,7 @@ export default function App() {
         <QuestionBankView onBack={() => setView("workbench")} onExpand={() => setView("agent")} />
       )}
       {view === "apply" && (
-        <ApplyView onBack={() => setView("workbench")} />
+        <ApplyBoard onBack={() => setView("workbench")} />
       )}
       {view === "resume" && (
         <ResumeView onBack={() => setView("workbench")} onExpand={() => setView("agent")} />

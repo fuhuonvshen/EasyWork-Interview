@@ -68,6 +68,51 @@ export interface ResumeFields {
   summary: string;
 }
 
+// ── 投递记录（投递工作台 ↔ OfferSubmit 扩展双向同步）──
+
+export type ApplyStatus = "pending" | "applied" | "interview" | "offer" | "rejected" | "archived";
+
+export const APPLY_STATUS_LABELS: Record<ApplyStatus, string> = {
+  pending: "待投递",
+  applied: "已投递",
+  interview: "面试中",
+  offer: "已拿Offer",
+  rejected: "未通过",
+  archived: "已归档",
+};
+
+export const APPLY_STATUS_COLORS: Record<ApplyStatus, string> = {
+  pending: "bg-gray-100 text-gray-600",
+  applied: "bg-blue-50 text-blue-600",
+  interview: "bg-purple-50 text-purple-600",
+  offer: "bg-emerald-50 text-emerald-600",
+  rejected: "bg-red-50 text-red-500",
+  archived: "bg-gray-200 text-gray-500",
+};
+
+export interface ApplyRecord {
+  id: string;
+  company: string;
+  position: string;
+  url: string;
+  site: string;
+  status: ApplyStatus;
+  notes: string;
+  applied_at: number;  // epoch ms
+  updated_at: number;  // epoch ms（同步合并的新者胜依据）
+}
+
+// ── 公司库（内置清单 + 用户自定义）──
+
+export interface Company {
+  id: string;
+  name: string;
+  industry: string;   // 业务类型
+  url: string;        // 招聘网站
+  builtin: boolean;   // 是否内置清单
+  created_at: string;
+}
+
 export interface ScheduledMeeting {
   id: string;
   title: string;

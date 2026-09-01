@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OfferSubmit - 简历模板</title>
+  <script type="module" crossorigin src="/assets/options-B39CcXxg.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/types-_ApBPsYl.js">
+  <link rel="stylesheet" crossorigin href="/assets/options-CYbdr2m7.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>OfferSubmit <span class="sub">简历自动填写助手</span></h1>
+  </header>
+
+  <nav class="tabs">
+    <button type="button" data-tab="resume" class="tab active">简历模板</button>
+    <button type="button" data-tab="records" class="tab">投递记录</button>
+  </nav>
+
+  <main>
+    <!-- 组件化模板构建器 -->
+    <section id="tab-resume" class="panel active">
+      <div class="profile-bar">
+        <label>模板：
+          <select id="tpl-select"></select>
+        </label>
+        <input id="tpl-name" placeholder="模板名称（可改名）" />
+        <button type="button" id="btn-new-tpl" class="btn">+ 新建模板</button>
+        <button type="button" id="btn-full-tpl" class="btn" title="一键生成包含全部组件的完整模板，再按需增删">一键完整模板</button>
+        <button type="button" id="btn-delete-tpl" class="btn danger">删除模板</button>
+      </div>
+
+      <div class="builder">
+        <aside class="palette" id="palette">
+          <h3>组件库</h3>
+          <p class="hint">拖入或点击组件添加到模板，自动按固定顺序排好</p>
+          <button type="button" id="btn-add-custom" class="btn small">＋ 自定义组件</button>
+          <div id="custom-form" class="custom-form" hidden>
+            <input id="custom-label" placeholder="组件名，如：到岗时间" />
+            <input id="custom-keywords" placeholder="匹配关键词，逗号分隔，如：到岗时间,arrival" />
+            <div class="custom-form-actions">
+              <button type="button" id="custom-save" class="btn small primary">保存</button>
+              <button type="button" id="custom-cancel" class="btn small">取消</button>
+            </div>
+          </div>
+        </aside>
+        <div class="canvas" id="canvas">
+          <h3>模板内容</h3>
+        </div>
+      </div>
+    </section>
+
+    <!-- 投递记录 -->
+    <section id="tab-records" class="panel">
+      <div class="sync-bar">
+        <button type="button" id="btn-sync" class="btn primary">从 EasyWork 同步</button>
+        <span id="sync-status" class="sync-status"></span>
+      </div>
+      <table id="records-table">
+        <thead>
+          <tr><th>公司</th><th>职位</th><th>来源</th><th>投递时间</th><th>状态</th><th>操作</th></tr>
+        </thead>
+        <tbody id="records-body"></tbody>
+      </table>
+      <p id="records-empty" class="empty">暂无投递记录</p>
+    </section>
+  </main>
+
+</body>
+</html>

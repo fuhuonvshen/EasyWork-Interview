@@ -19,6 +19,7 @@ from .export import render_export
 from .data.models import (
     AgentConversationSummary,
     AgentMessage,
+    ApplyPushRequest,
     AttachContentRequest,
     AttachFileRequest,
     ChatRequest,
@@ -30,6 +31,7 @@ from .data.models import (
     ExportResponse,
     OkResponse,
     RenameRequest,
+    ResumeTemplateResponse,
     UpdateConversationMetaRequest,
 )
 
@@ -44,6 +46,49 @@ router = APIRouter()
 @router.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+# ── 投递同步（OfferSubmit 扩展 ↔ EasyWork）───────────────────
+# 供扩展 options/background 页拉取简历模板与双向同步投递记录。
+# 访问控制由 main.py 的 CORS 中间件完成（仅 chrome-extension:// 与本地来源）。
+
+
+@router.get("/resume-template")
+async def resume_template() -> ResumeTemplateResponse:
+    from .resume_sync import build_template_from_fields, parse_fields_json
+
+    resume = await db.get_resume()
+    if not resume:
+        return ResumeTemplateResponse(template=None, source=None)
+    fields = parse_fields_json(resume.get("fields"))
+    template, custom_defs = build_template_from_fields(fields) if fields else (None, [])
+    return ResumeTemplateResponse(
+        template=template,
+        source={
+            "file_name": resume.get("file_name", ""),
+            "created_at": resume.get("created_at", ""),
+            "has_fields": fields is not None,
+        },
+        custom_fields=custom_defs,
+    )
+
+
+@router.get("/apply-records")
+async def get_apply_records() -> dict:
+    records = await db.list_apply_records()
+    tombstones = await db.list_tombstones()
+    return {"records": records, "tombstones": tombstones}
+
+
+@router.post("/apply-records")
+async def push_apply_records(req: ApplyPushRequest) -> dict:
+    await db.push_apply_records(
+        [r.model_dump() for r in req.records],
+        list(req.tombstones),
+    )
+    records = await db.list_apply_records()
+    tombstones = await db.list_tombstones()
+    return {"records": records, "tombstones": tombstones}
 
 
 # ── Conversations CRUD ──────────────────────────────────────

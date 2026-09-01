@@ -131,6 +131,11 @@ class Database:
             "  created_at TEXT NOT NULL"
             ")"
         )
+        # 迁移：AI 提取的结构化字段 JSON（与 Rust 侧 repo.rs 对齐）
+        try:
+            await self._conn.execute("ALTER TABLE resumes ADD COLUMN fields TEXT")
+        except Exception:
+            pass  # Column already exists
         # 迁移：来源面试 + 是否已入题库（0=待确认，1=已入题库）
         try:
             await self._conn.execute(
@@ -152,6 +157,28 @@ class Database:
             )
         except Exception:
             pass  # Column already exists
+
+        # 投递记录表（与 Rust 侧 repo.rs 对齐；OfferSubmit 扩展双向同步）
+        await self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS apply_records ("
+            "  id TEXT PRIMARY KEY,"
+            "  company TEXT NOT NULL,"
+            "  position TEXT NOT NULL DEFAULT '',"
+            "  url TEXT NOT NULL DEFAULT '',"
+            "  site TEXT NOT NULL DEFAULT '',"
+            "  status TEXT NOT NULL DEFAULT 'pending',"
+            "  notes TEXT NOT NULL DEFAULT '',"
+            "  applied_at INTEGER NOT NULL DEFAULT 0,"
+            "  updated_at INTEGER NOT NULL DEFAULT 0"
+            ")"
+        )
+        # 删除墓碑（防对端同步时旧数据复活）
+        await self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS sync_tombstones ("
+            "  id TEXT PRIMARY KEY,"
+            "  deleted_at INTEGER NOT NULL"
+            ")"
+        )
 
         await self._conn.execute(
             "CREATE TABLE IF NOT EXISTS settings ("
@@ -504,6 +531,56 @@ class Database:
         )
         row = await cursor.fetchone()
         return dict(row) if row else None
+
+    # ── 投递记录同步（OfferSubmit 扩展 ↔ EasyWork）──────────────────
+
+    async def list_apply_records(self) -> list[dict]:
+        cursor = await self.conn.execute(
+            "SELECT * FROM apply_records ORDER BY updated_at DESC"
+        )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+    async def list_tombstones(self) -> list[str]:
+        cursor = await self.conn.execute(
+            "SELECT id FROM sync_tombstones"
+        )
+        rows = await cursor.fetchall()
+        return [r[0] for r in rows]
+
+    async def push_apply_records(self, records: list[dict], tombstones: list[str]) -> None:
+        """UPSERT 投递记录（updated_at 新者胜，防旧数据覆盖新值），并处理删除墓碑。
+
+        删除墓碑优先于插入：先写墓碑（若该 id 在本次 records 中也存在则清除墓碑，
+        因为记录已复活）；随后 UPSERT 跳过已墓碑的记录；最后插入 tombstone 行。
+        """
+        # 1) 若同 id 本次同时携带记录与墓碑：记录复活，清除墓碑
+        for tid in list(tombstones):
+            if any(r["id"] == tid for r in records):
+                tombstones.remove(tid)
+        # 2) 记录 UPSERT（新者胜）
+        for rec in records:
+            await self.conn.execute(
+                "INSERT INTO apply_records (id, company, position, url, site, status, notes, applied_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(id) DO UPDATE SET "
+                "  company=excluded.company, position=excluded.position, url=excluded.url, "
+                "  site=excluded.site, status=excluded.status, notes=excluded.notes, "
+                "  applied_at=excluded.applied_at, updated_at=excluded.updated_at "
+                "WHERE excluded.updated_at > apply_records.updated_at",
+                (rec["id"], rec["company"], rec["position"], rec["url"], rec["site"],
+                 rec["status"], rec["notes"], rec["applied_at"], rec["updated_at"]),
+            )
+            # 记录存在（或复活）则其墓碑无意义
+            await self.conn.execute("DELETE FROM sync_tombstones WHERE id = ?", (rec["id"],))
+        # 3) 删除墓碑
+        for tid in tombstones:
+            await self.conn.execute("DELETE FROM apply_records WHERE id = ?", (tid,))
+            await self.conn.execute(
+                "INSERT OR REPLACE INTO sync_tombstones (id, deleted_at) VALUES (?, ?)",
+                (tid, int(datetime.now(timezone.utc).timestamp() * 1000)),
+            )
+        await self.conn.commit()
 
 
 # Singleton for the FastAPI app

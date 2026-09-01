@@ -3,6 +3,7 @@
 // 每个模块的初始化逻辑在各自的 mod.rs 中，lib.rs 只负责按序调用和状态注册。
 
 mod agent;
+mod apply;
 mod asr;
 mod audio;
 mod diarization;
@@ -216,6 +217,16 @@ pub fn run() {
             minutes::meeting::save_resume,
             minutes::meeting::get_resume,
             resume::commands::extract_resume_fields,
+            // ── Apply (投递工作台) ──
+            apply::commands::apply_list_records,
+            apply::commands::apply_add_record,
+            apply::commands::apply_update_record,
+            apply::commands::apply_delete_record,
+            apply::commands::prepare_extension,
+            apply::commands::company_list,
+            apply::commands::company_add,
+            apply::commands::company_update,
+            apply::commands::company_delete,
             minutes::schedule::add_scheduled_meeting,
             minutes::schedule::delete_scheduled_meeting,
             minutes::schedule::update_scheduled_meeting,

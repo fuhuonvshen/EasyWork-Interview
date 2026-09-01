@@ -100,6 +100,40 @@ async def inject_request_id(request, call_next):
     return response
 
 
+# ── 投递同步 CORS（OfferSubmit 扩展 ↔ EasyWork）──────────────
+# 白名单来源回显具体 Origin（不能用 *，否则任意网站都能读本地简历）：
+#   - chrome-extension://<id>  —— MV3 扩展 options/background 页面
+#   - http://127.0.0.1 / http://localhost —— vite dev / 本地测试页
+# 无 Origin 的请求（curl、本机进程）放行但不加 ACAO 头。
+# 恶意网页的 Origin 不在白名单 → 不加 ACAO → 浏览器层直接拦截。
+_EXT_ALLOWED_ORIGIN_PREFIXES = (
+    "chrome-extension://",
+    "http://127.0.0.1",
+    "http://localhost",
+)
+
+
+@app.middleware("http")
+async def apply_sync_cors(request, call_next):
+    origin = request.headers.get("origin", "")
+    if origin and origin.startswith(_EXT_ALLOWED_ORIGIN_PREFIXES):
+        if request.method == "OPTIONS":  # POST JSON 触发 preflight
+            return JSONResponse(
+                None,
+                status_code=204,
+                headers={
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type",
+                    "Access-Control-Max-Age": "3600",
+                },
+            )
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Origin"] = origin
+        return response
+    return await call_next(request)
+
+
 @app.get("/health")
 async def health():
     """Health check — frontend can poll to confirm the agent is ready."""
