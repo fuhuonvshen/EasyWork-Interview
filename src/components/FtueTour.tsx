@@ -61,6 +61,23 @@ export default function FtueTour({ steps, storageKey, onDone }: Props) {
       const bubble = bubbleRef.current;
       const arrow = arrowRef.current;
       if (m.length === 4 && box && bubble && arrow) {
+        // 目标不可见（未渲染/display:none，rect 全 0）：清空蒙版避免全屏黑幕，
+        // 气泡居中显示，下一帧目标出现后自动恢复高亮
+        const valid =
+          rect.width > 0 && rect.height > 0 &&
+          Number.isFinite(rect.top) && Number.isFinite(rect.left);
+        if (!valid) {
+          for (const mm of m) {
+            if (!mm) continue;
+            mm.style.top = "0"; mm.style.left = "0";
+            mm.style.width = "0"; mm.style.height = "0";
+          }
+          box.style.width = "0"; box.style.height = "0";
+          bubble.style.left = `${Math.max(8, (window.innerWidth - BUBBLE_W) / 2)}px`;
+          bubble.style.top = "16px";
+          arrow.style.top = "-6px"; arrow.style.bottom = "auto"; arrow.style.left = "16px";
+          bubble.style.opacity = "1";
+        } else {
         // 四块遮罩：上/下/左/右（目标区域透明）
         m[0]!.style.top = "0";
         m[0]!.style.left = "0";
@@ -103,6 +120,7 @@ export default function FtueTour({ steps, storageKey, onDone }: Props) {
         arrow.style.left = `${arrowLeft}px`;
 
         bubble.style.opacity = "1";
+        }
       }
       raf = requestAnimationFrame(tick);
     };

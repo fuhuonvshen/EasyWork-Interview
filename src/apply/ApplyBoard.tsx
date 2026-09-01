@@ -1,6 +1,6 @@
 // EasyWork - 投递工作台（替代 iframe 内嵌投递页）
 // 两个 tab：公司库（飞书共享表格只读镜像，以在线表格为准） / 投递记录（进度管理 + 扩展双向同步）
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   ArrowLeft, RefreshCw, Plus, Rocket, Trash2, Pencil,
@@ -278,6 +278,12 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
 
   const fmtTime = (ms: number) => (ms ? new Date(ms).toLocaleDateString("zh-CN") : "—");
 
+  // 公司表格：表头固定在外层，内容区独立滚动；横向滚动时同步表头
+  const headWrapRef = useRef<HTMLDivElement>(null);
+  const syncHeadScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (headWrapRef.current) headWrapRef.current.scrollLeft = e.currentTarget.scrollLeft;
+  };
+
   /** 网址单元格：可点击，仅显示 hostname；微信文章链接不显示（数据保留） */
   const UrlCell = ({ url }: { url: string }) => {
     if (!url) return <span className="text-gray-300">—</span>;
@@ -456,61 +462,69 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
             />
           </div>
 
-          {/* 公司表格 */}
-          <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-gray-100">
+          {/* 公司表格：表头固定在外层，内容区独立滚动（滚动条从表头下方开始） */}
+          <div className="flex-1 min-h-0 flex flex-col rounded-xl border border-gray-100 overflow-hidden">
             {companiesLoading ? (
-              <div className="flex items-center justify-center py-10 text-gray-400 text-sm gap-2">
+              <div className="flex-1 flex items-center justify-center text-gray-400 text-sm gap-2">
                 <Loader size={14} className="animate-spin" /> 加载中…
               </div>
             ) : filteredCompanies.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-14 gap-2 text-center px-8">
+              <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-8">
                 <p className="text-sm font-medium text-gray-700">{companies.length === 0 ? "公司库还是空的" : "没有符合条件的公司"}</p>
                 <p className="text-xs text-gray-400">
                   {companies.length === 0 ? "点击右上角「新增公司」录入名称、业务类型和招聘网站" : "试试调整筛选或搜索关键词"}
                 </p>
               </div>
             ) : (
-              <table className="w-full text-left text-xs">
-                <thead className="sticky top-0 bg-gray-50/95 backdrop-blur z-10">
-                  <tr className="text-[11px] text-gray-400">
-                    <th className="px-4 py-2.5 font-medium w-[28%]">公司名称</th>
-                    <th className="px-4 py-2.5 font-medium w-[16%]">业务类型</th>
-                    <th className="px-4 py-2.5 font-medium">招聘网址</th>
-                    <th className="px-4 py-2.5 font-medium text-right w-[24%]">操作</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {filteredCompanies.map((c) => (
-                    <tr key={c.id} className="group hover:bg-gray-50/60 transition-colors">
-                      <td className="px-4 py-2.5">
-                        <span className="flex items-center gap-1.5">
-                          <span className="font-semibold text-gray-800">{c.name}</span>
-                          {c.builtin && <span className="text-[9px] text-gray-300">内置</span>}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        {c.industry ? (
-                          <span className="px-1.5 py-0.5 text-[10px] bg-teal-50 text-teal-600 rounded">{c.industry}</span>
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5"><UrlCell url={c.url} /></td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => goApply(c)}
-                            className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
-                            title="浏览器打开招聘链接并新建投递记录"
-                          >
-                            <Send size={11} /> 去投递
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <>
+                <div ref={headWrapRef} className="flex-shrink-0 overflow-hidden border-b border-gray-100">
+                  <table className="w-full table-fixed text-left text-xs">
+                    <thead className="bg-gray-50">
+                      <tr className="text-[11px] text-gray-400">
+                        <th className="px-4 py-2.5 font-medium w-[28%]">公司名称</th>
+                        <th className="px-4 py-2.5 font-medium w-[16%]">业务类型</th>
+                        <th className="px-4 py-2.5 font-medium">招聘网址</th>
+                        <th className="px-4 py-2.5 font-medium text-right w-[24%]">操作</th>
+                      </tr>
+                    </thead>
+                  </table>
+                </div>
+                <div className="flex-1 min-h-0 overflow-auto" onScroll={syncHeadScroll}>
+                  <table className="w-full table-fixed text-left text-xs">
+                    <tbody className="divide-y divide-gray-50">
+                      {filteredCompanies.map((c) => (
+                        <tr key={c.id} className="group hover:bg-gray-50/60 transition-colors">
+                          <td className="px-4 py-2.5 overflow-hidden">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-semibold text-gray-800 truncate">{c.name}</span>
+                              {c.builtin && <span className="text-[9px] text-gray-300 flex-shrink-0">内置</span>}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5 overflow-hidden">
+                            {c.industry ? (
+                              <span className="px-1.5 py-0.5 text-[10px] bg-teal-50 text-teal-600 rounded">{c.industry}</span>
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5"><UrlCell url={c.url} /></td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => goApply(c)}
+                                className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
+                                title="浏览器打开招聘链接并新建投递记录"
+                              >
+                                <Send size={11} /> 去投递
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         </div>

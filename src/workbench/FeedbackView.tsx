@@ -65,7 +65,7 @@ export default function FeedbackView({ onBack }: { onBack: () => void }) {
                 type="email"
                 value={sender}
                 onChange={(e) => setSender(e.target.value)}
-                placeholder="你的163邮箱，如 xxx@163.com"
+                placeholder="如 xxx@163.com"
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 focus:bg-white transition-colors"
               />
             </div>

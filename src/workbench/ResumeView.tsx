@@ -5,7 +5,6 @@ import { ArrowLeft, FileText, Upload, Trash2, Check, Loader, Sparkles, Bot, Maxi
 import type { Resume, AgentConversationSummary, ResumeFields } from "../types";
 import { showToast } from "../components/Toast";
 import AgentChat from "../agent/AgentChat";
-import FtueTour from "../components/FtueTour";
 import { ocrPdf } from "../utils/ocr";
 import * as pdfjsLib from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -293,7 +292,6 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading || extracting}
-                    data-ftue="resume-upload"
                     className="px-4 py-2 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-md shadow-amber-500/25 hover:opacity-90 disabled:opacity-50 transition-all flex items-center gap-1.5"
                   >
                     {uploading || extracting ? <Loader size={13} className="animate-spin" /> : <Upload size={13} />}
@@ -326,7 +324,7 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
         </div>
 
         {/* 右侧 AI 侧边栏（简历角色对话） */}
-        <aside data-ftue="resume-dock" className={`wb-dock ${dockOpen ? "" : "wb-dock-collapsed"}`}>
+        <aside className={`wb-dock ${dockOpen ? "" : "wb-dock-collapsed"}`}>
           {dockOpen ? (
             <>
               <div className="wb-dock-head">
@@ -395,13 +393,6 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
           )}
         </aside>
       </div>
-      <FtueTour
-        storageKey="resume_guide_done"
-        steps={[
-          { target: '[data-ftue="resume-upload"]', title: "上传简历，AI 自动提取", desc: "支持 PDF / Word / TXT，AI 自动提取成结构化字段（教育、工作、项目、技能、求职意向），可直接修改保存。" },
-          { target: '[data-ftue="resume-dock"]', title: "安装投递填充扩展", desc: "建议安装 OfferSubmit 浏览器扩展：在招聘网站投递时一键自动填充简历，投递记录自动回写本应用。" },
-        ]}
-      />
     </div>
   );
 }

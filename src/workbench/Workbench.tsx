@@ -304,7 +304,7 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
           </div>
         </div>
         {/* 右侧对话面板（常驻，可折叠） */}
-        <aside data-ftue="dock" className={`wb-dock ${dockOpen ? "" : "wb-dock-collapsed"}`}>
+        <aside data-ftue="dock" className={`wb-dock wb-dock-glass ${dockOpen ? "" : "wb-dock-collapsed"}`}>
           {dockOpen ? (
             <>
               <div className="wb-dock-head">

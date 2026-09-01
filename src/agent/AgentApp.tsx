@@ -196,6 +196,49 @@ export default function AgentApp({
     );
   }
 
+  // 角色选择弹窗：空态界面与主界面共用（空态是提前 return，弹窗不能只挂主界面）
+  const rolePicker = showRolePicker && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl shadow-2xl w-[640px] max-w-[calc(100vw-48px)] p-6" style={{ animation: "dsh-pop .2s ease" }}>
+        <style>{`@keyframes dsh-pop { from { transform: translateY(12px) scale(.97); opacity: 0 } to { transform: none; opacity: 1 } }`}</style>
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <Sparkles size={18} className="text-emerald-500" />
+            新建对话 · 选择角色
+          </h3>
+          <button onClick={() => setShowRolePicker(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mb-5">不同角色拥有专属的流程、提示词与工具面</p>
+        <div className="grid grid-cols-2 gap-3">
+          {ROLE_OPTIONS.map((r) => {
+            const meta = ROLE_META[r.type];
+            return (
+              <button
+                key={r.type}
+                onClick={() => handlePickRole(r.type)}
+                disabled={creating}
+                className="text-left border border-gray-100 rounded-2xl p-4 hover:border-emerald-300 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-0.5 transition-all disabled:opacity-50"
+              >
+                <span className={`w-10 h-10 rounded-xl ${r.iconBg} flex items-center justify-center text-lg mb-2.5`}>
+                  {meta.icon}
+                </span>
+                <p className="text-sm font-bold text-gray-900">{r.title}</p>
+                <p className="text-xs text-gray-400 mt-1 leading-relaxed">{r.desc}</p>
+              </button>
+            );
+          })}
+        </div>
+        {creating && (
+          <div className="flex items-center justify-center gap-2 mt-5 text-xs text-gray-400">
+            <Loader size={13} className="animate-spin" /> 正在创建对话...
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   if (!activeId && conversations.length === 0 && agentSubView === "chat") {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-4">
@@ -214,6 +257,7 @@ export default function AgentApp({
         <button onClick={onBack} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">
           返回工作台
         </button>
+        {rolePicker}
       </div>
     );
   }
@@ -252,48 +296,7 @@ export default function AgentApp({
         )}
       </div>
 
-      {/* 角色选择弹窗 */}
-      {showRolePicker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl w-[640px] max-w-[calc(100vw-48px)] p-6" style={{ animation: "dsh-pop .2s ease" }}>
-            <style>{`@keyframes dsh-pop { from { transform: translateY(12px) scale(.97); opacity: 0 } to { transform: none; opacity: 1 } }`}</style>
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Sparkles size={18} className="text-emerald-500" />
-                新建对话 · 选择角色
-              </h3>
-              <button onClick={() => setShowRolePicker(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600">
-                <X size={18} />
-              </button>
-            </div>
-            <p className="text-xs text-gray-400 mb-5">不同角色拥有专属的流程、提示词与工具面</p>
-            <div className="grid grid-cols-2 gap-3">
-              {ROLE_OPTIONS.map((r) => {
-                const meta = ROLE_META[r.type];
-                return (
-                  <button
-                    key={r.type}
-                    onClick={() => handlePickRole(r.type)}
-                    disabled={creating}
-                    className="text-left border border-gray-100 rounded-2xl p-4 hover:border-emerald-300 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-0.5 transition-all disabled:opacity-50"
-                  >
-                    <span className={`w-10 h-10 rounded-xl ${r.iconBg} flex items-center justify-center text-lg mb-2.5`}>
-                      {meta.icon}
-                    </span>
-                    <p className="text-sm font-bold text-gray-900">{r.title}</p>
-                    <p className="text-xs text-gray-400 mt-1 leading-relaxed">{r.desc}</p>
-                  </button>
-                );
-              })}
-            </div>
-            {creating && (
-              <div className="flex items-center justify-center gap-2 mt-5 text-xs text-gray-400">
-                <Loader size={13} className="animate-spin" /> 正在创建对话...
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {rolePicker}
     </div>
   );
 }
