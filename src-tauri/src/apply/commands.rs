@@ -4,12 +4,13 @@ use std::path::{Path, PathBuf};
 use tauri::{Manager, State};
 use crate::state::DbState;
 
-/// 把内置的 OfferSubmit 扩展（dist）解压到用户文档目录，返回路径。
+/// 把内置的 OfferSubmit 扩展（dist）解压到应用数据目录（与 easywork.db 同目录，
+/// 避开 OneDrive 重定向的文档目录），返回路径。
 /// 幂等：目标已存在则跳过复制（已加载的扩展路径引用不变）。
 #[tauri::command]
 pub async fn prepare_extension(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     let src = extension_source_dir(&app)?;
-    let dest = extension_dest_dir()?;
+    let dest = extension_dest_dir(&app)?;
 
     let already = dest.join("manifest.json").exists();
     if !already {
@@ -41,9 +42,12 @@ fn extension_source_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Err("扩展资源缺失（offersubmit-dist/manifest.json 不存在）".to_string())
 }
 
-fn extension_dest_dir() -> Result<PathBuf, String> {
-    let docs = dirs::document_dir().ok_or_else(|| "无法定位用户文档目录".to_string())?;
-    Ok(docs.join("EasyWork-OfferSubmit"))
+fn extension_dest_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("无法定位应用数据目录: {}", e))?;
+    Ok(data_dir.join("OfferSubmit-Extension"))
 }
 
 fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
@@ -130,18 +134,38 @@ pub async fn company_delete(
 }
 
 fn detect_browser() -> String {
-    // 简单探测常见浏览器默认安装路径，仅供前端提示（不阻塞流程）
-    let candidates: &[(&str, &str)] = &[
+    browser_paths().first().map(|(name, _)| name.to_string()).unwrap_or_else(|| "unknown".to_string())
+}
+
+/// 常见浏览器安装路径（顺序即探测优先级）
+fn browser_paths() -> Vec<(&'static str, &'static str)> {
+    vec![
         ("chrome", r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+        ("chrome", r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
         ("edge", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
-        ("edge-arm", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
-    ];
-    for (name, p) in candidates {
-        if Path::new(p).exists() {
-            return (*name).to_string();
-        }
-    }
-    "unknown".to_string()
+        ("edge", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
+    ]
+}
+
+fn browser_exe(which: &str) -> Option<(&'static str, &'static str)> {
+    browser_paths().into_iter().find(|(name, p)| {
+        *name == which && Path::new(p).exists()
+    })
+}
+
+/// 打开浏览器扩展管理页（chrome://extensions / edge://extensions）。
+/// 用浏览器可执行文件直接启动——经系统默认浏览器打开这些协议 URL 会
+/// 被误判为未知协议（如 Edge 跳到微软商店）。
+#[tauri::command]
+pub async fn open_extensions_page(browser: String) -> Result<(), String> {
+    let (_, exe) = browser_exe(&browser)
+        .ok_or_else(|| format!("未找到 {} 浏览器，请手动打开浏览器扩展页面", if browser == "edge" { "Edge" } else { "Chrome" }))?;
+    let url = if browser == "edge" { "edge://extensions" } else { "chrome://extensions" };
+    std::process::Command::new(exe)
+        .arg(url)
+        .spawn()
+        .map_err(|e| format!("启动浏览器失败: {}", e))?;
+    Ok(())
 }
 
 /// 全部投递记录（按最近更新倒序）

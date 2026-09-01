@@ -61,11 +61,11 @@ const WORKBENCH_CARDS: {
     action: "apply",
     pos: { left: 296, top: 240 },
     style: {
-      "--w": "214px", "--rot": "-3deg", "--tdeep": "#dbeafe", "--tbg": "#eff6ff",
+      "--w": "214px", "--rot": "-3deg", "--tdeep": "#ccfbf1", "--tbg": "#f0fdfa",
       "--br": "50% 58% 44% 50% / 52% 44% 56% 48%",
       "--br2": "42% 50% 58% 46% / 44% 58% 46% 52%",
       "--br3": "56% 44% 50% 58% / 60% 42% 52% 46%",
-      "--tcolor": "#2563eb", "--hb": "#bfdbfe",
+      "--tcolor": "#0d9488", "--hb": "#99f6e4",
       "--delay": "1.2s", "--dur": "4.8s", "--mdelay": "-2.6s", "--mdur": "6.9s",
     } as CSSProperties,
   },

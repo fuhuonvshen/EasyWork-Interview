@@ -216,6 +216,7 @@ pub fn run() {
             minutes::meeting::add_questions_to_bank,
             minutes::meeting::save_resume,
             minutes::meeting::get_resume,
+            minutes::meeting::delete_resume,
             resume::commands::extract_resume_fields,
             // ── Apply (投递工作台) ──
             apply::commands::apply_list_records,
@@ -223,6 +224,7 @@ pub fn run() {
             apply::commands::apply_update_record,
             apply::commands::apply_delete_record,
             apply::commands::prepare_extension,
+            apply::commands::open_extensions_page,
             apply::commands::company_list,
             apply::commands::company_add,
             apply::commands::company_update,

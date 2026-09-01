@@ -574,3 +574,13 @@ pub async fn get_resume(
         .await
         .map_err(|e| format!("查询简历失败: {}", e))
 }
+
+/// 删除最新一份简历
+#[tauri::command]
+pub async fn delete_resume(
+    db: State<'_, DbState>,
+) -> Result<(), String> {
+    crate::database::repo::delete_resume(&db.0)
+        .await
+        .map_err(|e| format!("删除简历失败: {}", e))
+}

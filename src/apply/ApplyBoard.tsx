@@ -1,14 +1,10 @@
 // EasyWork - 投递工作台（替代 iframe 内嵌投递页）
-// 两个 tab：
-//   公司库 —— 内置 100 家常见公司 + 用户自定义（名称/业务类型/招聘网站），点开即投递
-//   投递记录 —— 投递进度管理 + 与 OfferSubmit 扩展双向同步
-// 数据链路：Rust 命令读写 apply_records / companies 表；扩展经 Python sidecar
-// 本地服务拉取/回写同一张表。
+// 两个 tab：公司库（内置秋招公司，表格） / 投递记录（进度管理 + 扩展双向同步）
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   ArrowLeft, RefreshCw, Plus, ExternalLink, Rocket, Trash2, Pencil,
-  Loader, Puzzle, Copy, Check, X, Building2, Send,
+  Loader, Puzzle, Copy, Check, X, Send, Link2,
 } from "lucide-react";
 import { showToast } from "../components/Toast";
 import ApplyRecordModal from "./ApplyRecordModal";
@@ -21,6 +17,15 @@ import {
 const ALL_STATUSES = Object.keys(APPLY_STATUS_LABELS) as ApplyStatus[];
 
 type Tab = "companies" | "records";
+
+/** 网址显示：仅 hostname（保持紧凑） */
+function urlDisplay(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url.slice(0, 30);
+  }
+}
 
 export default function ApplyBoard({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("companies");
@@ -49,6 +54,8 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
   const [extError, setExtError] = useState("");
   const [copied, setCopied] = useState(false);
   const [extDismissed, setExtDismissed] = useState(false);
+  const [dismissModal, setDismissModal] = useState(false);
+  const [neverAsk, setNeverAsk] = useState(false);
 
   const reload = useCallback(async () => {
     try {
@@ -77,10 +84,16 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
     reloadCompanies();
   }, [reload, reloadCompanies]);
 
-  // 进入页面即准备扩展（幂等：已解压则直接返回路径）
+  // 进入页面：读取"不再提示扩展安装"设置；未关闭则准备扩展（幂等）
   useEffect(() => {
     (async () => {
       try {
+        const settings = await invoke<Record<string, string>>("get_settings");
+        if (settings["apply_ext_guide_dismissed"] === "1") {
+          setExtDismissed(true);
+          setExtLoading(false);
+          return;
+        }
         const info = await invoke<{ path: string; copied: boolean; browser: string }>("prepare_extension");
         setExt({ path: info.path, browser: info.browser });
       } catch (e) {
@@ -90,6 +103,19 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
       }
     })();
   }, []);
+
+  // 确认关闭引导卡（可选"下次不再提示"并持久化）
+  const confirmDismiss = async () => {
+    if (neverAsk) {
+      try {
+        await invoke("update_setting", { key: "apply_ext_guide_dismissed", value: "1" });
+      } catch {
+        /* 设置保存失败不阻塞关闭 */
+      }
+    }
+    setDismissModal(false);
+    setExtDismissed(true);
+  };
 
   // ── 投递记录操作 ──
 
@@ -173,7 +199,6 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
     }
   };
 
-  // 从公司库发起投递：浏览器打开招聘网站 + 预填投递记录弹窗
   const goApply = async (c: Company) => {
     if (c.url) openUrl(c.url);
     setRecordModal({
@@ -192,6 +217,15 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const deriveSite = (u: string) => {
+    try {
+      const h = new URL(u.startsWith("http") ? u : `https://${u}`).hostname;
+      return h.startsWith("www.") ? h.slice(4) : h;
+    } catch {
+      return "";
+    }
+  };
+
   const copyPath = async () => {
     if (!ext) return;
     try {
@@ -205,18 +239,9 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
 
   const openBrowserExtensions = async (which: "chrome" | "edge") => {
     try {
-      await invoke("open_external_url", { url: which === "chrome" ? "chrome://extensions" : "edge://extensions" });
+      await invoke("open_extensions_page", { browser: which });
     } catch {
       showToast("打开浏览器失败，请手动打开浏览器扩展页面", "error");
-    }
-  };
-
-  const deriveSite = (u: string) => {
-    try {
-      const h = new URL(u.startsWith("http") ? u : `https://${u}`).hostname;
-      return h.startsWith("www.") ? h.slice(4) : h;
-    } catch {
-      return "";
     }
   };
 
@@ -245,6 +270,22 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
 
   const fmtTime = (ms: number) => (ms ? new Date(ms).toLocaleDateString("zh-CN") : "—");
 
+  /** 网址单元格：可点击，仅显示 hostname；微信文章链接不显示（数据保留） */
+  const UrlCell = ({ url }: { url: string }) => {
+    if (!url) return <span className="text-gray-300">—</span>;
+    if (url.includes("mp.weixin.qq.com")) return <span className="text-gray-300">—</span>;
+    return (
+      <button
+        onClick={() => openUrl(url)}
+        className="flex items-center gap-1.5 text-[11px] text-gray-500 hover:text-teal-600 hover:underline transition-colors max-w-[220px]"
+        title={url}
+      >
+        <Link2 size={11} className="flex-shrink-0" />
+        <span className="truncate">{urlDisplay(url)}</span>
+      </button>
+    );
+  };
+
   return (
     <div className="h-full flex flex-col bg-white rounded-lg overflow-hidden">
       {/* 工具栏 */}
@@ -253,7 +294,7 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
           <ArrowLeft size={18} />
         </button>
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <Rocket size={16} className="text-brand-600 flex-shrink-0" />
+          <Rocket size={16} className="text-teal-600 flex-shrink-0" />
           <span className="text-sm font-medium text-gray-700">投递工作台</span>
           <span className="text-[10px] text-gray-400">公司投递 + OfferSubmit 扩展同步</span>
         </div>
@@ -266,7 +307,7 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
         {tab === "records" && (
           <button
             onClick={() => setRecordModal({ open: true, initial: null, prefill: null })}
-            className="px-3 py-1.5 text-xs font-medium text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors flex items-center gap-1"
+            className="px-3 py-1.5 text-xs font-medium text-teal-600 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors flex items-center gap-1"
           >
             <Plus size={13} /> 新增记录
           </button>
@@ -274,7 +315,7 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
         {tab === "companies" && (
           <button
             onClick={() => setCompanyModal({ open: true, initial: null })}
-            className="px-3 py-1.5 text-xs font-medium text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors flex items-center gap-1"
+            className="px-3 py-1.5 text-xs font-medium text-teal-600 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors flex items-center gap-1"
           >
             <Plus size={13} /> 新增公司
           </button>
@@ -284,19 +325,19 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
       {/* tab 切换 */}
       <div className="px-5 pt-3 flex items-center gap-1 flex-shrink-0">
         {([
-          { key: "companies", label: "公司库", icon: Building2 },
-          { key: "records", label: "投递记录", icon: Send },
-        ] as Array<{ key: Tab; label: string; icon: typeof Building2 }>).map((t) => (
+          { key: "companies", label: "公司库" },
+          { key: "records", label: "投递记录" },
+        ] as Array<{ key: Tab; label: string }>).map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              tab === t.key ? "bg-brand-600 text-white" : "text-gray-500 hover:bg-gray-100"
+            className={`px-3.5 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              tab === t.key ? "bg-teal-600 text-white" : "text-gray-500 hover:bg-gray-100"
             }`}
           >
-            <t.icon size={13} /> {t.label}
+            {t.label}
             {t.key === "companies" && (
-              <span className={`text-[10px] px-1.5 rounded-full ${tab === t.key ? "bg-white/20" : "bg-gray-100 text-gray-400"}`}>
+              <span className={`ml-1 text-[10px] px-1.5 rounded-full ${tab === t.key ? "bg-white/20" : "bg-gray-100 text-gray-400"}`}>
                 {companies.length}
               </span>
             )}
@@ -334,7 +375,7 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
                   <ol className="mt-2 text-[11px] text-gray-500 space-y-0.5 list-decimal list-inside">
                     <li>点击下方按钮打开浏览器扩展页面</li>
                     <li>开启右上角「开发者模式」</li>
-                    <li>点「加载已解压的扩展程序」，选择上面的路径（{ext.browser === "chrome" ? "检测到 Chrome" : ext.browser === "edge" ? "检测到 Edge" : "浏览器"}）</li>
+                    <li>点「加载已解压的扩展程序」，选择上面的路径</li>
                   </ol>
                   <div className="mt-2 flex gap-2">
                     <button onClick={() => openBrowserExtensions("chrome")} className="px-2.5 py-1 text-[10px] font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors">
@@ -348,9 +389,9 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
               )}
             </div>
             <button
-              onClick={() => setExtDismissed(true)}
+              onClick={() => { setNeverAsk(false); setDismissModal(true); }}
               className="p-1 rounded text-gray-300 hover:text-gray-500 transition-colors flex-shrink-0"
-              title="关闭（扩展已装好时可关掉）"
+              title="关闭提示"
             >
               <X size={14} />
             </button>
@@ -358,14 +399,15 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
         </div>
       )}
 
+      {/* ── 公司库 ── */}
       {tab === "companies" && (
-        <div className="flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 min-h-0 flex flex-col px-5 pt-3 pb-2">
           {/* 搜索 + 行业筛选 */}
-          <div className="px-5 pt-3 flex items-center gap-2 flex-wrap flex-shrink-0">
+          <div className="flex items-center gap-2 flex-wrap pb-2 flex-shrink-0">
             <button
               onClick={() => setIndustryFilter("all")}
-              className={`px-3 py-1 rounded-full text-[11px] font-medium transition-colors ${
-                industryFilter === "all" ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
+                industryFilter === "all" ? "bg-teal-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
               全部 {companies.length}
@@ -374,8 +416,8 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
               <button
                 key={ind}
                 onClick={() => setIndustryFilter(ind)}
-                className={`px-3 py-1 rounded-full text-[11px] font-medium transition-colors ${
-                  industryFilter === ind ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
+                  industryFilter === ind ? "bg-teal-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                 }`}
               >
                 {ind} {companies.filter((c) => c.industry === ind).length}
@@ -389,92 +431,92 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
             />
           </div>
 
-          {/* 公司卡片网格 */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3">
-            {companiesLoading && (
+          {/* 公司表格 */}
+          <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-gray-100">
+            {companiesLoading ? (
               <div className="flex items-center justify-center py-10 text-gray-400 text-sm gap-2">
                 <Loader size={14} className="animate-spin" /> 加载中…
               </div>
-            )}
-            {!companiesLoading && filteredCompanies.length === 0 && (
+            ) : filteredCompanies.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-14 gap-2 text-center px-8">
-                <Building2 size={28} className="text-gray-300" />
-                <p className="text-sm font-medium text-gray-700">
-                  {companies.length === 0 ? "公司库还是空的" : "没有符合条件的公司"}
-                </p>
-                <p className="text-xs text-gray-400 max-w-sm">
-                  {companies.length === 0
-                    ? "点击右上角「新增公司」录入名称、业务类型和招聘网站；内置了 100 家常见公司可先删除不需要的。"
-                    : "试试调整筛选或搜索关键词"}
+                <p className="text-sm font-medium text-gray-700">{companies.length === 0 ? "公司库还是空的" : "没有符合条件的公司"}</p>
+                <p className="text-xs text-gray-400">
+                  {companies.length === 0 ? "点击右上角「新增公司」录入名称、业务类型和招聘网站" : "试试调整筛选或搜索关键词"}
                 </p>
               </div>
+            ) : (
+              <table className="w-full text-left text-xs">
+                <thead className="sticky top-0 bg-gray-50/95 backdrop-blur z-10">
+                  <tr className="text-[11px] text-gray-400">
+                    <th className="px-4 py-2.5 font-medium w-[28%]">公司名称</th>
+                    <th className="px-4 py-2.5 font-medium w-[16%]">业务类型</th>
+                    <th className="px-4 py-2.5 font-medium">招聘网址</th>
+                    <th className="px-4 py-2.5 font-medium text-right w-[24%]">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filteredCompanies.map((c) => (
+                    <tr key={c.id} className="group hover:bg-gray-50/60 transition-colors">
+                      <td className="px-4 py-2.5">
+                        <span className="flex items-center gap-1.5">
+                          <span className="font-semibold text-gray-800">{c.name}</span>
+                          {c.builtin && <span className="text-[9px] text-gray-300">内置</span>}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {c.industry ? (
+                          <span className="px-1.5 py-0.5 text-[10px] bg-teal-50 text-teal-600 rounded">{c.industry}</span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5"><UrlCell url={c.url} /></td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => goApply(c)}
+                            className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
+                            title="浏览器打开招聘链接并新建投递记录"
+                          >
+                            <Send size={11} /> 去投递
+                          </button>
+                          <button
+                            onClick={() => setCompanyModal({ open: true, initial: c })}
+                            className="p-1.5 rounded-lg text-gray-300 hover:text-teal-600 hover:bg-teal-50 transition-colors opacity-0 group-hover:opacity-100"
+                            title="编辑公司"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            onClick={() => removeCompany(c)}
+                            className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                            title="删除公司"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
-            <div className="grid grid-cols-2 xl:grid-cols-3 gap-2.5">
-              {filteredCompanies.map((c) => (
-                <div key={c.id} className="group rounded-xl border border-gray-100 bg-white p-3.5 shadow-sm hover:border-brand-100 hover:shadow transition-all">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{c.name}</p>
-                    <span className="flex items-center gap-1 flex-shrink-0">
-                      {c.builtin && <span className="px-1.5 py-0.5 text-[9px] text-gray-400 bg-gray-100 rounded">内置</span>}
-                      <button
-                        onClick={() => removeCompany(c)}
-                        className="p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                        title="删除公司"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </span>
-                  </div>
-                  <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                    {c.industry && (
-                      <span className="px-1.5 py-0.5 text-[10px] bg-brand-50 text-brand-600 rounded">{c.industry}</span>
-                    )}
-                    {c.url ? (
-                      <button
-                        onClick={() => openUrl(c.url)}
-                        className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-brand-600 hover:underline truncate max-w-[200px]"
-                        title={c.url}
-                      >
-                        <ExternalLink size={10} /> {c.url.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-                      </button>
-                    ) : (
-                      <span className="text-[10px] text-gray-300">未填网址</span>
-                    )}
-                  </div>
-                  <div className="mt-2.5 flex items-center gap-1.5">
-                    <button
-                      onClick={() => goApply(c)}
-                      className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] font-semibold text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition-colors"
-                      title="浏览器打开招聘网站并新建投递记录"
-                    >
-                      <Send size={11} /> 去投递
-                    </button>
-                    <button
-                      onClick={() => setCompanyModal({ open: true, initial: c })}
-                      className="p-1.5 rounded-lg text-gray-300 hover:text-brand-600 hover:bg-brand-50 transition-colors"
-                      title="编辑公司"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       )}
 
+      {/* ── 投递记录 ── */}
       {tab === "records" && (
-        <>
-          {/* 状态统计 + 筛选 */}
-          <div className="px-5 pt-3 flex items-center gap-2 flex-wrap flex-shrink-0">
+        <div className="flex-1 min-h-0 flex flex-col px-5 pt-3 pb-2">
+          {/* 状态筛选 */}
+          <div className="flex items-center gap-2 flex-wrap pb-2 flex-shrink-0">
             {chips.map((c) => (
               <button
                 key={c.key}
                 onClick={() => setFilter(c.key)}
-                className={`px-3 py-1 rounded-full text-[11px] font-medium transition-colors ${
+                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
                   filter === c.key
-                    ? "bg-brand-600 text-white"
+                    ? "bg-teal-600 text-white"
                     : c.key === "all"
                       ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
                       : `${APPLY_STATUS_COLORS[c.key as ApplyStatus]} hover:opacity-80`
@@ -491,94 +533,89 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
             />
           </div>
 
-          {/* 记录列表 */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3 space-y-2">
-            {loading && (
+          {/* 投递记录表格 */}
+          <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-gray-100">
+            {loading ? (
               <div className="flex items-center justify-center py-10 text-gray-400 text-sm gap-2">
                 <Loader size={14} className="animate-spin" /> 加载中…
               </div>
-            )}
-            {!loading && filtered.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-14 gap-3 text-center px-8">
-                <div className="w-14 h-14 rounded-2xl bg-brand-50 flex items-center justify-center">
-                  <Rocket size={26} className="text-brand-400" />
-                </div>
-                <p className="text-sm font-medium text-gray-700">
-                  {records.length === 0 ? "还没有投递记录" : "没有符合条件的记录"}
-                </p>
-                <p className="text-xs text-gray-400 max-w-sm">
+            ) : filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-14 gap-2 text-center px-8">
+                <p className="text-sm font-medium text-gray-700">{records.length === 0 ? "还没有投递记录" : "没有符合条件的记录"}</p>
+                <p className="text-xs text-gray-400">
                   {records.length === 0
-                    ? "去「公司库」选一家公司点「去投递」，或点击右上角「新增记录」；在浏览器投递后 OfferSubmit 扩展会自动回写状态。"
+                    ? "去「公司库」选一家公司点「去投递」，或点击右上角「新增记录」；浏览器投递后扩展会自动回写状态。"
                     : "试试调整筛选条件或搜索关键词"}
                 </p>
               </div>
-            )}
-            {filtered.map((rec) => (
-              <div key={rec.id} className="group rounded-xl border border-gray-100 bg-white p-3.5 shadow-sm hover:border-brand-100 hover:shadow transition-all">
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-gray-800 truncate">{rec.company}</span>
-                      {rec.position && (
-                        <span className="text-xs text-gray-400 truncate">{rec.position}</span>
-                      )}
-                    </div>
-                    <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                      {rec.site && (
-                        <span className="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-500 rounded">
-                          {rec.site}
+            ) : (
+              <table className="w-full text-left text-xs">
+                <thead className="sticky top-0 bg-gray-50/95 backdrop-blur z-10">
+                  <tr className="text-[11px] text-gray-400">
+                    <th className="px-4 py-2.5 font-medium w-[26%]">公司 / 岗位</th>
+                    <th className="px-4 py-2.5 font-medium">招聘网址</th>
+                    <th className="px-4 py-2.5 font-medium w-[12%]">投递时间</th>
+                    <th className="px-4 py-2.5 font-medium w-[13%]">状态</th>
+                    <th className="px-4 py-2.5 font-medium text-right w-[13%]">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filtered.map((rec) => (
+                    <tr key={rec.id} className="group hover:bg-gray-50/60 transition-colors">
+                      <td className="px-4 py-2.5">
+                        <span className="flex flex-col min-w-0">
+                          <span className="font-semibold text-gray-800 truncate">{rec.company}</span>
+                          {rec.position && <span className="text-[11px] text-gray-400 truncate">{rec.position}</span>}
                         </span>
-                      )}
-                      {rec.url ? (
-                        <button
-                          onClick={() => openUrl(rec.url)}
-                          className="flex items-center gap-1 text-[11px] text-brand-600 hover:text-brand-700 hover:underline max-w-[320px] truncate"
-                          title={rec.url}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span className="flex flex-col min-w-0 gap-1">
+                          {rec.site && <span className="text-[10px] text-gray-300 w-fit">{rec.site}</span>}
+                          <UrlCell url={rec.url} />
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-500">{fmtTime(rec.applied_at)}</td>
+                      <td className="px-4 py-2.5">
+                        <select
+                          value={rec.status}
+                          onChange={(e) => updateStatus(rec, e.target.value as ApplyStatus)}
+                          className={`px-2 py-1 text-[11px] font-medium rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-300 ${APPLY_STATUS_COLORS[rec.status]}`}
                         >
-                          <ExternalLink size={11} /> {rec.url.replace(/^https?:\/\//, "")}
-                        </button>
-                      ) : (
-                        <span className="text-[11px] text-gray-300">未填网址</span>
-                      )}
-                      <span className="text-[11px] text-gray-300">投递于 {fmtTime(rec.applied_at)}</span>
-                    </div>
-                    {rec.notes && <p className="mt-1.5 text-[11px] text-gray-400 line-clamp-2">{rec.notes}</p>}
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <select
-                      value={rec.status}
-                      onChange={(e) => updateStatus(rec, e.target.value as ApplyStatus)}
-                      className={`px-2 py-1 text-[11px] font-medium rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-300 ${APPLY_STATUS_COLORS[rec.status]}`}
-                    >
-                      {ALL_STATUSES.map((s) => (
-                        <option key={s} value={s}>{APPLY_STATUS_LABELS[s]}</option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => setRecordModal({ open: true, initial: rec, prefill: null })}
-                      className="p-1.5 rounded-lg text-gray-300 hover:text-brand-600 hover:bg-brand-50 transition-colors opacity-0 group-hover:opacity-100"
-                      title="编辑"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      onClick={() => removeRecord(rec)}
-                      className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                      title="删除"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+                          {ALL_STATUSES.map((s) => (
+                            <option key={s} value={s}>{APPLY_STATUS_LABELS[s]}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => setRecordModal({ open: true, initial: rec, prefill: null })}
+                            className="p-1.5 rounded-lg text-gray-300 hover:text-teal-600 hover:bg-teal-50 transition-colors opacity-0 group-hover:opacity-100"
+                            title="编辑"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            onClick={() => removeRecord(rec)}
+                            className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                            title="删除"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
 
           {/* 底部提示 */}
-          <p className="px-5 py-2 text-[11px] text-gray-400 border-t border-gray-50 flex-shrink-0">
-            安装 OfferSubmit 扩展后，在扩展「投递记录」页点『从 EasyWork 同步』即可拉取简历模板并双向同步投递状态 · 点击网址用浏览器打开招聘网站投递
+          <p className="pt-2 text-[11px] text-gray-400 flex-shrink-0">
+            安装 OfferSubmit 扩展后，在扩展「投递记录」页点『从 EasyWork 同步』即可拉取简历模板并双向同步投递状态
           </p>
-        </>
+        </div>
       )}
 
       {recordModal.open && (
@@ -595,6 +632,41 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
           onSave={saveCompany}
           onClose={() => setCompanyModal({ open: false, initial: null })}
         />
+      )}
+
+      {/* 关闭扩展引导确认弹窗 */}
+      {dismissModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 mx-4 max-w-sm w-full animate-in zoom-in">
+            <h2 className="text-base font-bold text-gray-900 mb-2">关闭扩展安装提示？</h2>
+            <p className="text-xs text-gray-500 leading-relaxed mb-4">
+              未安装扩展时，浏览器打开招聘网站后将无法一键自动填充表单，需要手动填写。
+            </p>
+            <label className="flex items-center gap-2 mb-5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={neverAsk}
+                onChange={(e) => setNeverAsk(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+              />
+              <span className="text-xs text-gray-700">下次不再提示扩展安装</span>
+            </label>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDismissModal(false)}
+                className="px-4 py-2 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmDismiss}
+                className="px-4 py-2 text-xs font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
+              >
+                关闭提示
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

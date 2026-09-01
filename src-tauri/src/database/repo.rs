@@ -301,9 +301,9 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
         .await
         .ok();
 
-    // 首次启动 seed 内置公司清单（seed 版本 v2，仅一次整体替换；
+    // 首次启动 seed 内置公司清单（seed 版本 v3，仅一次整体替换；
     // 用户删除的内置公司不会重新出现）
-    let seeded = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM settings WHERE key = 'companies_seeded_v2'")
+    let seeded = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM settings WHERE key = 'companies_seeded_v3'")
         .fetch_one(pool)
         .await
         .unwrap_or(0);
@@ -335,7 +335,7 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
                 .await
                 .context("seed 公司清单失败")?;
         }
-        sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES ('companies_seeded_v2', '1')")
+        sqlx::query("INSERT OR REPLACE INTO settings (key, value) VALUES ('companies_seeded_v3', '1')")
             .execute(&mut *tx)
             .await
             .context("标记公司清单 seed 状态失败")?;
@@ -1428,6 +1428,17 @@ pub async fn get_resume(pool: &SqlitePool) -> Result<Option<Resume>> {
     .await
     .context("查询简历失败")?;
     Ok(row)
+}
+
+/// 删除最新一份简历
+pub async fn delete_resume(pool: &SqlitePool) -> Result<()> {
+    sqlx::query(
+        "DELETE FROM resumes WHERE id IN (SELECT id FROM resumes ORDER BY created_at DESC LIMIT 1)",
+    )
+    .execute(pool)
+    .await
+    .context("删除简历失败")?;
+    Ok(())
 }
 
 // ── 投递记录（Apply）────────────────────────────────────────────
