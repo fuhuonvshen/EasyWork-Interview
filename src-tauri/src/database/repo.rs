@@ -3,6 +3,7 @@
 
 use anyhow::{Context, Result};
 use sqlx::sqlite::SqlitePool;
+use sqlx::Row;
 use std::collections::HashMap;
 
 use super::models::{Meeting, MeetingSummary, Minutes, ScheduledMeeting, Transcript};

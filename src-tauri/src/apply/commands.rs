@@ -32,7 +32,7 @@ fn extension_source_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let res = app
         .path()
         .resource_dir()
-        .ok_or_else(|| "无法定位应用资源目录".to_string())?
+        .ok_or("无法定位应用资源目录".to_string())?
         .join("binaries")
         .join("offersubmit-dist");
     if res.join("manifest.json").exists() {
