@@ -78,8 +78,8 @@ button, a, input, select, textarea {
    --delay/--dur 浮动相位与周期、--mdelay/--mdur 形态蠕动相位与周期。 */
 .wb-scene {
   position: relative;
-  width: 720px;   /* 黄金比例：720 / 460 ≈ 1.565 */
-  height: 460px;
+  width: 720px;
+  height: 560px;
   margin: 0 auto;
   flex-shrink: 0;
   /* 右侧有对话面板占位，场景整体左移 16px 视觉更平衡 */

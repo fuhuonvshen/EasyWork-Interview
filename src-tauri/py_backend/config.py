@@ -32,6 +32,7 @@ ONLINE_API_KEY = os.environ.get("ONLINE_API_KEY", "")
 ONLINE_BASE_URL = os.environ.get("ONLINE_BASE_URL", "https://api.deepseek.com")
 ONLINE_MODEL = os.environ.get("ONLINE_MODEL", "deepseek-chat")
 ONLINE_TIMEOUT = int(os.environ.get("ONLINE_TIMEOUT", "180"))
+ONLINE_THINKING = os.environ.get("ONLINE_THINKING", "1") != "0"
 
 # llama.cpp (OpenAI-compatible, built-in)
 LLAMACPP_URL = os.environ.get("LLAMACPP_URL", "http://127.0.0.1:11435")

@@ -619,10 +619,12 @@ fn cleanup_child_process(app_handle: &tauri::AppHandle) {
 
 fn build_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let home = MenuItem::with_id(app, "home", "打开主页面", true, None::<&str>)?;
-    let meeting = MenuItem::with_id(app, "meeting", "加入会议", true, None::<&str>)?;
-    let chat = MenuItem::with_id(app, "chat", "开启对话", true, None::<&str>)?;
+    let minutes = MenuItem::with_id(app, "minutes", "面试记录", true, None::<&str>)?;
+    let agent = MenuItem::with_id(app, "agent", "面试助手", true, None::<&str>)?;
+    let apply = MenuItem::with_id(app, "apply", "投递工作台", true, None::<&str>)?;
+    let resume = MenuItem::with_id(app, "resume", "简历顾问", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-    let menu = tauri::menu::Menu::with_items(app, &[&home, &meeting, &chat, &quit])?;
+    let menu = tauri::menu::Menu::with_items(app, &[&home, &minutes, &agent, &apply, &resume, &quit])?;
 
     // Load tray icon from PNG (embedded at compile time)
     let icon_bytes = include_bytes!("../icons/tray.png");
@@ -644,19 +646,33 @@ fn build_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 }
                 let _ = app.emit("tray-navigate", serde_json::json!({"view": "workbench"}));
             }
-            "meeting" => {
+            "minutes" => {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
                 let _ = app.emit("tray-navigate", serde_json::json!({"view": "minutes", "tab": "today"}));
             }
-            "chat" => {
+            "agent" => {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
                 let _ = app.emit("tray-navigate", serde_json::json!({"view": "agent"}));
+            }
+            "apply" => {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+                let _ = app.emit("tray-navigate", serde_json::json!({"view": "apply"}));
+            }
+            "resume" => {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+                let _ = app.emit("tray-navigate", serde_json::json!({"view": "resume"}));
             }
             "quit" => {
                 cleanup_child_process(app);

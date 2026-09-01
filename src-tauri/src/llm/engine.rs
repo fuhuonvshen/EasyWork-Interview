@@ -41,6 +41,7 @@ pub struct LlmEngine {
     online_base_url: String,
     online_model: String,
     online_api_key: String,
+    enable_thinking: bool,
 
     // Server process
     server_process: Arc<Mutex<Option<tokio::process::Child>>>,
@@ -75,6 +76,7 @@ impl LlmEngine {
             online_base_url: String::new(),
             online_model: String::new(),
             online_api_key: String::new(),
+            enable_thinking: true,
             server_process: Arc::new(Mutex::new(None)),
             current_model: RwLock::new(None),
             cancel_download: AtomicBool::new(false),
@@ -860,7 +862,7 @@ impl LlmEngine {
         let base = base.strip_suffix("/v1").unwrap_or(base);
         let url = format!("{}/v1/chat/completions", base);
 
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "model": self.online_model,
             "messages": [
                 {"role": "system", "content": system_prompt},
@@ -868,8 +870,11 @@ impl LlmEngine {
             ],
             "stream": false,
             "temperature": 0.5,
-            "max_tokens": 4096,
+            "max_tokens": 8192,
         });
+        if !self.enable_thinking {
+            body["thinking"] = serde_json::json!({"type": "disabled"});
+        }
 
         let client = Client::builder()
             .timeout(REQUEST_TIMEOUT)

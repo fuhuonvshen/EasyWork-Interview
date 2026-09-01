@@ -44,7 +44,8 @@ pub async fn init(models_dir: &Path, bin_dir: &Path, resource_dir: Option<&Path>
                 .filter(|s| !s.is_empty())
                 .cloned()
                 .unwrap_or_default();
-            engine.write().await.set_online(base.to_string(), model.to_string(), key);
+            let enable_thinking = settings.get("agent_llm_thinking").map(|s| s.as_str()) != Some("0");
+            engine.write().await.set_online(base.to_string(), model.to_string(), key, enable_thinking);
             log::info!("LLM backend: online ({} @ {}) — 跳过本地 llama-server 初始化", model, base);
             return Ok(engine);
         }

@@ -119,12 +119,14 @@ async def _online_chat(
     body: dict = {
         "model": _cfg.ONLINE_MODEL,
         "messages": clean_messages,
-        "max_tokens": 4096,
+        "max_tokens": 8192,
         "stream": False,
     }
     if tools:
         body["tools"] = _convert_tools_for_openai(tools)
         body["tool_choice"] = "auto"
+    if not _cfg.ONLINE_THINKING:
+        body["thinking"] = {"type": "disabled"}
     body.update(kwargs)
 
     req_timeout = timeout or _cfg.ONLINE_TIMEOUT
@@ -297,12 +299,14 @@ async def _online_chat_stream(
     body: dict = {
         "model": _cfg.ONLINE_MODEL,
         "messages": _clean_messages_for_openai(messages),
-        "max_tokens": 4096,
+        "max_tokens": 8192,
         "stream": True,
     }
     if tools:
         body["tools"] = _convert_tools_for_openai(tools)
         body["tool_choice"] = "auto"
+    if not _cfg.ONLINE_THINKING:
+        body["thinking"] = {"type": "disabled"}
     body.update(kwargs)
 
     async for ev in _stream_openai_core(

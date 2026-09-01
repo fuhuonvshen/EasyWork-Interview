@@ -167,7 +167,7 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
       last = now;
       const scene = sceneRef.current;
       const W = scene?.offsetWidth || 720;
-      const H = scene?.offsetHeight || 460;
+      const H = scene?.offsetHeight || 560;
       const t = now / 1000;
       const MARGIN = 6;
       const radiusOf = (w: number) => (w / 2) * 0.85; // 水滴形比圆略小

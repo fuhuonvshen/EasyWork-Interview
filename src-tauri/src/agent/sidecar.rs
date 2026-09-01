@@ -212,7 +212,8 @@ fn set_llm_env(
                 .env("ONLINE_API_KEY", settings.get("agent_online_key")
                     .filter(|s| !s.is_empty())
                     .map(|s| s.as_str())
-                    .unwrap_or(""));
+                    .unwrap_or(""))
+                .env("ONLINE_THINKING", if settings.get("agent_llm_thinking").map(|s| s.as_str()) == Some("0") { "0" } else { "1" });
         }
         _ => {
             cmd.env("LLM_BACKEND", "llamacpp")

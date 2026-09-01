@@ -514,6 +514,20 @@ export default function ModelDownloadDialog({
                     <p className="text-[10px] text-gray-400 -mt-1">
                       支持任意 OpenAI 兼容接口（DeepSeek / 阿里云百炼 / OpenAI 等），地址可含或省略末尾 /v1。保存后重启 EasyWork 生效
                     </p>
+                    <div className="flex items-center justify-between border-t border-gray-50 pt-3">
+                      <div>
+                        <span className="text-xs font-medium text-gray-700">推理思考</span>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          关闭后在线模型不再生成思考过程（更省 token、回答更快不截断）；复杂推理问题建议保持开启。需模型支持（DeepSeek V3.1+ / Qwen3），保存后重启生效
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => updateAgentSetting("agent_llm_thinking", (agentSettings["agent_llm_thinking"] ?? "1") === "1" ? "0" : "1")}
+                        className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${(agentSettings["agent_llm_thinking"] ?? "1") === "1" ? "bg-violet-500" : "bg-gray-300"}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${(agentSettings["agent_llm_thinking"] ?? "1") === "1" ? "translate-x-4" : ""}`} />
+                      </button>
+                    </div>
                   </>
                 )}
               </div>

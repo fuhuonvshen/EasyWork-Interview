@@ -141,6 +141,10 @@ export default function App() {
         setView("minutes");
       } else if (view === "agent") {
         setView("agent");
+      } else if (view === "apply") {
+        setView("apply");
+      } else if (view === "resume") {
+        setView("resume");
       }
     });
     return () => { unlisten.then((f) => f()); };

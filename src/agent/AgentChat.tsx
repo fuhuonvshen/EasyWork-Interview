@@ -315,7 +315,7 @@ export default function AgentChat({ conversationId, onConversationUpdate, conver
               const dataContent = msg.content.replace(/^\[上传了文件: [^\]]+\]\n\n/, "");
               return (
                 <div key={msg.id} className="flex justify-end">
-                  <div className="w-full rounded-2xl px-4 py-3 bg-blue-50 border border-blue-200">
+                  <div className="max-w-[90%] rounded-2xl px-4 py-3 bg-blue-50 border border-blue-200">
                     <div className="flex items-center gap-2 text-sm font-medium text-blue-700 mb-2">
                       <Paperclip size={14} />
                       已上传: {fileName}
@@ -341,7 +341,7 @@ export default function AgentChat({ conversationId, onConversationUpdate, conver
                 }`}
               >
                 <div
-                  className={`w-full rounded-2xl px-4 py-3 ${
+                  className={`max-w-[90%] rounded-2xl px-4 py-3 ${
                     msg.role === "user"
                       ? "bg-emerald-600 text-white"
                       : "bg-gray-100 text-gray-700"
@@ -360,7 +360,7 @@ export default function AgentChat({ conversationId, onConversationUpdate, conver
           })}
           {stream && (
             <div className="flex text-sm">
-              <div className="w-full rounded-2xl px-4 py-3 bg-gray-100 text-gray-700">
+              <div className="max-w-[90%] rounded-2xl px-4 py-3 bg-gray-100 text-gray-700">
                 {stream.thinking && (
                   <div className="mb-2">
                     <button
