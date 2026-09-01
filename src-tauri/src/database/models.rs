@@ -200,6 +200,8 @@ pub struct Company {
     pub url: String,         // 招聘网站
     pub builtin: bool,       // 是否为内置清单（可删除，不重新 seed）
     pub created_at: String,
+    pub updated_at: i64,     // 毫秒时间戳，飞书共享同步的新者胜依据
+    pub feishu_record_id: String, // 飞书多维表格行 record_id（空 = 未同步）
 }
 
 /// Meeting detail returned by get_meeting (title + minutes content + audio path).

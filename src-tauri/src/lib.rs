@@ -5,6 +5,7 @@
 mod agent;
 mod apply;
 mod asr;
+mod feishu;
 mod audio;
 mod diarization;
 mod minutes;
@@ -229,6 +230,10 @@ pub fn run() {
             apply::commands::company_add,
             apply::commands::company_update,
             apply::commands::company_delete,
+            apply::commands::company_add_shared,
+            apply::commands::validate_company,
+            // ── Feishu 共享公司库（只读镜像）──
+            feishu::feishu_sync_companies,
             minutes::schedule::add_scheduled_meeting,
             minutes::schedule::delete_scheduled_meeting,
             minutes::schedule::update_scheduled_meeting,

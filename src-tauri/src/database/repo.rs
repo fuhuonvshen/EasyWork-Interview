@@ -300,6 +300,11 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
         .execute(pool)
         .await
         .ok();
+    // 飞书共享同步列（老库补列；内置清单初始 updated_at = 0，保证用户修改后新者胜）
+    sqlx::query("ALTER TABLE companies ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0")
+        .execute(pool).await.ok();
+    sqlx::query("ALTER TABLE companies ADD COLUMN feishu_record_id TEXT NOT NULL DEFAULT ''")
+        .execute(pool).await.ok();
 
     // 首次启动 seed 内置公司清单（seed 版本 v3，仅一次整体替换；
     // 用户删除的内置公司不会重新出现）
@@ -1562,20 +1567,21 @@ pub async fn company_list(pool: &SqlitePool) -> Result<Vec<Company>> {
 pub async fn company_insert(pool: &SqlitePool, name: &str, industry: &str, url: &str) -> Result<String> {
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
-        "INSERT INTO companies (id, name, industry, url, builtin, created_at) VALUES (?, ?, ?, ?, 0, ?)",
+        "INSERT INTO companies (id, name, industry, url, builtin, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?)",
     )
     .bind(&id)
     .bind(name)
     .bind(industry)
     .bind(url)
     .bind(chrono::Local::now().to_rfc3339())
+    .bind(chrono::Local::now().timestamp_millis())
     .execute(pool)
     .await
     .context("新增公司失败")?;
     Ok(id)
 }
 
-/// 更新一家公司（None 字段保持不变）
+/// 更新一家公司（None 字段保持不变，刷新 updated_at 供飞书同步新者胜）
 pub async fn company_update(
     pool: &SqlitePool,
     id: &str,
@@ -1587,12 +1593,14 @@ pub async fn company_update(
         "UPDATE companies SET
              name = COALESCE(?, name),
              industry = COALESCE(?, industry),
-             url = COALESCE(?, url)
+             url = COALESCE(?, url),
+             updated_at = ?
          WHERE id = ?",
     )
     .bind(name)
     .bind(industry)
     .bind(url)
+    .bind(chrono::Local::now().timestamp_millis())
     .bind(id)
     .execute(pool)
     .await
@@ -1607,5 +1615,106 @@ pub async fn company_delete(pool: &SqlitePool, id: &str) -> Result<()> {
         .execute(pool)
         .await
         .context("删除公司失败")?;
+    Ok(())
+}
+
+/// 飞书同步：按 name 自然键 upsert 一家公司（远端较新时覆盖本地）。
+/// 返回 (本地 id, 是否需要推送，本地是否被覆盖)。
+pub async fn company_upsert_from_sync(
+    pool: &SqlitePool,
+    name: &str,
+    industry: &str,
+    url: &str,
+    updated_at: i64,
+    record_id: &str,
+) -> Result<(String, bool, bool), sqlx::Error> {
+    // 同名的本地公司
+    let existing: Option<Company> = sqlx::query_as::<_, Company>(
+        "SELECT * FROM companies WHERE name = ? LIMIT 1",
+    )
+    .bind(name)
+    .fetch_optional(pool)
+    .await?;
+    match existing {
+        Some(local) => {
+            if updated_at > local.updated_at {
+                // 远端较新：覆盖本地，无需推送
+                sqlx::query(
+                    "UPDATE companies SET industry = ?, url = ?, updated_at = ?, feishu_record_id = ? WHERE id = ?",
+                )
+                .bind(industry)
+                .bind(url)
+                .bind(updated_at)
+                .bind(record_id)
+                .bind(&local.id)
+                .execute(pool)
+                .await?;
+                Ok((local.id, false, true))
+            } else {
+                // 本地较新或相同：保留本地；本地较新时需推送远端（新者胜）
+                let need_push = local.updated_at > updated_at;
+                Ok((local.id, need_push, false))
+            }
+        }
+        None => {
+            // 本地没有：直接插入（保留远端时间戳与 record_id）
+            let id = uuid::Uuid::new_v4().to_string();
+            sqlx::query(
+                "INSERT INTO companies (id, name, industry, url, builtin, created_at, updated_at, feishu_record_id) VALUES (?, ?, ?, ?, 0, ?, ?, ?)",
+            )
+            .bind(&id)
+            .bind(name)
+            .bind(industry)
+            .bind(url)
+            .bind(chrono::Local::now().to_rfc3339())
+            .bind(updated_at)
+            .bind(record_id)
+            .execute(pool)
+            .await?;
+            Ok((id, false, true))
+        }
+    }
+}
+
+/// 记录飞书同步成功后写回的 record_id
+pub async fn company_set_feishu_record_id(pool: &SqlitePool, id: &str, record_id: &str) -> Result<()> {
+    sqlx::query("UPDATE companies SET feishu_record_id = ? WHERE id = ?")
+        .bind(record_id)
+        .bind(id)
+        .execute(pool)
+        .await
+        .context("写回飞书 record_id 失败")?;
+    Ok(())
+}
+
+/// 飞书同步：全量替换本地公司表（以在线表格为权威源）。
+/// 传入的 record 含 name/industry/url，本地记录整体重建。
+pub async fn company_replace_all(pool: &SqlitePool, records: &[crate::feishu::FeishuRecord]) -> Result<()> {
+    let mut tx = pool.begin().await.context("开始替换公司库事务失败")?;
+    sqlx::query("DELETE FROM companies")
+        .execute(&mut *tx)
+        .await
+        .context("清理旧公司记录失败")?;
+    let now = chrono::Local::now().to_rfc3339();
+    let ts = chrono::Local::now().timestamp_millis();
+    for r in records {
+        let name = r.name.trim();
+        if name.is_empty() {
+            continue;
+        }
+        sqlx::query(
+            "INSERT INTO companies (id, name, industry, url, builtin, created_at, updated_at, feishu_record_id) VALUES (?, ?, ?, ?, 0, ?, ?, '')",
+        )
+        .bind(uuid::Uuid::new_v4().to_string())
+        .bind(name)
+        .bind(r.industry.trim())
+        .bind(r.url.trim())
+        .bind(&now)
+        .bind(ts)
+        .execute(&mut *tx)
+        .await
+        .context("插入飞书公司记录失败")?;
+    }
+    tx.commit().await.context("提交公司库替换失败")?;
     Ok(())
 }

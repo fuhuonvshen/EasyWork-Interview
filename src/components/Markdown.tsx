@@ -26,7 +26,11 @@ export default function Markdown({ content }: Props) {
         h6: ({ children }) => <h6 className="text-xs font-semibold text-gray-900 mt-2 mb-1">{children}</h6>,
         p: ({ children }) => <p className="text-sm text-gray-700 leading-relaxed my-1.5">{children}</p>,
         hr: () => <hr className="my-4 border-gray-200" />,
-        table: ({ children }) => <table className="min-w-full border-collapse my-2 text-sm">{children}</table>,
+        table: ({ children }) => (
+          <div className="overflow-x-auto my-2">
+            <table className="min-w-full border-collapse text-sm">{children}</table>
+          </div>
+        ),
         th: ({ children }) => <th className="border px-3 py-1.5 bg-gray-50 text-left font-semibold">{children}</th>,
         td: ({ children }) => <td className="border px-3 py-1.5">{children}</td>,
         ul: ({ children }) => <ul className="space-y-1.5 my-2 ml-4 list-disc">{children}</ul>,

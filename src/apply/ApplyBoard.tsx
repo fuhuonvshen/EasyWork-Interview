@@ -1,9 +1,9 @@
 // EasyWork - 投递工作台（替代 iframe 内嵌投递页）
-// 两个 tab：公司库（内置秋招公司，表格） / 投递记录（进度管理 + 扩展双向同步）
+// 两个 tab：公司库（飞书共享表格只读镜像，以在线表格为准） / 投递记录（进度管理 + 扩展双向同步）
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
-  ArrowLeft, RefreshCw, Plus, ExternalLink, Rocket, Trash2, Pencil,
+  ArrowLeft, RefreshCw, Plus, Rocket, Trash2, Pencil,
   Loader, Puzzle, Copy, Check, X, Send, Link2,
 } from "lucide-react";
 import { showToast } from "../components/Toast";
@@ -41,12 +41,13 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
     prefill: { company: string; url: string; site?: string } | null;
   }>({ open: false, initial: null, prefill: null });
 
-  // 公司库
+  // 公司库（云端共享，仅可新增）
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companiesLoading, setCompaniesLoading] = useState(true);
   const [companyKeyword, setCompanyKeyword] = useState("");
   const [industryFilter, setIndustryFilter] = useState("all");
-  const [companyModal, setCompanyModal] = useState<{ open: boolean; initial: Company | null }>({ open: false, initial: null });
+  const [companyModal, setCompanyModal] = useState<{ open: boolean }>({ open: false });
+  const [feishuSyncing, setFeishuSyncing] = useState(false);
 
   // 扩展引导状态
   const [ext, setExt] = useState<{ path: string; browser: string } | null>(null);
@@ -167,36 +168,42 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
     }
   };
 
-  // ── 公司库操作 ──
+  // ── 公司库（云端共享：仅可新增，AI 校验后同步到共享库）──
 
   const saveCompany = async (c: { name: string; industry: string; url: string }) => {
+    // 一次性后台校验（上下文仅含本条数据，不留历史）；LLM 不可用/异常时降级直接添加
     try {
-      if (companyModal.initial) {
-        await invoke("company_update", {
-          id: companyModal.initial.id,
-          name: c.name, industry: c.industry, url: c.url,
-        });
-        showToast("已更新", "success");
-      } else {
-        await invoke("company_add", { name: c.name, industry: c.industry, url: c.url });
-        showToast("已添加", "success");
+      const r = await invoke<{ valid: boolean; reason: string }>("validate_company", {
+        name: c.name, industry: c.industry, url: c.url,
+      });
+      if (!r.valid) {
+        throw new Error(r.reason || "公司信息可能不准确，请修改后重试");
       }
-      setCompanyModal({ open: false, initial: null });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.startsWith("公司信息可能不准确")) throw e;
+      // 其他（LLM 不可用/返回异常）：跳过校验
+    }
+    try {
+      await invoke("company_add_shared", { name: c.name, industry: c.industry, url: c.url });
+      showToast("已添加，同步后各设备可见", "success");
+      setCompanyModal({ open: false });
       reloadCompanies();
     } catch (e) {
-      showToast(`保存失败: ${e}`, "error");
+      throw new Error(`添加失败: ${e}`);
     }
   };
 
-  const removeCompany = async (c: Company) => {
-    if (!window.confirm(`删除「${c.name}」？`)) return;
+  const syncFeishu = async () => {
+    setFeishuSyncing(true);
     try {
-      await invoke("company_delete", { id: c.id });
-      showToast("已删除", "success");
+      const r = await invoke<{ count: number }>("feishu_sync_companies");
+      showToast(`已同步，公司库共 ${r.count} 家`, "success");
       reloadCompanies();
     } catch (e) {
-      showToast(`删除失败: ${e}`, "error");
+      showToast(`同步失败: ${e}`, "error");
     }
+    setFeishuSyncing(false);
   };
 
   const goApply = async (c: Company) => {
@@ -313,12 +320,23 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
           </button>
         )}
         {tab === "companies" && (
-          <button
-            onClick={() => setCompanyModal({ open: true, initial: null })}
-            className="px-3 py-1.5 text-xs font-medium text-teal-600 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors flex items-center gap-1"
-          >
-            <Plus size={13} /> 新增公司
-          </button>
+          <>
+            <button
+              onClick={syncFeishu}
+              disabled={feishuSyncing}
+              className="px-3 py-1.5 text-xs font-medium text-teal-600 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors flex items-center gap-1 disabled:opacity-50"
+              title="拉取最新的共享公司数据"
+            >
+              {feishuSyncing ? <Loader size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              {feishuSyncing ? "同步中..." : "同步"}
+            </button>
+            <button
+              onClick={() => setCompanyModal({ open: true })}
+              className="px-3 py-1.5 text-xs font-medium text-teal-600 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors flex items-center gap-1"
+            >
+              <Plus size={13} /> 新增公司
+            </button>
+          </>
         )}
       </div>
 
@@ -480,20 +498,6 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
                           >
                             <Send size={11} /> 去投递
                           </button>
-                          <button
-                            onClick={() => setCompanyModal({ open: true, initial: c })}
-                            className="p-1.5 rounded-lg text-gray-300 hover:text-teal-600 hover:bg-teal-50 transition-colors opacity-0 group-hover:opacity-100"
-                            title="编辑公司"
-                          >
-                            <Pencil size={13} />
-                          </button>
-                          <button
-                            onClick={() => removeCompany(c)}
-                            className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                            title="删除公司"
-                          >
-                            <Trash2 size={13} />
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -628,9 +632,8 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
       )}
       {companyModal.open && (
         <CompanyModal
-          initial={companyModal.initial}
           onSave={saveCompany}
-          onClose={() => setCompanyModal({ open: false, initial: null })}
+          onClose={() => setCompanyModal({ open: false })}
         />
       )}
 

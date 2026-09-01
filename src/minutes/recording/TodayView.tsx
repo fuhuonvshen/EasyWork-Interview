@@ -570,7 +570,7 @@ export default function TodayView({
             </div>
 
             {/* Carousel pages */}
-            <div className="flex-1 overflow-hidden relative select-none"
+            <div className="flex-1 overflow-hidden relative select-none min-h-0"
               onMouseDown={(e) => handleDragStart(e.clientX, e.clientY)}
               onMouseUp={(e) => handleDragEnd(e.clientX, e.clientY)}
               onTouchStart={(e) => handleDragStart(e.touches[0].clientX, e.touches[0].clientY)}
