@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OfferSubmit - 简历模板</title>
-  <script type="module" crossorigin src="/assets/options-SR6sPASO.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/types-_ApBPsYl.js">
-  <link rel="stylesheet" crossorigin href="/assets/options-Cl66GkuS.css">
+  <script type="module" crossorigin src="/assets/options-DlfI7onO.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/types-Pv8L6GTY.js">
+  <link rel="stylesheet" crossorigin href="/assets/options-Bxjby5xE.css">
 </head>
 <body>
   <header class="topbar">
@@ -16,6 +16,7 @@
   <nav class="tabs">
     <button type="button" data-tab="resume" class="tab active">简历模板</button>
     <button type="button" data-tab="records" class="tab">投递记录</button>
+    <button type="button" data-tab="ai" class="tab">AI 设置</button>
   </nav>
 
   <main>
@@ -64,6 +65,31 @@
         <tbody id="records-body"></tbody>
       </table>
       <p id="records-empty" class="empty">暂无投递记录</p>
+    </section>
+
+    <!-- AI 智能填充设置 -->
+    <section id="tab-ai" class="panel">
+      <div class="ai-form">
+        <p class="hint">
+          AI 智能填充会把<b>页面表单结构</b>与<b>简历内容</b>发送到你配置的 API（用于判断每个框该填什么），
+          请确认服务可信。填写的 Key 仅保存在本机浏览器扩展中。
+        </p>
+        <label>API 地址（OpenAI 兼容，Base URL）
+          <input id="ai-base-url" placeholder="https://api.deepseek.com/v1" spellcheck="false" />
+        </label>
+        <label>API Key
+          <input id="ai-key" type="password" placeholder="sk-..." spellcheck="false" />
+        </label>
+        <label>模型
+          <input id="ai-model" placeholder="deepseek-chat" spellcheck="false" />
+        </label>
+        <div class="ai-actions">
+          <button type="button" id="ai-save" class="btn primary">保存</button>
+          <button type="button" id="ai-test" class="btn">测试连接</button>
+          <span id="ai-status" class="sync-status"></span>
+        </div>
+        <p class="hint" id="ai-saved-hint" hidden>已保存 ✓ 回到招聘页面，用 popup 的「AI 智能填充」按钮试试。</p>
+      </div>
     </section>
   </main>
 
