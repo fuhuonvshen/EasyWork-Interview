@@ -108,16 +108,16 @@ export default function App() {
     setUpdateProgress(1);
     try {
       if (updateInfo.downloadUrl) {
-        // Windows：下载 → Rust 清理 sidecar → 异步启动 msiexec → 退出应用
+        // Windows：下载 → Rust 清理 sidecar → 异步启动安装器（NSIS /S）→ 退出应用
         const installerPath = await invoke<string>("update_download", { url: updateInfo.downloadUrl });
         setUpdateProgress(100);
         await invoke("install_update", { installerPath });
       } else {
         await updateInfo.downloadAndInstall();
         setUpdateProgress(100);
-        // 不要 relaunch：新进程会锁住安装文件导致 MSI 安装失败（Error 1310）。
+        // 不要 relaunch：新进程会锁住安装文件导致安装失败。
         // exit_for_update 会先清理 easywork-agent/llama-server 子进程再正常退出，
-        // 让 msiexec 完成安装；安装完成后请手动重新打开应用。
+        // 让安装器完成安装；安装完成后请手动重新打开应用。
         await invoke("exit_for_update");
       }
     } catch (e) {

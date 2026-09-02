@@ -1,9 +1,13 @@
 // EasyWork - 应用更新辅助命令
-// Windows 更新全流程自研（插件 downloadAndInstall 同步等待 msiexec 结束，
+// Windows 更新全流程自研（插件 downloadAndInstall 同步等待安装器结束，
 // 而应用进程活着时 sidecar 锁住安装文件 → 安装必然失败，无法救回）：
 //   update_check   → 读 update.json（走系统代理），返回最新版信息
-//   update_download → 下载 MSI 到临时目录，发 update-progress 事件
-//   install_update → 清理 sidecar → 异步启动 msiexec → 退出应用
+//   update_download → 下载安装包（NSIS .exe，与初始安装一致）到临时目录，发进度事件
+//   install_update → 清理 sidecar → 异步启动安装器 → 退出应用
+//
+// 统一走 NSIS：MSI 每版本注册独立产品代码，更新会在「设置 → 应用」里累积
+// 多个卸载条目，且与 NSIS 的 uninstall.exe 并存导致半卸载；NSIS 覆盖升级
+// 始终复用同一卸载键，卸载入口只有 uninstall.exe。
 
 use futures_util::StreamExt;
 use serde::Deserialize;
@@ -62,7 +66,7 @@ pub async fn update_check(app: AppHandle) -> Result<Option<serde_json::Value>, S
     })))
 }
 
-/// 下载更新安装包（MSI）到临时目录，进度通过 update-progress 事件上报。
+/// 下载更新安装包（NSIS .exe / 兼容 .msi）到临时目录，进度通过 update-progress 事件上报。
 #[tauri::command]
 pub async fn update_download(app: AppHandle, url: String) -> Result<String, String> {
     let client = reqwest::Client::builder()
@@ -75,12 +79,15 @@ pub async fn update_download(app: AppHandle, url: String) -> Result<String, Stri
         .map_err(|e| format!("下载失败: {}", e))?;
     let total = resp.content_length();
 
+    // 临时文件扩展名必须与安装器类型一致（install_update 按扩展名选择启动方式）
+    let ext = if url.to_ascii_lowercase().ends_with(".msi") { "msi" } else { "exe" };
     let dest = std::env::temp_dir().join(format!(
-        "easywork-update-{}.msi",
+        "easywork-update-{}.{}",
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
-            .unwrap_or(0)
+            .unwrap_or(0),
+        ext
     ));
     let mut file = tokio::fs::File::create(&dest)
         .await
@@ -108,8 +115,8 @@ pub async fn update_download(app: AppHandle, url: String) -> Result<String, Stri
 }
 
 /// 更新安装前退出应用：先清理 sidecar 子进程（easywork-agent / llama-server，
-/// 否则它们锁住安装目录文件导致 MSI 安装失败 Error 1310），再正常退出
-/// 让 msiexec 完成安装。不要使用 relaunch——新进程会再次锁住安装文件。
+/// 否则它们锁住安装目录文件导致安装失败），再正常退出让安装器完成安装。
+/// 不要使用 relaunch——新进程会再次锁住安装文件。
 #[tauri::command]
 pub async fn exit_for_update(app: AppHandle) {
     let app2 = app.clone();
@@ -120,9 +127,11 @@ pub async fn exit_for_update(app: AppHandle) {
 }
 
 /// Windows 更新安装：下载完成后调用。
-/// 先清理 sidecar 子进程（否则锁住安装目录文件导致 Error 1310），再异步
-/// 启动 msiexec（/passive）并退出应用，让 msiexec 在应用退出后完成安装。
-/// 不要用插件内置的 downloadAndInstall——它同步等待 msiexec 结束才返回，
+/// 先清理 sidecar 子进程（否则锁住安装目录文件导致安装失败），再异步启动
+/// 安装器并退出应用，让安装器在应用退出后完成覆盖安装。
+/// NSIS（.exe，默认）：/S 静默覆盖升级，卸载键复用，卸载入口只有 uninstall.exe。
+/// MSI（.msi，兼容旧 update.json）：msiexec /passive。
+/// 不要用插件内置的 downloadAndInstall——它同步等待安装器结束才返回，
 /// 而此时应用进程仍在运行、sidecar 仍锁着文件，安装必然失败。
 #[tauri::command]
 pub async fn install_update(app: AppHandle, installer_path: String) -> Result<(), String> {
@@ -133,11 +142,20 @@ pub async fn install_update(app: AppHandle, installer_path: String) -> Result<()
 
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("msiexec")
-            .args(["/i", &installer_path, "/passive", "/norestart"])
-            .spawn()
-            .map_err(|e| format!("启动安装程序失败: {}", e))?;
-        log::info!("msiexec 已启动: {}", installer_path);
+        if installer_path.to_ascii_lowercase().ends_with(".msi") {
+            std::process::Command::new("msiexec")
+                .args(["/i", &installer_path, "/passive", "/norestart"])
+                .spawn()
+                .map_err(|e| format!("启动安装程序失败: {}", e))?;
+            log::info!("msiexec 已启动: {}", installer_path);
+        } else {
+            // NSIS 静默升级（/S）；退出后由安装器完成覆盖安装，无 UI 交互
+            std::process::Command::new(&installer_path)
+                .arg("/S")
+                .spawn()
+                .map_err(|e| format!("启动安装程序失败: {}", e))?;
+            log::info!("NSIS 安装器已启动: {}", installer_path);
+        }
     }
 
     #[cfg(not(target_os = "windows"))]

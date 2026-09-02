@@ -134,7 +134,7 @@ jobs:
             exit 0
           fi
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            installer=$(ls src-tauri/target/release/bundle/msi/*.msi | head -1)
+            installer=$(ls src-tauri/target/release/bundle/nsis/*.exe | head -1)
           else
             installer=$(ls src-tauri/target/release/bundle/dmg/*.dmg | head -1)
           fi
@@ -182,8 +182,8 @@ jobs:
           jq -n \
             --arg v "$VERSION" \
             --arg d "$DATE" \
-            --arg win_installer "$(basename /tmp/release-assets/*.msi 2>/dev/null || echo '')" \
-            --arg win_sig "$(cat /tmp/release-assets/*.msi.sig 2>/dev/null || echo '')" \
+            --arg win_installer "$(basename /tmp/release-assets/*.exe 2>/dev/null || echo '')" \
+            --arg win_sig "$(cat /tmp/release-assets/*.exe.sig 2>/dev/null || echo '')" \
             --arg mac_installer "$(basename /tmp/release-assets/*.dmg 2>/dev/null || echo '')" \
             --arg mac_sig "$(cat /tmp/release-assets/*.dmg.sig 2>/dev/null || echo '')" \
             --arg repo "$GITHUB_REPOSITORY" \
