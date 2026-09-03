@@ -199,10 +199,15 @@ pub async fn install_update(app: AppHandle, installer_path: String) -> Result<()
             );
             std::fs::write(&bat, script)
                 .map_err(|e| format!("写入安装脚本失败: {}", e))?;
-            std::process::Command::new("cmd")
-                .arg("/c")
-                .arg(&bat)
-                .spawn()
+            let mut cmd = std::process::Command::new("cmd");
+            cmd.arg("/c").arg(&bat);
+            #[cfg(target_os = "windows")]
+            {
+                use std::os::windows::process::CommandExt;
+                // GUI 应用派生控制台进程默认会闪一个黑窗，隐藏之
+                cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+            }
+            cmd.spawn()
                 .map_err(|e| format!("启动安装程序失败: {}", e))?;
             log::info!("NSIS 安装器已调度（延时 2s 的临时脚本 {}）", bat.display());
         }
