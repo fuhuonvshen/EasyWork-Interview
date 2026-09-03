@@ -534,12 +534,27 @@ class Database:
 
     # ── 投递记录同步（OfferSubmit 扩展 ↔ EasyWork）──────────────────
 
+    @staticmethod
+    def _apply_row_to_camel(r: dict) -> dict:
+        """DB 行（snake_case）→ HTTP 协议（camelCase，与扩展 ApplicationRecord 一致）"""
+        return {
+            "id": r["id"],
+            "company": r["company"],
+            "position": r["position"],
+            "url": r["url"],
+            "site": r["site"],
+            "status": r["status"],
+            "notes": r["notes"],
+            "appliedAt": r["applied_at"],
+            "updatedAt": r["updated_at"],
+        }
+
     async def list_apply_records(self) -> list[dict]:
         cursor = await self.conn.execute(
             "SELECT * FROM apply_records ORDER BY updated_at DESC"
         )
         rows = await cursor.fetchall()
-        return [dict(r) for r in rows]
+        return [self._apply_row_to_camel(dict(r)) for r in rows]
 
     async def list_tombstones(self) -> list[str]:
         cursor = await self.conn.execute(
@@ -558,7 +573,7 @@ class Database:
         for tid in list(tombstones):
             if any(r["id"] == tid for r in records):
                 tombstones.remove(tid)
-        # 2) 记录 UPSERT（新者胜）
+        # 2) 记录 UPSERT（新者胜）——注意 rec 键为 camelCase（HTTP 协议与扩展一致）
         for rec in records:
             await self.conn.execute(
                 "INSERT INTO apply_records (id, company, position, url, site, status, notes, applied_at, updated_at) "
@@ -569,7 +584,7 @@ class Database:
                 "  applied_at=excluded.applied_at, updated_at=excluded.updated_at "
                 "WHERE excluded.updated_at > apply_records.updated_at",
                 (rec["id"], rec["company"], rec["position"], rec["url"], rec["site"],
-                 rec["status"], rec["notes"], rec["applied_at"], rec["updated_at"]),
+                 rec["status"], rec["notes"], rec["appliedAt"], rec["updatedAt"]),
             )
             # 记录存在（或复活）则其墓碑无意义
             await self.conn.execute("DELETE FROM sync_tombstones WHERE id = ?", (rec["id"],))

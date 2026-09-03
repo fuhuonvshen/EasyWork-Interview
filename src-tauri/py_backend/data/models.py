@@ -97,16 +97,20 @@ class MemoryEntry(BaseModel):
 # ── 投递记录同步（OfferSubmit 扩展 ↔ EasyWork）──
 
 class ApplyRecordModel(BaseModel):
-    """投递记录（与 Rust apply_records 表字段一致）。"""
+    """投递记录（HTTP 协议与 OfferSubmit 扩展一致，camelCase）。
+
+    注意：扩展 ApplicationRecord 用 appliedAt/updatedAt（camel），若模型用
+    snake_case 字段，Pydantic 会静默丢弃未知键 → 时间落库为 0（曾发生的 bug）。
+    """
     id: str
-    company: str
+    company: str = ""
     position: str = ""
     url: str = ""
     site: str = ""
     status: str = "pending"  # pending/applied/interview/offer/rejected/archived
     notes: str = ""
-    applied_at: int = 0
-    updated_at: int = 0
+    appliedAt: int = 0
+    updatedAt: int = 0
 
 
 class ApplyPushRequest(BaseModel):
