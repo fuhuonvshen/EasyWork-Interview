@@ -49,7 +49,7 @@ export default function UpdateDialog({ version, body, progress, onInstall, onDis
         {(installing || downloading) && (
           <div className="mb-5">
             <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-              <span>{installing ? "正在安装…" : "正在下载…"}</span>
+              <span>{installing ? (progress >= 100 ? "正在完成安装…" : "正在安装…") : "正在下载…"}</span>
               {determinate && <span>{progress}%</span>}
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
@@ -89,6 +89,11 @@ export default function UpdateDialog({ version, body, progress, onInstall, onDis
         {downloading && (
           <p className="mt-3 text-xs text-gray-400 text-center">
             更新包从 GitHub 下载，网络较慢时可能需要几分钟
+          </p>
+        )}
+        {installing && progress >= 100 && (
+          <p className="mt-3 text-xs text-gray-400 text-center">
+            应用即将自动关闭完成安装，请稍后手动重新打开 EasyWork
           </p>
         )}
       </div>

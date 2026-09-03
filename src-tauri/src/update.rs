@@ -149,12 +149,30 @@ pub async fn install_update(app: AppHandle, installer_path: String) -> Result<()
                 .map_err(|e| format!("启动安装程序失败: {}", e))?;
             log::info!("msiexec 已启动: {}", installer_path);
         } else {
-            // NSIS 静默升级（/S）；退出后由安装器完成覆盖安装，无 UI 交互
-            std::process::Command::new(&installer_path)
-                .arg("/S")
+            // NSIS 静默升级（/S）覆盖安装前会先跑旧版卸载器删除文件：若本应用
+            // 进程尚未完全退出，删除会被占用拒绝 → 静默安装直接失败且无提示
+            // （表现：进度条后应用退出，重开仍是旧版、又提示更新）。
+            // 对策：写临时 bat，延时约 2 秒后再启动安装器（进程句柄已释放），
+            // bat 执行完自删，不依赖 cmd 对复杂引号命令行的解析。
+            let bat = std::env::temp_dir().join(format!(
+                "easywork-update-{}.bat",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0)
+            ));
+            let script = format!(
+                "@echo off\r\nping -n 3 127.0.0.1 > nul\r\n\"{}\" /S\r\ndel \"%~f0\"\r\n",
+                installer_path
+            );
+            std::fs::write(&bat, script)
+                .map_err(|e| format!("写入安装脚本失败: {}", e))?;
+            std::process::Command::new("cmd")
+                .arg("/c")
+                .arg(&bat)
                 .spawn()
                 .map_err(|e| format!("启动安装程序失败: {}", e))?;
-            log::info!("NSIS 安装器已启动: {}", installer_path);
+            log::info!("NSIS 安装器已调度（延时 2s 的临时脚本 {}）", bat.display());
         }
     }
 
@@ -163,6 +181,8 @@ pub async fn install_update(app: AppHandle, installer_path: String) -> Result<()
         return Err("此安装方式仅支持 Windows".into());
     }
 
+    // 留出时间让界面展示「正在完成安装」提示，再退出交给安装器
+    tokio::time::sleep(std::time::Duration::from_millis(2000)).await;
     app.exit(0);
     Ok(())
 }
