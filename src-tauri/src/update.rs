@@ -19,6 +19,38 @@ use crate::cleanup_child_process;
 
 const UPDATE_JSON_URL: &str = "https://github.com/fuhuonvshen/EasyWork-Interview/releases/latest/download/update.json";
 
+/// 启动时清理 %TEMP% 残留的更新安装包/脚本（超过 1 小时的视为上次
+/// 更新未完成/失败的残留；刚下载的包安装只需几分钟，不会被误删）。
+pub fn cleanup_stale_update_files() {
+    let cutoff = std::time::SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(3600))
+        .unwrap_or(std::time::SystemTime::now());
+    if let Ok(rd) = std::fs::read_dir(std::env::temp_dir()) {
+        for entry in rd.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !name.starts_with("easywork-update-") {
+                continue;
+            }
+            if !(name.ends_with(".exe") || name.ends_with(".msi") || name.ends_with(".bat")) {
+                continue;
+            }
+            let stale = entry
+                .metadata()
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .map(|t| t < cutoff)
+                .unwrap_or(false);
+            if stale {
+                if let Err(e) = std::fs::remove_file(entry.path()) {
+                    log::warn!("清理旧更新包失败 {}: {}", entry.path().display(), e);
+                } else {
+                    log::info!("已清理旧更新包: {}", entry.path().display());
+                }
+            }
+        }
+    }
+}
+
 #[derive(Deserialize)]
 struct UpdateManifest {
     version: String,

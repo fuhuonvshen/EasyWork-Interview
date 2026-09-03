@@ -104,6 +104,9 @@ pub fn run() {
             std::sync::Mutex::new(Vec::new()),
         )))
         .setup(|app| {
+            // 清理上次更新失败的残留安装包（%TEMP%\easywork-update-*）
+            crate::update::cleanup_stale_update_files();
+
             let app_dir = match app.path().app_data_dir() {
                 Ok(d) => d,
                 Err(e) => {
