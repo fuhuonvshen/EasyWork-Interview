@@ -2,11 +2,34 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { X, Loader, Mic, Brain, Bot, FolderOpen, AlertTriangle, Monitor, Settings, Cpu } from "lucide-react";
-import type { ModelInfo, SpeechModelEntry, LlmModelEntry } from "../types";
+import { X, Loader, Mic, Brain, Bot, FolderOpen, AlertTriangle, Monitor, Settings, Cpu, Mail, Trash2 } from "lucide-react";
+import type { ModelInfo, SpeechModelEntry, LlmModelEntry, EmailAccount, EmailScanSummary } from "../types";
 import ModelCard from "./ModelCard";
 import { useModelDownload, DownloadStatus } from "./useModelDownload";
 import { showToast } from "../components/Toast";
+
+function parseAccounts(raw: string | undefined): EmailAccount[] {
+  try {
+    const arr = JSON.parse(raw || "[]");
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+const KNOWN_IMAP: Record<string, string> = {
+  "163.com": "imap.163.com",
+  "126.com": "imap.126.com",
+  "yeah.net": "imap.yeah.net",
+  "qq.com": "imap.qq.com",
+  "foxmail.com": "imap.qq.com",
+  "gmail.com": "imap.gmail.com",
+};
+
+function guessImapHost(email: string): string {
+  const domain = (email || "").trim().split("@")[1]?.toLowerCase() || "";
+  return KNOWN_IMAP[domain] || (domain ? `imap.${domain}` : "");
+}
 
 // ── Confirm Delete Modal ──
 function ConfirmDeleteModal({
@@ -42,10 +65,65 @@ export default function ModelDownloadDialog({
 }: {
   onDone: () => void; onClose: () => void;
 }) {
-  const [tab, setTab] = useState<"general" | "speech" | "llm">("general");
+  const [tab, setTab] = useState<"general" | "speech" | "llm" | "email">("general");
   const [agentSettings, setAgentSettings] = useState<Record<string, string>>({});
   const [defaultRoot, setDefaultRoot] = useState("");
   const [autoStart, setAutoStart] = useState(false);
+
+  // ── 邮箱账号（求职邮件监控）──
+  const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [emailForm, setEmailForm] = useState({ email: "", auth_code: "", host: "" });
+  const [emailTesting, setEmailTesting] = useState(false);
+  const [emailTestMsg, setEmailTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [showAuthHelp, setShowAuthHelp] = useState(false);
+
+  const setEmailFormField = (key: "email" | "auth_code" | "host", value: string) => {
+    setEmailForm((prev) => {
+      const next = { ...prev, [key]: value };
+      if (key === "email" && !prev.host.trim()) next.host = guessImapHost(value);
+      return next;
+    });
+  };
+
+  const handleEmailTest = async () => {
+    if (!emailForm.email.trim() || !emailForm.auth_code.trim()) {
+      setEmailTestMsg({ ok: false, text: "请先填写邮箱和授权码" });
+      return;
+    }
+    setEmailTesting(true);
+    setEmailTestMsg(null);
+    try {
+      const res = await invoke<{ ok: boolean; error: string; host: string }>("email_test_account", {
+        email: emailForm.email.trim(),
+        authCode: emailForm.auth_code.trim(),
+        host: emailForm.host.trim() || null,
+      });
+      setEmailTestMsg(res.ok ? { ok: true, text: `连接成功（${res.host}）` } : { ok: false, text: res.error || "连接失败" });
+    } catch (e) {
+      setEmailTestMsg({ ok: false, text: typeof e === "string" ? e : "连接失败" });
+    }
+    setEmailTesting(false);
+  };
+
+  const handleEmailAdd = () => {
+    const email = emailForm.email.trim();
+    const authCode = emailForm.auth_code.trim();
+    if (!email || !authCode) { setEmailTestMsg({ ok: false, text: "请填写邮箱和授权码" }); return; }
+    if (emailAccounts.some((a) => a.email.toLowerCase() === email.toLowerCase())) {
+      setEmailTestMsg({ ok: false, text: "该邮箱已添加" });
+      return;
+    }
+    setEmailAccounts((prev) => [...prev, {
+      id: crypto.randomUUID(),
+      email,
+      auth_code: authCode,
+      host: emailForm.host.trim(),
+    }]);
+    setEmailForm({ email: "", auth_code: "", host: "" });
+    setEmailTestMsg(null);
+    setShowEmailForm(false);
+  };
 
   // ── Speech models (Whisper + SenseVoice) ──
   const kindMap = useRef<Record<string, "whisper" | "sensevoice">>({});
@@ -189,6 +267,7 @@ export default function ModelDownloadDialog({
       .then((s) => {
         originalBackend.current = s["agent_llm_backend"] || "local";
         setAgentSettings(s);
+        setEmailAccounts(parseAccounts(s["email_accounts"]));
       })
       .catch((e) => console.warn("加载设置失败", e));
     invoke<{ root: string }>("get_default_paths").then((d) => setDefaultRoot(d.root)).catch(() => {});
@@ -212,6 +291,26 @@ export default function ModelDownloadDialog({
       if (autoStart) await invoke("plugin:autostart|enable");
       else await invoke("plugin:autostart|disable");
     } catch (e) { console.error("自动启动设置失败", e); }
+
+    // 邮箱账号：持久化后立即扫描一轮（模型未就绪时提示，稍后自动补扫）
+    await invoke("update_setting", { key: "email_accounts", value: JSON.stringify(emailAccounts) })
+      .catch((e) => console.error("保存邮箱配置失败", e));
+    if (emailAccounts.length > 0) {
+      try {
+        const s = await invoke<EmailScanSummary>("email_scan_now");
+        if (s.errors.length > 0) {
+          showToast(s.errors[0].message, "info");
+        } else if (s.job_mails > 0) {
+          showToast(`识别到 ${s.job_mails} 封求职邮件，待办页可确认添加`, "info");
+        } else if (s.scanned > 0) {
+          showToast(`扫描完成，处理 ${s.scanned} 封邮件，未发现新的求职邮件`, "success");
+        } else {
+          showToast("扫描完成，暂无新邮件", "success");
+        }
+      } catch (e) {
+        console.error("邮箱扫描失败", e);
+      }
+    }
     onDone();
   };
 
@@ -219,6 +318,7 @@ export default function ModelDownloadDialog({
     { key: "general" as const, label: "通用设置", icon: Settings },
     { key: "speech" as const, label: "会议纪要", icon: Mic },
     { key: "llm" as const, label: "面试助手", icon: Bot },
+    { key: "email" as const, label: "求职邮箱", icon: Mail },
   ];
 
   // ── LLM model list (used in both speech and llm tabs) ──
@@ -530,6 +630,136 @@ export default function ModelDownloadDialog({
                     </div>
                   </>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Tab: 求职邮箱 ── */}
+          {tab === "email" && (
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Mail size={15} className="text-sky-500" />
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">求职邮箱</span>
+                </div>
+                <p className="text-[11px] text-gray-500 leading-relaxed mb-3">
+                  定期检查 163 等邮箱，AI 自动识别求职相关邮件（笔试/面试邀请等），并提取核心事项与截止日期，放入「面试助手 → 待办」等待你确认。
+                  识别在本地进行，邮件原文不会保存。
+                </p>
+
+                {/* 已配置账号 */}
+                <div className="space-y-2">
+                  {emailAccounts.map((acc) => (
+                    <div key={acc.id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 bg-white">
+                      <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-500 flex items-center justify-center flex-shrink-0">
+                        <Mail size={14} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-800 truncate">{acc.email}</p>
+                        <p className="text-[10px] text-gray-400 truncate">
+                          {acc.host || guessImapHost(acc.email)} · 授权码 ••••{acc.auth_code.slice(-4)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setEmailAccounts((prev) => prev.filter((a) => a.id !== acc.id))}
+                        className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+                        title="移除账号"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                  {emailAccounts.length === 0 && !showEmailForm && (
+                    <div className="p-3 rounded-xl border border-dashed border-gray-200 text-center text-[11px] text-gray-400">
+                      还没有配置邮箱
+                    </div>
+                  )}
+                </div>
+
+                {/* 添加账号表单 */}
+                {!showEmailForm && (
+                  <button
+                    onClick={() => { setShowEmailForm(true); setEmailTestMsg(null); }}
+                    className="mt-2 px-4 py-2 text-xs font-semibold text-sky-600 bg-sky-50 border border-sky-200 rounded-lg hover:bg-sky-100 transition-colors"
+                  >
+                    + 添加邮箱账号
+                  </button>
+                )}
+                {showEmailForm && (
+                  <div className="mt-2 p-3 rounded-xl border border-gray-100 bg-white space-y-2.5">
+                    <div>
+                      <label className="text-xs font-medium text-gray-700">邮箱地址</label>
+                      <input type="text"
+                        value={emailForm.email}
+                        onChange={(e) => setEmailFormField("email", e.target.value)}
+                        placeholder="xxx@163.com"
+                        className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-700">IMAP 授权码</label>
+                      <input type="password"
+                        value={emailForm.auth_code}
+                        onChange={(e) => setEmailFormField("auth_code", e.target.value)}
+                        placeholder="在网页邮箱设置里生成的授权码"
+                        className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-700">
+                        IMAP 服务器 <span className="text-gray-400 font-normal">（留空自动识别）</span>
+                      </label>
+                      <input type="text"
+                        value={emailForm.host}
+                        onChange={(e) => setEmailFormField("host", e.target.value)}
+                        placeholder={guessImapHost(emailForm.email) || "imap.163.com"}
+                        className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-200"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={handleEmailTest}
+                        disabled={emailTesting}
+                        className="px-3 py-2 text-xs font-medium text-sky-600 bg-sky-50 border border-sky-200 rounded-lg hover:bg-sky-100 disabled:opacity-50 transition-colors"
+                      >
+                        {emailTesting ? <Loader size={12} className="inline animate-spin mr-1" /> : null}
+                        测试连接
+                      </button>
+                      <button
+                        onClick={handleEmailAdd}
+                        className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-colors"
+                      >
+                        添加
+                      </button>
+                      <button
+                        onClick={() => setShowEmailForm(false)}
+                        className="px-3 py-2 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        取消
+                      </button>
+                    </div>
+                    {emailTestMsg && (
+                      <p className={`text-[11px] ${emailTestMsg.ok ? "text-emerald-600" : "text-red-500"}`}>{emailTestMsg.text}</p>
+                    )}
+                    <button
+                      onClick={() => setShowAuthHelp(!showAuthHelp)}
+                      className="text-[11px] text-sky-600 hover:text-sky-700"
+                    >
+                      {showAuthHelp ? "收起" : "163 邮箱如何获取授权码？"}
+                    </button>
+                    {showAuthHelp && (
+                      <p className="text-[11px] text-gray-400 leading-relaxed">
+                        电脑浏览器登录 mail.163.com → 设置 → POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV → 开启 IMAP/SMTP 服务 →
+                        按提示「新增授权密码」，生成的一串密码即为授权码（不是登录密码）。
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">
+                  已配置的账号每 5 分钟自动检查一次新邮件；识别出的求职邮件会出现在「面试助手 → 待办」页，确认后才会加入待办。
+                  保存设置后会立即扫描一轮。
+                </p>
               </div>
             </div>
           )}

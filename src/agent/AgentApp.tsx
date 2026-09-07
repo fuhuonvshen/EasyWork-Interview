@@ -5,7 +5,7 @@ import { X, Sparkles, Loader } from "lucide-react";
 import AgentSidebar, { ROLE_META } from "./AgentSidebar";
 import AgentChat from "./AgentChat";
 import AgentTodo from "./AgentTodo";
-import type { AgentConversationSummary, AgentConversationType, TodoItem } from "../types";
+import type { AgentConversationSummary, AgentConversationType, TodoItem, EmailPending } from "../types";
 import { ERRORS, toUserError } from "../errors";
 import { showToast } from "../components/Toast";
 
@@ -36,6 +36,9 @@ export default function AgentApp({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [agentSubView, setAgentSubView] = useState<"chat" | "todo">("chat");
   const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [pendingEmails, setPendingEmails] = useState<EmailPending[]>([]);
+  const knownEmailIdsRef = useRef<Set<string>>(new Set());
+  const emailScanOnceRef = useRef(false);
   const [showRolePicker, setShowRolePicker] = useState(false);
   const [creating, setCreating] = useState(false);
   // 带上下文唤起：进入后自动发送的首条消息
@@ -70,8 +73,46 @@ export default function AgentApp({
       });
   }, []);
 
+  const loadPendingEmails = useCallback(async (silent = false) => {
+    try {
+      const list = await invoke<EmailPending[]>("email_pending_list");
+      setPendingEmails(list);
+      const known = knownEmailIdsRef.current;
+      const fresh = list.filter((p) => !known.has(p.id));
+      if (!silent && fresh.length > 0) {
+        showToast(`收到 ${fresh.length} 封求职邮件，待确认添加`, "info");
+      }
+      fresh.forEach((p) => known.add(p.id));
+    } catch (e) {
+      console.error("加载求职邮件失败", e);
+    }
+  }, []);
+
   useEffect(() => { loadConversations(); }, []);
   useEffect(() => { loadTodos(); }, []);
+
+  // 求职邮件：进页面立即拉一次（不打扰），之后每 30s 静默轮询，出现新的才提示
+  useEffect(() => {
+    loadPendingEmails(true);
+    const t = setInterval(() => loadPendingEmails(false), 30000);
+    return () => clearInterval(t);
+  }, [loadPendingEmails]);
+
+  // LLM 就绪后补一轮扫描（覆盖「刚配置完账号但模型还没加载」的场景），只补一次
+  useEffect(() => {
+    if (llmLoading || llmStatus !== "ready" || emailScanOnceRef.current) return;
+    emailScanOnceRef.current = true;
+    invoke("email_scan_now")
+      .catch((e) => console.error("邮箱扫描失败", e))
+      .finally(() => loadPendingEmails(true));
+  }, [llmLoading, llmStatus, loadPendingEmails]);
+
+  // 停在待办页时静默刷新，配合后台自动扫描出的新条目
+  useEffect(() => {
+    if (agentSubView !== "todo") return;
+    const t = setInterval(loadTodos, 30000);
+    return () => clearInterval(t);
+  }, [agentSubView, loadTodos]);
 
   // 处理外部唤起（复盘/简历/模拟入口）：选中对话 + 设置待发消息
   useEffect(() => {
@@ -157,6 +198,28 @@ export default function AgentApp({
       await invoke("todo_delete", { id });
       loadTodos();
     } catch (e) { console.error(e); showToast("删除待办失败", "error"); }
+  };
+
+  const handleEmailConfirm = async (id: string, overrides: { title: string; deadline: string | null }) => {
+    try {
+      await invoke("email_pending_confirm", { id, title: overrides.title, deadline: overrides.deadline });
+      await loadPendingEmails(true);
+      loadTodos();
+      showToast("已加入待办", "success");
+    } catch (e) {
+      console.error(e);
+      showToast(typeof e === "string" ? e : "加入待办失败", "error");
+    }
+  };
+
+  const handleEmailIgnore = async (id: string) => {
+    try {
+      await invoke("email_pending_ignore", { id });
+      await loadPendingEmails(true);
+    } catch (e) {
+      console.error(e);
+      showToast(typeof e === "string" ? e : "忽略失败", "error");
+    }
   };
 
   const handleConversationUpdate = () => {
@@ -269,6 +332,7 @@ export default function AgentApp({
         activeId={activeId}
         activeSubView={agentSubView}
         todos={todos}
+        emailPendingCount={pendingEmails.length}
         onSelect={handleSelect}
         onNew={() => setShowRolePicker(true)}
         onDelete={handleDelete}
@@ -292,7 +356,15 @@ export default function AgentApp({
             <p className="text-sm text-gray-400">选择一个对话或创建新对话</p>
           </div>
         ) : (
-          <AgentTodo todos={todos} onRefresh={loadTodos} onToggle={handleTodoToggle} onDelete={handleTodoDelete} />
+          <AgentTodo
+            todos={todos}
+            pendingEmails={pendingEmails}
+            onRefresh={loadTodos}
+            onToggle={handleTodoToggle}
+            onDelete={handleTodoDelete}
+            onEmailConfirm={handleEmailConfirm}
+            onEmailIgnore={handleEmailIgnore}
+          />
         )}
       </div>
 

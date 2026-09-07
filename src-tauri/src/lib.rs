@@ -8,6 +8,7 @@ mod asr;
 mod feishu;
 mod audio;
 mod diarization;
+mod email;
 mod minutes;
 mod database;
 mod sensevoice;
@@ -273,6 +274,12 @@ pub fn run() {
             agent::commands::todo_list,
             agent::commands::todo_update_status,
             agent::commands::todo_delete,
+            // ── Email 邮箱监控（求职邮件 → 待确认 → 待办）──
+            email::commands::email_scan_now,
+            email::commands::email_pending_list,
+            email::commands::email_pending_confirm,
+            email::commands::email_pending_ignore,
+            email::commands::email_test_account,
             // ── Settings ──
             settings::commands::get_settings,
             settings::commands::update_setting,

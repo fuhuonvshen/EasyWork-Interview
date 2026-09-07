@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import aiosqlite
 
@@ -187,6 +187,22 @@ class Database:
             ")"
         )
 
+        # 求职邮件待确认队列（邮箱监控模块使用，仅存摘要，正文永不落库）
+        await self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS email_pending ("
+            "  id TEXT PRIMARY KEY,"
+            "  account_id TEXT NOT NULL DEFAULT '',"
+            "  message_id TEXT NOT NULL UNIQUE,"
+            "  from_addr TEXT NOT NULL DEFAULT '',"
+            "  subject TEXT NOT NULL DEFAULT '',"
+            "  received_at TEXT NOT NULL DEFAULT '',"
+            "  ai_title TEXT NOT NULL DEFAULT '',"
+            "  ai_deadline TEXT,"
+            "  ai_priority TEXT NOT NULL DEFAULT 'medium',"
+            "  created_at TEXT NOT NULL"
+            ")"
+        )
+
         await self._conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_messages_conv_role_time "
             "ON agent_messages(conversation_id, role, created_at)"
@@ -359,6 +375,13 @@ class Database:
         row = await cursor.fetchone()
         return row[0] if row else None
 
+    async def set_setting(self, key: str, value: str):
+        await self.conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (key, value),
+        )
+        await self.conn.commit()
+
     # ── Todos ────────────────────────────────────────────────────
 
     async def insert_todo(self, title: str, deadline: str | None = None,
@@ -394,6 +417,57 @@ class Database:
     async def delete_todo(self, todo_id: str):
         await self.conn.execute(
             "DELETE FROM agent_todos WHERE id = ?", (todo_id,)
+        )
+        await self.conn.commit()
+
+    # ── Email pending（求职邮件待确认队列，邮箱监控模块用）──────────
+
+    async def insert_email_pending(self, account_id: str, message_id: str,
+                                    from_addr: str, subject: str,
+                                    received_at: str, ai_title: str,
+                                    ai_deadline: str | None,
+                                    ai_priority: str = "medium") -> str | None:
+        """Insert a pending row deduped by message_id. Returns id or None if duplicate."""
+        pid = uuid.uuid4().hex
+        now = datetime.now(timezone.utc).isoformat()
+        cursor = await self.conn.execute(
+            "INSERT OR IGNORE INTO email_pending "
+            "(id, account_id, message_id, from_addr, subject, received_at, "
+            " ai_title, ai_deadline, ai_priority, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (pid, account_id, message_id, from_addr, subject, received_at,
+             ai_title, ai_deadline or None, ai_priority, now),
+        )
+        if cursor.rowcount == 0:
+            return None
+        await self.conn.commit()
+        return pid
+
+    async def get_email_pending(self, pid: str) -> dict | None:
+        cursor = await self.conn.execute(
+            "SELECT * FROM email_pending WHERE id = ?", (pid,)
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def list_email_pending(self) -> list[dict]:
+        cursor = await self.conn.execute(
+            "SELECT * FROM email_pending ORDER BY created_at DESC"
+        )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+    async def delete_email_pending(self, pid: str):
+        await self.conn.execute(
+            "DELETE FROM email_pending WHERE id = ?", (pid,)
+        )
+        await self.conn.commit()
+
+    async def purge_email_pending(self, days: int = 14):
+        """清理超过 N 天的未处理记录，避免队列无限堆积。"""
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        await self.conn.execute(
+            "DELETE FROM email_pending WHERE created_at < ?", (cutoff,)
         )
         await self.conn.commit()
 

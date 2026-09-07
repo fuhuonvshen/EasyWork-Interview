@@ -193,8 +193,37 @@ export interface TodoItem {
   status: string;     // "pending" | "done"
   priority: string;   // "high" | "medium" | "low"
   deadline: string | null;
-  source: string;     // "chat" | "meeting" | "manual"
+  source: string;     // "chat" | "meeting" | "manual" | "email"
   created_at: string;
+}
+
+// 求职邮件待确认（邮件正文永不进入前端/落库，仅 AI 提取的摘要）
+export interface EmailPending {
+  id: string;
+  account_id: string;
+  from_addr: string;
+  subject: string;
+  received_at: string;
+  ai_title: string;
+  ai_deadline: string | null;
+  ai_priority: string;   // "high" | "medium"
+  created_at: string;
+}
+
+export interface EmailScanSummary {
+  accounts: number;
+  scanned: number;
+  job_mails: number;
+  pending_total: number;
+  errors: { email: string; message: string }[];
+}
+
+// 邮箱账号配置（存 settings.email_accounts，JSON 数组）
+export interface EmailAccount {
+  id: string;
+  email: string;
+  auth_code: string;
+  host: string;  // 空则自动推断 imap.<域名>
 }
 
 // ── Model download dialog types ──

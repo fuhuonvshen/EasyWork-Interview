@@ -1,8 +1,8 @@
 // EasyWork - Agent Todo List View
 import { useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { ListTodo, Plus, Trash2, AlertCircle } from "lucide-react";
-import type { TodoItem } from "../types";
+import { ListTodo, Plus, Trash2, AlertCircle, Mail, Loader } from "lucide-react";
+import type { TodoItem, EmailPending } from "../types";
 import { showToast } from "../components/Toast";
 import { ERRORS, toUserError } from "../errors";
 
@@ -31,7 +31,7 @@ function DeadlineField({ value, onChange }: { value: string; onChange: (v: strin
             el.click();
           }
         }}
-        className="w-full flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white hover:bg-gray-50 transition-colors"
       >
         {value ? <span className="text-gray-700">{value}</span> : <span className="text-gray-400">选择日期</span>}
       </button>
@@ -41,16 +41,33 @@ function DeadlineField({ value, onChange }: { value: string; onChange: (v: strin
 
 interface Props {
   todos: TodoItem[];
+  pendingEmails: EmailPending[];  // AI 识别出的求职邮件（待确认，确认后才建待办）
   onRefresh: () => void;
   onToggle: (id: string, done: boolean) => void;
   onDelete: (id: string) => void;
+  onEmailConfirm: (id: string, overrides: { title: string; deadline: string | null }) => void;
+  onEmailIgnore: (id: string) => void;
 }
 
-export default function AgentTodo({ todos, onRefresh, onToggle, onDelete }: Props) {
+export default function AgentTodo({
+  todos, pendingEmails, onRefresh, onToggle, onDelete, onEmailConfirm, onEmailIgnore,
+}: Props) {
   const [showForm, setShowForm] = useState(false);
   const [formTitle, setFormTitle] = useState("");
   const [formDeadline, setFormDeadline] = useState("");
   const [formPriority, setFormPriority] = useState("medium");
+
+  // 待确认邮件的可编辑草稿（事项标题 / 截止日期）
+  const [emailDrafts, setEmailDrafts] = useState<Record<string, { title: string; deadline: string }>>({});
+  const [confirmingEmail, setConfirmingEmail] = useState<string | null>(null);
+
+  const draftOf = (p: EmailPending) => emailDrafts[p.id] ?? { title: p.ai_title, deadline: p.ai_deadline ?? "" };
+  const setDraftOf = (id: string, patch: Partial<{ title: string; deadline: string }>) => {
+    setEmailDrafts((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] ?? { title: "", deadline: "" }), ...patch },
+    }));
+  };
 
   const pendingTodos = todos.filter((t) => t.status === "pending");
   const doneTodos = todos.filter((t) => t.status === "done");
@@ -73,6 +90,29 @@ export default function AgentTodo({ todos, onRefresh, onToggle, onDelete }: Prop
     } catch (e) {
       console.error("创建待办失败:", e);
       showToast(toUserError(ERRORS.CREATE_TODO, e), "error");
+    }
+  };
+
+  const handleEmailAdd = async (p: EmailPending) => {
+    const d = draftOf(p);
+    if (!d.title.trim()) {
+      showToast("待办内容不能为空", "error");
+      return;
+    }
+    setConfirmingEmail(p.id);
+    try {
+      await onEmailConfirm(p.id, { title: d.title.trim(), deadline: d.deadline || null });
+    } finally {
+      setConfirmingEmail(null);
+    }
+  };
+
+  const handleEmailDrop = async (p: EmailPending) => {
+    setConfirmingEmail(p.id);
+    try {
+      await onEmailIgnore(p.id);
+    } finally {
+      setConfirmingEmail(null);
     }
   };
 
@@ -170,14 +210,77 @@ export default function AgentTodo({ todos, onRefresh, onToggle, onDelete }: Prop
 
       {/* Todo list */}
       <div className="flex-1 overflow-y-auto px-8 py-4">
-        {todos.length === 0 && !showForm && (
-          <div className="text-center py-16">
-            <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
-              <ListTodo size={26} className="text-gray-300" />
+        {/* 求职邮件待确认（AI 识别，确认后才成为待办） */}
+        {pendingEmails.length > 0 && (
+          <section className="mb-6">
+            <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <Mail size={13} className="text-sky-500" />
+              求职邮件待确认 · {pendingEmails.length}
+              <span className="text-[10px] normal-case text-gray-300 font-normal">AI 已识别为求职相关，核对后添加；邮件原文不会保存</span>
+            </h3>
+            <div className="space-y-2">
+              {pendingEmails.map((p) => {
+                const draft = draftOf(p);
+                const busy = confirmingEmail === p.id;
+                return (
+                  <div
+                    key={p.id}
+                    className={`px-4 py-3 rounded-xl border border-sky-100 bg-sky-50/40 space-y-3 ${busy ? "opacity-60" : ""}`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-sky-100 text-sky-600 flex items-center justify-center flex-shrink-0">
+                        <Mail size={14} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-gray-800 truncate">{p.subject || "(无主题)"}</p>
+                        <p className="text-[10px] text-gray-400 truncate">
+                          {p.from_addr || "未知发件人"} · {p.received_at.slice(0, 10) || "时间未知"}
+                        </p>
+                      </div>
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${priorityColor(p.ai_priority)}`}>
+                        {priorityLabel(p.ai_priority)}
+                      </span>
+                    </div>
+                    <div className="flex gap-2.5 items-end">
+                      <div className="flex-1 min-w-0">
+                        <label className="text-[10px] font-medium text-gray-500 mb-1 block">将添加为待办（可修改）</label>
+                        <input
+                          type="text"
+                          value={draft.title}
+                          onChange={(e) => setDraftOf(p.id, { title: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-200"
+                        />
+                      </div>
+                      <div className="w-40 flex-shrink-0">
+                        <label className="text-[10px] font-medium text-gray-500 mb-1 block">截止日期</label>
+                        <DeadlineField
+                          value={draft.deadline}
+                          onChange={(v) => setDraftOf(p.id, { deadline: v })}
+                        />
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => handleEmailAdd(p)}
+                          disabled={busy}
+                          className="px-4 py-2 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 transition-colors"
+                        >
+                          {busy ? <Loader size={12} className="inline animate-spin" /> : null}
+                          加入待办
+                        </button>
+                        <button
+                          onClick={() => handleEmailDrop(p)}
+                          disabled={busy}
+                          className="px-3 py-2 text-xs text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          忽略
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <p className="text-sm text-gray-400">还没有待办事项</p>
-            <p className="text-xs text-gray-300 mt-1">在聊天中说"帮我记一下…"或手动创建</p>
-          </div>
+          </section>
         )}
 
         {/* Pending */}
@@ -204,6 +307,11 @@ export default function AgentTodo({ todos, onRefresh, onToggle, onDelete }: Prop
                       {t.deadline && (
                         <span className="text-xs text-gray-400">
                           截止: {t.deadline}
+                        </span>
+                      )}
+                      {t.source === "email" && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-200 flex items-center gap-1">
+                          <Mail size={9} /> 来自邮件
                         </span>
                       )}
                       {t.source === "chat" && (
@@ -258,6 +366,16 @@ export default function AgentTodo({ todos, onRefresh, onToggle, onDelete }: Prop
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {todos.length === 0 && pendingEmails.length === 0 && !showForm && (
+          <div className="text-center py-16">
+            <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <ListTodo size={26} className="text-gray-300" />
+            </div>
+            <p className="text-sm text-gray-400">还没有待办事项</p>
+            <p className="text-xs text-gray-300 mt-1">在聊天中说"帮我记一下…"或手动创建</p>
           </div>
         )}
 

@@ -71,10 +71,15 @@ async def lifespan(app: FastAPI):
     os.makedirs(AGENT_INPUT_DIR, exist_ok=True)
     os.makedirs(AGENT_OUTPUT_DIR, exist_ok=True)
 
+    # 邮箱监控轮询（无配置账号时空转，开销可忽略）
+    from . import email_sync
+    email_sync.start_poller()
+
     logger.info("Agent server ready on port %s", AGENT_PORT)
     yield
 
     # Shutdown
+    email_sync.stop_poller()
     await db.close()
     logger.info("Agent server stopped")
 

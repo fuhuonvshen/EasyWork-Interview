@@ -17,6 +17,7 @@ interface Props {
   activeId: string | null;
   activeSubView: "chat" | "todo";
   todos: TodoItem[];
+  emailPendingCount: number;   // 待确认的求职邮件数
   onSelect: (id: string) => void;
   onNew: () => void;               // 打开角色选择器
   onDelete: (id: string) => void;
@@ -28,7 +29,7 @@ interface Props {
 }
 
 export default function AgentSidebar({
-  conversations, activeId, activeSubView, todos,
+  conversations, activeId, activeSubView, todos, emailPendingCount,
   onSelect, onNew, onDelete, onRename, onBack,
   onSubViewChange, onTodoToggle, onTodoDelete,
 }: Props) {
@@ -82,6 +83,11 @@ export default function AgentSidebar({
           >
             <ListTodo size={12} />
             待办
+            {emailPendingCount > 0 && (
+              <span className="bg-sky-500 text-white text-[10px] rounded-full px-1.5 py-0.5" title="求职邮件待确认">
+                {emailPendingCount}
+              </span>
+            )}
             {pendingTodos > 0 && (
               <span className="bg-emerald-500 text-white text-[10px] rounded-full px-1.5 py-0.5">
                 {pendingTodos}

@@ -9,13 +9,14 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from .llm import chat
 from .config import AGENT_INPUT_DIR, MEMORIES_DIR
 from .data.database import db
 from .export import render_export
+from . import email_sync
 from .data.models import (
     AgentConversationSummary,
     AgentMessage,
@@ -289,3 +290,51 @@ def _copy_to_input(src: Path, input_dir: str) -> None:
     except OSError:
         pass
     logger.info("Copied %s -> %s", src, dest)
+
+
+# ── 邮箱监控（IMAP → 求职邮件待确认队列）──────────────────────
+
+
+@router.post("/email/scan")
+async def email_scan() -> dict:
+    """对全部已配置账号执行一轮扫描（含未回扫账号的首次 7 天回扫）。"""
+    return await email_sync.scan_accounts()
+
+
+@router.get("/email/pending")
+async def email_pending_list() -> list[dict]:
+    return await email_sync.list_pending()
+
+
+@router.post("/email/pending/confirm")
+async def email_pending_confirm(payload: dict) -> dict:
+    pid = str(payload.get("id") or "")
+    if not pid:
+        raise HTTPException(status_code=400, detail="缺少记录 id")
+    try:
+        todo_id = await email_sync.confirm_pending(
+            pid,
+            title=payload.get("title"),
+            deadline=payload.get("deadline"),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True, "todo_id": todo_id}
+
+
+@router.post("/email/pending/ignore")
+async def email_pending_ignore(payload: dict) -> dict:
+    pid = str(payload.get("id") or "")
+    if not pid:
+        raise HTTPException(status_code=400, detail="缺少记录 id")
+    await email_sync.ignore_pending(pid)
+    return {"ok": True}
+
+
+@router.post("/email/test")
+async def email_test(payload: dict) -> dict:
+    return await email_sync.test_account(
+        str(payload.get("email") or ""),
+        str(payload.get("auth_code") or ""),
+        host=payload.get("host"),
+    )
