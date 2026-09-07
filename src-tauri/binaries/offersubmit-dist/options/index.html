@@ -3,95 +3,65 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OfferSubmit - 简历模板</title>
-  <script type="module" crossorigin src="/assets/options-D6b0Y011.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/types-BLqU2D0Z.js">
-  <link rel="stylesheet" crossorigin href="/assets/options-Bxjby5xE.css">
+  <title>OfferSubmit - 简历自动填写</title>
+  <script type="module" crossorigin src="/assets/options-CbZIerBq.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/storage-CODHKYEq.js">
+  <link rel="stylesheet" crossorigin href="/assets/storage-B7BOSUEO.css">
+  <link rel="stylesheet" crossorigin href="/assets/options-D5enGn7r.css">
 </head>
 <body>
-  <header class="topbar">
-    <h1>OfferSubmit <span class="sub">简历自动填写助手</span></h1>
-  </header>
-
-  <nav class="tabs">
-    <button type="button" data-tab="resume" class="tab active">简历模板</button>
-    <button type="button" data-tab="records" class="tab">投递记录</button>
-    <button type="button" data-tab="ai" class="tab">AI 设置</button>
-  </nav>
-
-  <main>
-    <!-- 组件化模板构建器 -->
-    <section id="tab-resume" class="panel active">
-      <div class="profile-bar">
-        <label>模板：
-          <select id="tpl-select"></select>
-        </label>
-        <input id="tpl-name" placeholder="模板名称（可改名）" />
-        <button type="button" id="btn-new-tpl" class="btn">+ 新建模板</button>
-        <button type="button" id="btn-full-tpl" class="btn" title="一键生成包含全部组件的完整模板，再按需增删">一键完整模板</button>
-        <button type="button" id="btn-delete-tpl" class="btn danger">删除模板</button>
+  <div class="app">
+    <aside class="rail">
+      <div class="brand">
+        <div class="brand-mark">OS</div>
+        <div class="brand-text"><b>OfferSubmit</b><span>简历自动填写助手</span></div>
       </div>
+      <nav class="rail-nav">
+        <button type="button" class="rail-item active" data-page="editor">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6M9 11h2"/></svg>
+          简历模板
+        </button>
+        <button type="button" class="rail-item" data-page="records">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          投递记录
+        </button>
+        <button type="button" class="rail-item" data-page="ai">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.5"/></svg>
+          AI 设置
+        </button>
+      </nav>
+      <div class="rail-foot">v0.1.0 · Chrome MV3</div>
+    </aside>
 
-      <div class="builder">
-        <aside class="palette" id="palette">
-          <h3>组件库</h3>
-          <p class="hint">拖入或点击组件添加到模板，自动按固定顺序排好</p>
-          <button type="button" id="btn-add-custom" class="btn small">＋ 自定义组件</button>
-          <div id="custom-form" class="custom-form" hidden>
-            <input id="custom-label" placeholder="组件名，如：到岗时间" />
-            <input id="custom-keywords" placeholder="匹配关键词，逗号分隔，如：到岗时间,arrival" />
-            <div class="custom-form-actions">
-              <button type="button" id="custom-save" class="btn small primary">保存</button>
-              <button type="button" id="custom-cancel" class="btn small">取消</button>
-            </div>
+    <main class="main">
+      <!-- 简历编辑：左目录 + 右整组表单流 -->
+      <section class="page active" id="page-editor" data-page-panel="editor">
+        <div class="page-head">
+          <div class="page-title">
+            <h1>简历模板</h1>
+            <p>左侧按校招网申模块排布目录，右侧整组表单流式编辑，改动自动保存；一键填充按此内容匹配页面字段。</p>
           </div>
-        </aside>
-        <div class="canvas" id="canvas">
-          <h3>模板内容</h3>
+          <div class="toolbar">
+            <select id="tpl-select" class="os-select" title="切换模板"></select>
+            <input id="tpl-name" class="os-input" spellcheck="false" placeholder="先新建模板" />
+            <button type="button" id="btn-tpl-new" class="os-btn">＋ 新建</button>
+            <button type="button" id="btn-tpl-full" class="os-btn" title="生成包含全部字段的完整模板，再按需删减">一键完整模板</button>
+            <button type="button" id="btn-tpl-del" class="os-btn danger" title="删除当前模板">删除</button>
+            <span id="save-chip" class="save-chip" style="visibility:hidden"></span>
+          </div>
         </div>
-      </div>
-    </section>
-
-    <!-- 投递记录 -->
-    <section id="tab-records" class="panel">
-      <div class="sync-bar">
-        <button type="button" id="btn-sync" class="btn primary">从 EasyWork 同步</button>
-        <span id="sync-status" class="sync-status"></span>
-      </div>
-      <table id="records-table">
-        <thead>
-          <tr><th>公司</th><th>职位</th><th>来源</th><th>投递时间</th><th>状态</th><th>操作</th></tr>
-        </thead>
-        <tbody id="records-body"></tbody>
-      </table>
-      <p id="records-empty" class="empty">暂无投递记录</p>
-    </section>
-
-    <!-- AI 智能填充设置 -->
-    <section id="tab-ai" class="panel">
-      <div class="ai-form">
-        <p class="hint">
-          AI 智能填充会把<b>页面表单结构</b>与<b>简历内容</b>发送到你配置的 API（用于判断每个框该填什么），
-          请确认服务可信。填写的 Key 仅保存在本机浏览器扩展中。
-        </p>
-        <label>API 地址（OpenAI 兼容，Base URL）
-          <input id="ai-base-url" placeholder="https://api.deepseek.com/v1" spellcheck="false" />
-        </label>
-        <label>API Key
-          <input id="ai-key" type="password" placeholder="sk-..." spellcheck="false" />
-        </label>
-        <label>模型
-          <input id="ai-model" placeholder="deepseek-chat" spellcheck="false" />
-        </label>
-        <div class="ai-actions">
-          <button type="button" id="ai-save" class="btn primary">保存</button>
-          <button type="button" id="ai-test" class="btn">测试连接</button>
-          <span id="ai-status" class="sync-status"></span>
+        <div class="editor-body">
+          <aside class="dir-panel os-card" id="directory"></aside>
+          <div class="flow-panel" id="flow"></div>
         </div>
-        <p class="hint" id="ai-saved-hint" hidden>已保存 ✓ 回到招聘页面，用 popup 的「AI 智能填充」按钮试试。</p>
-      </div>
-    </section>
-  </main>
+      </section>
 
+      <!-- 投递记录 -->
+      <section class="page" id="page-records" data-page-panel="records"></section>
+
+      <!-- AI 设置 -->
+      <section class="page" id="page-ai" data-page-panel="ai"></section>
+    </main>
+  </div>
 </body>
 </html>

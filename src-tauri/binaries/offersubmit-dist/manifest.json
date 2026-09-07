@@ -30,8 +30,14 @@
       "js": ["content.js"],
       "run_at": "document_idle",
       "all_frames": true
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["panel.js"],
+      "run_at": "document_idle",
+      "all_frames": false
     }
   ],
-  "permissions": ["storage", "activeTab"],
+  "permissions": ["storage", "activeTab", "debugger"],
   "host_permissions": ["<all_urls>"]
 }

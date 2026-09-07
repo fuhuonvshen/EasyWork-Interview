@@ -3,32 +3,36 @@
 <head>
   <meta charset="UTF-8" />
   <title>OfferSubmit</title>
-  <script type="module" crossorigin src="/assets/popup-CU5W3U4_.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/types-BLqU2D0Z.js">
-  <link rel="stylesheet" crossorigin href="/assets/popup-goJvS7su.css">
+  <script type="module" crossorigin src="/assets/popup-D_Hu5VR4.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/storage-CODHKYEq.js">
+  <link rel="stylesheet" crossorigin href="/assets/storage-B7BOSUEO.css">
+  <link rel="stylesheet" crossorigin href="/assets/popup-BhtqQCXG.css">
 </head>
 <body>
-  <header>
-    <strong>OfferSubmit</strong>
-    <span id="site-name" class="muted"></span>
-  </header>
+  <div class="pop">
+    <header class="pop-head">
+      <div class="brand-mark">OS</div>
+      <div class="pop-titles">
+        <b>OfferSubmit</b>
+        <span id="site-name" class="os-muted">正在读取当前页面…</span>
+      </div>
+    </header>
 
-  <section>
-    <label for="profile-select">填充简历模板</label>
-    <select id="profile-select"></select>
-    <button id="btn-fill" class="btn primary" disabled>一键填充（规则）</button>
-    <button id="btn-fill-ai" class="btn ai" disabled>AI 智能填充</button>
-    <p id="fill-status" class="status"></p>
-  </section>
+    <section class="pop-section">
+      <label class="pop-label" for="profile-select">简历模板</label>
+      <select id="profile-select" class="os-select"></select>
 
-  <section>
-    <h3>最近投递</h3>
-    <ul id="recent-list" class="recent"></ul>
-  </section>
+      <div class="pop-actions">
+        <button id="btn-panel" class="os-btn primary block">☰ 打开填充面板</button>
+        <button id="btn-fill" class="os-btn block" disabled>快速填充（规则）</button>
+      </div>
+      <p id="fill-status" class="os-status"></p>
+    </section>
 
-  <footer>
-    <button id="btn-open-options" class="btn">管理简历与投递记录…</button>
-  </footer>
-
+    <footer class="pop-foot">
+      <button id="btn-open-options" class="os-btn sm">简历与投递记录</button>
+      <button id="btn-sync" class="os-btn sm">⇄ EasyWork</button>
+    </footer>
+  </div>
 </body>
 </html>

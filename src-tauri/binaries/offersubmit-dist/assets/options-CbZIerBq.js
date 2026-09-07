@@ -1,0 +1,153 @@
+import{g as I,s as M,u as fe,d as be,a as ve,b as j,c as G,e as he}from"./storage-CODHKYEq.js";const B="其他/自定义",S=[{name:"基本信息",types:["name","gender","birthDate","phone","email","wechat","age","location","hometown"]},{name:"身份户籍",types:["idType","idCard","nationality","citizenship","countryCode","hukou","political","marital"]},{name:"教育背景",types:["education","school","major","degree","graduationYear","academicCategory","educationExperience"]},{name:"求职意向",types:["jobIntention","expectedSalary","workLocation"]},{name:"工作与实习",types:["workExperience","workYears"]},{name:"项目经历",types:["projectExperience"]},{name:"获奖·论文·专利",types:["awards","papers","patents"]},{name:"语言与技能",types:["languages","computerSkills","skills","selfEvaluation"]},{name:B,types:["channel"]}],ge=Object.fromEntries(S.flatMap(e=>e.types.map(t=>[t,e.name])));function we(e){return ge[e]??B}const ke=[{name:"基本信息",types:["name","gender","birthDate","phone","email","wechat","location","hometown","workYears","education","degree","school","major","graduationYear","workLocation","jobIntention","expectedSalary"]},{name:"身份与户籍",types:["age","idCard","idType","nationality","citizenship","countryCode","hukou","political","marital"]},{name:"学业补充",types:["academicCategory","channel"]},{name:"经历与成果",types:["workExperience","projectExperience","educationExperience","awards","papers","patents"]},{name:"语言与技能",types:["languages","computerSkills","skills","selfEvaluation"]}],F=ke.flatMap(e=>e.types),Q={name:"姓名",gender:"性别",birthDate:"出生日期",phone:"手机号",email:"邮箱",wechat:"微信",location:"现居城市",hometown:"籍贯",workYears:"工作年限",education:"学历",school:"毕业院校",major:"专业",graduationYear:"毕业年份",jobIntention:"求职意向",expectedSalary:"期望薪资",workExperience:"工作经历",projectExperience:"项目经历",educationExperience:"教育经历",skills:"技能",selfEvaluation:"自我评价",age:"年龄",idCard:"证件号码",nationality:"民族",citizenship:"国籍/地区",countryCode:"国别码",hukou:"户口所在地",idType:"证件类型",political:"政治面貌",marital:"婚姻状况",workLocation:"期望工作地",degree:"学位",academicCategory:"一级学科分类",channel:"应聘渠道来源",languages:"语言能力",computerSkills:"计算机能力",awards:"获奖经历",papers:"论文著作",patents:"个人专利"};function $e(e){switch(e){case"gender":return{kind:"gender",value:""};case"workExperience":return{kind:"works",items:[]};case"projectExperience":return{kind:"projects",items:[]};case"educationExperience":return{kind:"educations",items:[]};case"awards":return{kind:"awards",items:[]};case"papers":return{kind:"papers",items:[]};case"patents":return{kind:"patents",items:[]};case"languages":return{kind:"languages",items:[]};case"computerSkills":return{kind:"computerSkills",items:[]};case"skills":return{kind:"lines",items:[]};default:return{kind:"text",value:""}}}function X(e){return{id:`sec_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`,type:e,label:Q[e]??e,data:$e(e)}}function Se(e,t){const a=F.indexOf(t);if(a<0)return e.length;for(let s=0;s<e.length;s++)if(F.indexOf(e[s].type)>a)return s;return e.length}function g(e="id"){return`${e}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,10)}`}function r(e){return e.replace(/[&<>"']/g,t=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[t])}function Ee(e,t,a){const s=()=>{e.removeEventListener("blur",s),e.removeEventListener("keydown",n),t(e.value)},n=i=>{i.key==="Enter"?e.blur():i.key==="Escape"&&(e.removeEventListener("blur",s),e.removeEventListener("keydown",n),a==null||a())};e.addEventListener("blur",s),e.addEventListener("keydown",n),e.focus(),e.select()}function Z(e){e.style.height="auto",e.style.height=`${e.scrollHeight}px`}function ee(e){return new Promise(t=>{const a=document.createElement("div");a.className="os-modal-mask",a.innerHTML=`
+      <div class="os-modal" role="dialog" aria-modal="true">
+        <div class="os-modal-head">
+          <h3>${e?`编辑「${r(e.label)}」`:"新建自定义组件"}</h3>
+          <button type="button" class="os-btn ghost sm icon" data-x title="关闭">✕</button>
+        </div>
+        <div class="os-modal-body">
+          <p class="form-tip">自定义组件用于模板里没有的字段（如「到岗时间」），填充时按<b>关键词</b>匹配页面控件。</p>
+          <label class="ai-label">组件名
+            <input class="os-input" id="cm-label" placeholder="如：到岗时间" value="${r((e==null?void 0:e.label)??"")}" />
+          </label>
+          <label class="ai-label">匹配关键词（逗号分隔，中英文均可）
+            <input class="os-input" id="cm-keywords" placeholder="到岗时间,arrival,可入职时间" value="${r(((e==null?void 0:e.keywords)??[]).join(","))}" spellcheck="false" />
+          </label>
+          <p id="cm-error" class="os-error" style="display:none"></p>
+        </div>
+        <div class="os-modal-foot">
+          <button type="button" class="os-btn" data-cancel>取消</button>
+          <button type="button" class="os-btn primary" data-ok>保存</button>
+        </div>
+      </div>`,document.body.appendChild(a);const s=i=>{a.remove(),t(i)},n=()=>{const i=a.querySelector("#cm-label"),o=a.querySelector("#cm-error"),c=i.value.trim();if(!c){o.style.display="",o.textContent="请输入组件名",i.focus();return}const d=a.querySelector("#cm-keywords").value.split(/[,，;；]/).map(u=>u.trim()).filter(Boolean);if(d.length===0){o.style.display="",o.textContent="至少填一个匹配关键词";return}s({label:c,keywords:d})};a.addEventListener("click",i=>{const o=i.target;o===a||o.closest("[data-x]")||o.closest("[data-cancel]")?s(null):o.closest("[data-ok]")&&n()}),a.addEventListener("keydown",i=>{i.key==="Escape"&&s(null)}),a.querySelector("#cm-label").focus()})}const Le=["works","projects","educations","awards","papers","patents","languages","computerSkills"];function A(e){return Le.includes(e.kind)}const Te={works:[{key:"company",label:"公司名称"},{key:"position",label:"职位"},{key:"startDate",label:"开始时间",ph:"YYYY-MM"},{key:"endDate",label:"结束时间",ph:"YYYY-MM / 至今"},{key:"description",label:"工作内容 / 业绩",multi:!0,wide:!0}],projects:[{key:"name",label:"项目名称"},{key:"role",label:"担任角色"},{key:"startDate",label:"开始时间",ph:"YYYY-MM"},{key:"endDate",label:"结束时间",ph:"YYYY-MM"},{key:"link",label:"项目链接",ph:"可选"},{key:"description",label:"项目描述 / 你的贡献",multi:!0,wide:!0}],educations:[{key:"school",label:"学校名称"},{key:"major",label:"专业"},{key:"degree",label:"学历",ph:"本科 / 硕士 / 博士"},{key:"academy",label:"学院 / 院系",ph:"可选"},{key:"startDate",label:"开始时间",ph:"YYYY-MM"},{key:"endDate",label:"结束时间",ph:"YYYY-MM / 至今"},{key:"rank",label:"成绩排名",ph:"如：前 10%，可选"},{key:"supervisor",label:"导师",ph:"可选"},{key:"description",label:"在校经历 / 主修课程",multi:!0,wide:!0}],awards:[{key:"name",label:"获奖名称",ph:"如：全国大学生数学建模竞赛一等奖"},{key:"type",label:"获奖级别",ph:"如：国家级"},{key:"date",label:"获奖时间",ph:"YYYY-MM"}],papers:[{key:"name",label:"论文名称"},{key:"journal",label:"发表期刊",ph:"可选"},{key:"detail",label:"论文详情 / 摘要",multi:!0,wide:!0},{key:"url",label:"论文地址",ph:"可选"}],patents:[{key:"name",label:"专利名称"},{key:"no",label:"专利编号"},{key:"date",label:"发布时间",ph:"YYYY-MM"}],languages:[{key:"lang",label:"语种",ph:"如：英语"},{key:"cert",label:"证书 / 等级",ph:"如：CET-6"}],computerSkills:[{key:"lang",label:"技术 / 编程语言",ph:"如：Python"},{key:"level",label:"掌握程度",ph:"如：熟练"}]};function Ie(e){return Te[e]}const Ae={works:"company",projects:"name",educations:"school",awards:"name",papers:"name",patents:"name",languages:"lang",computerSkills:"lang"};function De(e,t){const a=Ae[t],n=(a?String(e[a]??""):"").trim();return n?n.length>14?`${n.slice(0,14)}…`:n:"未命名条目"}function Ce(e){return Object.entries(e).some(([t,a])=>t!=="id"&&String(a??"").trim()!=="")}function xe(e){switch(e){case"works":return{id:g("w"),company:"",position:"",startDate:"",endDate:"",description:""};case"projects":return{id:g("p"),name:"",role:"",startDate:"",endDate:"",link:"",description:""};case"educations":return{id:g("e"),school:"",major:"",degree:"",academy:"",rank:"",supervisor:"",startDate:"",endDate:"",description:""};case"awards":return{id:g("a"),name:"",type:"",date:""};case"papers":return{id:g("pa"),name:"",detail:"",journal:"",url:""};case"patents":return{id:g("pt"),no:"",name:"",date:""};case"languages":return{id:g("l"),lang:"",cert:""};case"computerSkills":return{id:g("c"),lang:"",level:""}}}function R(e){return{text:"文本字段",gender:"单选",lines:"多行文本",educations:"教育经历",works:"工作经历",projects:"项目经历",awards:"获奖经历",papers:"论文著作",patents:"个人专利",languages:"语言能力",computerSkills:"计算机能力"}[e]??e}const Ye=[["","未选择"],["male","男"],["female","女"]];function te(e,t){var s;if(!e)return[];const a=(s=S[t])==null?void 0:s.name;return a?e.sections.filter(n=>we(n.type)===a):[]}function Me(e){if(!e||e.sections.length===0)return`<div class="os-empty">
+      <div class="os-empty-icon">OS</div>
+      <h4>模板还没有字段</h4>
+      <p>点左侧分组下的「＋ 添加字段」加入组件（自动按网申顺序归位），
+         或点工具栏「一键完整模板」生成全套字段再按需删减。</p>
+    </div>`;let t=0;return S.map((a,s)=>{const n=te(e,s);return n.length===0?"":(t+=1,`
+    <section class="flow-group" data-flow-group="${s}">
+      <div class="flow-group-head">
+        <div class="fg-title"><span class="fg-no">${t}</span><h2>${r(a.name)}</h2></div>
+        <p class="fg-sub">共 ${n.length} 个字段 · 对应网申「${r(a.name)}」模块</p>
+      </div>
+      <div class="os-card flow-card">${n.map(i=>je(i)).join("")}</div>
+    </section>`)}).join("")}function N(e){const t=r(e.id);return`<span class="f-name" title="${r(R(e.data.kind))}">${r(e.label)}</span>
+    <span class="f-acts">
+      <button type="button" class="os-btn ghost sm icon" data-rename="${t}" title="重命名显示名">✎</button>
+      <button type="button" class="os-btn danger-ghost sm icon" data-sec-remove="${t}" title="从模板移除该字段">✕</button>
+    </span>`}function je(e){const t=e.data,a=r(e.id);return t.kind==="gender"?`
+    <div class="field-row" id="sec-${a}" data-sec-id="${a}">
+      <div class="f-label">${N(e)}</div>
+      <div class="f-control">
+        <select class="os-select" data-sec-gender="${a}">
+          ${Ye.map(([s,n])=>`<option value="${s}" ${t.value===s?"selected":""}>${n}</option>`).join("")}
+        </select>
+      </div>
+    </div>`:t.kind==="text"?`
+    <div class="field-row" id="sec-${a}" data-sec-id="${a}">
+      <div class="f-label">${N(e)}</div>
+      <div class="f-control">
+        <input type="text" class="os-input" data-sec-value="${a}" value="${r(t.value)}" placeholder="填写内容" />
+      </div>
+    </div>`:t.kind==="lines"?`
+    <div class="field-row span" id="sec-${a}" data-sec-id="${a}">
+      <div class="f-label">${N(e)}</div>
+      <div class="f-control">
+        <textarea class="os-input os-textarea os-auto" rows="5" data-sec-lines="${a}" placeholder="每行一个，如：TypeScript&#10;Vite">${r(t.items.join(`
+`))}</textarea>
+      </div>
+    </div>`:A(t)?Be(e,t.kind):""}function Be(e,t){const a=e.data;if(!A(a))return"";const s=Ie(t),n=a.items,i=r(e.id),o=`
+    <div class="composite-head" data-sec-id="${i}">
+      <span class="sec-title">${r(e.label)}</span>
+      <span class="sec-sub" title="${r(R(e.data.kind))}">${r(R(e.data.kind))}</span>
+      <span class="os-badge accent">${n.length} 条</span>
+      <span class="spacer"></span>
+      <button type="button" class="os-btn sm" data-add-item="${i}">＋ 添加一条</button>
+      <button type="button" class="os-btn danger-ghost sm icon" data-sec-remove="${i}" title="从模板移除该字段">✕</button>
+    </div>`,c=n.map((u,m)=>{const C=u,b=s.map(y=>{const W=C[y.key]??"",me=y.multi||y.wide?"f-cell wide":"f-cell",z=y.ph?` placeholder="${r(y.ph)}"`:"",ye=y.multi?`<textarea class="os-input os-textarea os-auto" rows="3" data-item-field data-item-sec="${i}" data-item-idx="${m}" data-item-key="${r(y.key)}"${z}>${r(W)}</textarea>`:`<input type="text" class="os-input" data-item-field data-item-sec="${i}" data-item-idx="${m}" data-item-key="${r(y.key)}" value="${r(W)}"${z} />`;return`<div class="${me}"><span class="f-label">${r(y.label)}</span>${ye}</div>`}).join("");return`<div class="item-card" data-sec-id="${i}">
+        <div class="item-card-head">
+          <span class="item-no">#${m+1}</span>
+          <span class="item-title">${r(De(u,t))}</span>
+          <span class="spacer"></span>
+          <button type="button" class="os-btn ghost sm icon" data-item-up="${i}:${m}" ${m===0?"disabled":""} title="上移">↑</button>
+          <button type="button" class="os-btn ghost sm icon" data-item-down="${i}:${m}" ${m===n.length-1?"disabled":""} title="下移">↓</button>
+          <button type="button" class="os-btn danger-ghost sm icon" data-item-del="${i}:${m}" title="删除该条">✕</button>
+        </div>
+        <div class="item-grid">${b}</div>
+      </div>`}).join(""),d=n.length===0?'<div class="item-empty">还没有条目，点「＋ 添加一条」开始录入</div>':"";return`<div class="composite-block" id="sec-${i}" data-sec-id="${i}">
+    ${o}${d}
+    <div class="composite-items">${c}</div>
+  </div>`}function q(e,t){const[a,s]=(e??":").split(":");return[(t==null?void 0:t.sections.find(n=>n.id===a))??null,Number(s)]}function Ne(e,t){const a=s=>{var o,c;const n=((o=s.closest("[data-sec-id]"))==null?void 0:o.dataset.secId)??s.dataset.itemSec??"",i=((c=t.active())==null?void 0:c.sections.find(d=>d.id===n))??null;if(s.hasAttribute("data-item-field")&&i&&A(i.data)){const u=i.data.items[Number(s.dataset.itemIdx)];u&&(u[s.dataset.itemKey??""]=s.value),t.markDirty(),t.saveNow(),t.refreshSectionBadge(i.id)}else i&&s.hasAttribute("data-sec-value")||i&&s.hasAttribute("data-sec-gender")?(i.data.value=s.value,t.markDirty(),t.saveNow(),t.refreshSectionBadge(i.id)):i&&s.hasAttribute("data-sec-lines")&&(i.data.items=s.value.split(`
+`).map(d=>d.trim()).filter(Boolean),t.markDirty(),t.saveNow(),t.refreshSectionBadge(i.id))};e.addEventListener("input",s=>{const n=s.target;n instanceof HTMLTextAreaElement&&Z(n),!(!(n instanceof HTMLInputElement)&&!(n instanceof HTMLTextAreaElement)&&!(n instanceof HTMLSelectElement))&&a(n)}),e.addEventListener("change",s=>{const n=s.target;n instanceof HTMLSelectElement&&n.hasAttribute("data-sec-gender")&&a(n)}),e.addEventListener("click",s=>{const n=s.target,i=n.closest("[data-rename]");if(i){t.beginRename(i.dataset.rename??"");return}const o=t.active(),c=n.closest("[data-sec-remove]");if(c){t.removeSection(c.dataset.secRemove??"");return}const d=n.closest("[data-add-item]");if(d){t.addItem(d.dataset.addItem??"");return}const u=n.closest("[data-item-del]");if(u){const[b,y]=q(u.dataset.itemDel,o);b&&t.removeItem(b.id,y);return}const m=n.closest("[data-item-up]");if(m){const[b,y]=q(m.dataset.itemUp,o);b&&t.moveItem(b.id,y,-1);return}const C=n.closest("[data-item-down]");if(C){const[b,y]=q(C.dataset.itemDown,o);b&&t.moveItem(b.id,y,1);return}})}function qe(e){e.querySelectorAll("textarea.os-auto").forEach(t=>Z(t))}function Oe(e,t){const a=e.querySelector(`[data-sec-id="${CSS.escape(t)}"] .f-name, [data-sec-id="${CSS.escape(t)}"] .sec-title`);if(!a)return null;const s=document.createElement("input");return s.type="text",s.className="os-input rename-input",s.value=a.textContent??"",s.dataset.renameCommit=t,a.replaceWith(s),s}function Pe(e,t){const a=e.querySelector(`[data-sec-id="${CSS.escape(t)}"].composite-block`),s=a==null?void 0:a.querySelector(".item-card:last-of-type input.os-input, .item-card:last-of-type textarea.os-input");s==null||s.focus()}function H(e){const t=e.data;return t.kind==="text"?t.value.trim()!=="":t.kind==="gender"?t.value!=="":t.kind==="lines"?t.items.length>0:A(t)?t.items.some(a=>Ce(a)):!1}function Fe(e,t,a){var i,o;const s=new Set(((t==null?void 0:t.sections)??[]).map(c=>c.type)),n=[];for(const c of((i=S[e])==null?void 0:i.types)??[])s.has(c)||n.push({type:c,label:Q[c]??c});if(((o=S[e])==null?void 0:o.name)===B)for(const c of a)s.has(c.id)||n.push({type:c.id,label:c.label});return n}function Re(e){const t=e.tpl(),a=e.customFields(),s=i=>{var c,d;return(((c=S[i])==null?void 0:c.types.length)??0)+(((d=S[i])==null?void 0:d.name)===B?a.length:0)},n=i=>i.map(o=>{const d=a.some(u=>u.id===o.type)?`<span class="dir-acts">
+              <button type="button" class="os-btn ghost sm icon" data-custom-edit="${r(o.type)}" title="编辑组件定义">✎</button>
+              <button type="button" class="os-btn danger-ghost sm icon" data-custom-del="${r(o.type)}" title="删除组件定义（模板内保留）">✕</button>
+            </span>`:"";return`<button type="button" class="dir-row" data-goto-sec="${r(o.id)}">
+          <span class="os-dot ${H(o)?"filled":""}"></span>
+          <span class="dir-row-label">${r(o.label)}</span>${d}
+        </button>`}).join("");return`<div class="dir-list">
+    ${S.map((i,o)=>{const c=te(t,o),d=Fe(o,t,a),u=e.chipsOpen.has(o),m=u?`<div class="dir-chips">
+            ${d.length?d.map(b=>`<button type="button" class="os-chip" data-add-type="${r(b.type)}">＋ ${r(b.label)}</button>`).join(""):'<span class="dir-chips-empty">该组字段已全部加入模板</span>'}
+          </div>`:"";return`<div class="dir-group${e.activeGroup()===o?" active":""}" data-dir-group="${o}">
+        <button type="button" class="dir-head" data-goto-group="${o}">
+          <span class="dir-name">${r(i.name)}</span>
+          <span class="os-badge muted dir-count">${c.length}/${s(o)}</span>
+        </button>
+        ${c.length?`<div class="dir-rows">${n(c)}</div>`:'<div class="dir-hint">未启用</div>'}
+        <div class="dir-add">
+          ${u?"":`<button type="button" class="dir-add-btn" data-add-toggle="${o}">＋ 添加字段</button>`}
+          ${m}
+        </div>
+      </div>`}).join("")}
+  </div>`}function Ge(e,t){e.addEventListener("click",a=>{const s=a.target,n=s.closest("[data-custom-edit]");if(n){a.stopPropagation(),t.onCustomEdit(n.dataset.customEdit??"");return}const i=s.closest("[data-custom-del]");if(i){a.stopPropagation(),t.onCustomDel(i.dataset.customDel??"");return}const o=s.closest("[data-add-type]");if(o){t.onAddType(o.dataset.addType??"");return}const c=s.closest("[data-add-toggle]");if(c){t.onToggleAdd(Number(c.dataset.addToggle));return}const d=s.closest("[data-goto-group]");if(d){t.onGotoGroup(Number(d.dataset.gotoGroup));return}const u=s.closest("[data-goto-sec]");if(u){t.onGotoSection(u.dataset.gotoSec??"");return}})}function He(e){e.innerHTML=`
+    <div class="page-head">
+      <div class="page-title"><h1>AI 智能填充</h1><p>规则/语义匹配不到的字段，交给大模型判定（可选项，需自备 OpenAI 兼容 API）。</p></div>
+    </div>
+    <div class="page-body">
+      <div class="os-card pad ai-form">
+        <p class="ai-tip">AI 判定会把<b>页面表单结构</b>与<b>简历内容</b>发送到你配置的 API（用于判断每个框该填什么），请确认服务可信。填写的 Key 仅保存在本机浏览器扩展中。</p>
+        <label class="ai-label">API 地址（OpenAI 兼容，Base URL）
+          <input id="ai-base-url" class="os-input" placeholder="https://api.deepseek.com/v1" spellcheck="false" />
+        </label>
+        <label class="ai-label">API Key
+          <input id="ai-key" class="os-input" type="password" placeholder="sk-..." spellcheck="false" />
+        </label>
+        <label class="ai-label">模型
+          <input id="ai-model" class="os-input" placeholder="deepseek-chat" spellcheck="false" />
+        </label>
+        <div class="ai-actions">
+          <button type="button" id="ai-save" class="os-btn primary">保存</button>
+          <button type="button" id="ai-test" class="os-btn">测试连接</button>
+          <span id="ai-status" class="sync-status"></span>
+          <span id="ai-saved-hint" class="os-ok" style="display:none">已保存 ✓ 到招聘页时侧边栏可用 AI 兜底判定。</span>
+        </div>
+      </div>
+    </div>`;const t=i=>e.querySelector(i),a=()=>({aiBaseUrl:t("#ai-base-url").value.trim()||"https://api.deepseek.com/v1",aiKey:t("#ai-key").value.trim(),aiModel:t("#ai-model").value.trim()||"deepseek-chat"}),s=i=>{document.activeElement!==t("#ai-base-url")&&(t("#ai-base-url").value=i.aiBaseUrl),document.activeElement!==t("#ai-key")&&(t("#ai-key").value=i.aiKey),document.activeElement!==t("#ai-model")&&(t("#ai-model").value=i.aiModel)},n=async()=>{const i=await I();s({aiBaseUrl:i.aiBaseUrl,aiKey:i.aiKey,aiModel:i.aiModel})};t("#ai-save").addEventListener("click",async()=>{const i=await I();await M({...i,...a()});const o=t("#ai-saved-hint");o.style.display="",window.setTimeout(()=>o.style.display="none",5e3)}),t("#ai-test").addEventListener("click",()=>{(async()=>{const i=t("#ai-test"),o=t("#ai-status");i.disabled=!0,o.className="sync-status",o.textContent="测试中…";const c=a();if(!c.aiKey){o.className="sync-status err",o.textContent="请先填写 API Key",i.disabled=!1;return}try{const d=c.aiBaseUrl.trim().replace(/\/+$/,"").replace(/\/v1$/,""),u=await fetch(`${d}/v1/chat/completions`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${c.aiKey}`},body:JSON.stringify({model:c.aiModel,messages:[{role:"user",content:"hi"}],max_tokens:8})});if(u.ok)o.className="sync-status ok",o.textContent="连接正常 ✓ 记得点「保存」";else{const m=(await u.text()).slice(0,200);o.className="sync-status err",o.textContent=u.status===401?"Key 无效（401）":`失败 ${u.status}: ${m}`}}catch(d){o.className="sync-status err",o.textContent=`无法连接：${d instanceof Error?d.message:String(d)}`}finally{i.disabled=!1}})()}),n()}const _e={pending:"待投递",applied:"已投递",interview:"面试中",offer:"已拿Offer",rejected:"未通过",archived:"已归档"};function Ke(e,t){e.innerHTML=`
+    <div class="page-head">
+      <div class="page-title"><h1>投递记录</h1><p>填充/提交后自动记录，可与 EasyWork 双向同步。</p></div>
+    </div>
+    <div class="page-body">
+      <div class="os-card pad rec-toolbar">
+        <button type="button" id="btn-sync" class="os-btn primary">⇄ 从 EasyWork 同步</button>
+        <span id="sync-status" class="sync-status"></span>
+        <span class="spacer"></span>
+        <span id="rec-count" class="os-badge muted"></span>
+      </div>
+      <div class="os-card pad">
+        <table class="os-table" id="records-table">
+          <thead><tr><th>公司</th><th>职位</th><th>来源</th><th>投递时间</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody id="records-body"></tbody>
+        </table>
+        <div id="records-empty" class="os-empty" style="display:none">
+          <div class="os-empty-icon">IN</div>
+          <h4>暂无投递记录</h4>
+          <p>在招聘页面用「一键填充」完成后会自动生成记录；也可以点上方「从 EasyWork 同步」拉取。</p>
+        </div>
+      </div>
+    </div>`;const a=async()=>{const s=await ve(),n=e.querySelector("#records-body"),i=e.querySelector("#records-empty"),o=e.querySelector("#rec-count");n.innerHTML="",i.style.display=s.length?"none":"",o.textContent=`共 ${s.length} 条`;for(const c of s){const d=document.createElement("tr");d.innerHTML=`
+        <td>${r(c.company||"—")}</td>
+        <td>${r(c.position||"—")}</td>
+        <td><span class="os-badge muted">${r(c.site||"")}</span></td>
+        <td class="os-muted">${new Date(c.appliedAt).toLocaleString()}</td>
+        <td><select class="os-select" data-status="${r(c.id)}" style="min-width:110px">
+          ${Object.entries(_e).map(([u,m])=>`<option value="${u}" ${u===c.status?"selected":""}>${m}</option>`).join("")}
+        </select></td>
+        <td><button type="button" class="os-btn danger-ghost sm" data-del-record="${r(c.id)}">删除</button></td>`,n.appendChild(d)}};return e.addEventListener("change",s=>{const n=s.target.closest("[data-status]");n&&(async()=>(await fe(n.dataset.status??"",{status:n.value,updatedAt:Date.now()}),await a(),await t.sync().catch(()=>{})))()}),e.addEventListener("click",s=>{const n=s.target.closest("[data-del-record]");n&&(async()=>(await be(n.dataset.delRecord??""),await a(),await t.sync().catch(()=>{})))()}),e.querySelector("#btn-sync").addEventListener("click",async()=>{const s=e.querySelector("#btn-sync"),n=e.querySelector("#sync-status");s.disabled=!0,n.className="sync-status",n.textContent="同步中…";try{const i=await t.sync();n.className=`sync-status ${i.className}`,n.textContent=i.message,await a()}catch(i){n.className="sync-status err",n.textContent=`同步失败：${i instanceof Error?i.message:String(i)}`}finally{s.disabled=!1}}),{show:a}}function _(e,t,a,s){const n=document.getElementById("tpl-select");if(!n)return;n.innerHTML=e.map(c=>`<option value="${r(c.id)}">${r(c.name)}</option>`).join(""),n.value=t??"",n.disabled=s;const i=document.getElementById("tpl-name");i&&(i.value=a,i.disabled=s,i.placeholder=s?"先新建模板":"模板名称（可改）");const o=document.getElementById("btn-tpl-del");o&&(o.disabled=s)}function D(e){const t=document.getElementById("save-chip");t&&(t.className=`save-chip ${e}`,t.textContent=e==="saving"?"保存中…":e==="saved"?"已自动保存":e==="dirty"?"有未保存修改":"",t.style.visibility=e==="hidden"?"hidden":"visible")}const E=document.getElementById("directory"),p=document.getElementById("flow");let f=[],l=null,k=[];const L=new Set;let x=-1,O=!1,w=null;function T(){D("dirty"),w!==null&&window.clearTimeout(w),w=window.setTimeout(()=>void $(),500)}async function $(){if(w!==null&&(window.clearTimeout(w),w=null),!(!l||O)){O=!0,D("saving");try{await G({...l,updatedAt:Date.now()})}finally{O=!1}w===null?(D("saved"),window.setTimeout(()=>D("hidden"),1400)):D("dirty")}}async function K(){w!==null&&(window.clearTimeout(w),w=null),l&&(await G({...l,updatedAt:Date.now()}),D("hidden"))}function Y(){_(f,(l==null?void 0:l.id)??null,(l==null?void 0:l.name)??"",!l),v(),h()}function v(){const e=E.scrollTop;E.innerHTML=Re({tpl:()=>l,customFields:()=>k,chipsOpen:L,activeGroup:()=>x,onGotoGroup:ne,onGotoSection:ie,onToggleAdd:oe,onAddType:le,onCustomNew:re,onCustomEdit:de,onCustomDel:ue}),E.scrollTop=e}function h(){const e=p.scrollTop;p.innerHTML=Me(l),qe(p),p.scrollTop=e}function ae(e){const t=l==null?void 0:l.sections.find(s=>s.id===e);if(!t)return;const a=E.querySelector(`[data-goto-sec="${CSS.escape(e)}"] .os-dot`);a==null||a.classList.toggle("filled",H(t))}function se(e){const t=p.querySelector(`#sec-${CSS.escape(e)}`);t&&(t.scrollIntoView({behavior:"smooth",block:"center"}),t.classList.add("flash"),window.setTimeout(()=>t.classList.remove("flash"),1600),window.setTimeout(U,320))}function U(){const e=p.getBoundingClientRect();let t=-1;if(p.querySelectorAll("[data-flow-group]").forEach(a=>{a.getBoundingClientRect().top-e.top<160&&(t=Number(a.dataset.flowGroup))}),t!==x){x=t;const a=E.querySelector(`[data-dir-group="${t}"]`);a&&a.classList.add("active"),E.querySelectorAll('.dir-group:not([data-dir-group=""])').forEach(s=>{s!==a&&s.classList.remove("active")})}}function ne(e){const t=p.querySelector(`[data-flow-group="${e}"]`);if(t)t.scrollIntoView({behavior:"smooth",block:"start"}),window.setTimeout(U,320);else{L.add(e),v();const a=E.querySelector(`[data-dir-group="${e}"]`);a==null||a.scrollIntoView({behavior:"smooth",block:"nearest"})}}function ie(e){se(e)}function oe(e){L.has(e)?L.delete(e):L.add(e),v()}function le(e){if(!l||l.sections.some(n=>n.type===e))return;const t=k.find(n=>n.id===e),a=X(e);a.label=(t==null?void 0:t.label)??a.label;const s=Se(l.sections,e);l.sections.splice(s,0,a),T(),$(),v(),h(),se(a.id)}function Ue(e){const t=l==null?void 0:l.sections.find(a=>a.id===e);t&&(H(t)&&!window.confirm(`从模板移除「${t.label}」及其内容？`)||(l.sections=l.sections.filter(a=>a.id!==e),T(),$(),v(),h()))}function ce(e,t){const a=l==null?void 0:l.sections.find(n=>n.id===e);if(!a)return;a.label=t,T(),$();const s=p.scrollTop;v(),h(),p.scrollTop=s}function Ve(e){const t=Oe(p,e);t&&Ee(t,a=>{const s=l==null?void 0:l.sections.find(n=>n.id===e);s&&a.trim()&&a.trim()!==s.label?ce(e,a.trim()):h()},()=>h())}function We(e){const t=l==null?void 0:l.sections.find(s=>s.id===e);if(!t||!A(t.data))return;t.data.items.push(xe(t.data.kind)),T(),$(),h();const a=p.querySelector(`#sec-${CSS.escape(e)}`);a==null||a.scrollIntoView({behavior:"smooth",block:"nearest"}),Pe(p,e),ae(e),v()}function ze(e,t){const a=l==null?void 0:l.sections.find(o=>o.id===e);if(!a||!A(a.data))return;const s=a.data.items[t];if(!s||Object.entries(s).some(([o,c])=>o!=="id"&&String(c??"").trim()!=="")&&!window.confirm("该条已有内容，确认删除？"))return;a.data.items.splice(t,1),T(),$();const i=p.scrollTop;v(),h(),p.scrollTop=i}function Je(e,t,a){const s=l==null?void 0:l.sections.find(c=>c.id===e);if(!s||!A(s.data))return;const n=s.data.items,i=t+a;if(i<0||i>=n.length)return;[n[t],n[i]]=[n[i],n[t]],T(),$();const o=p.scrollTop;h(),p.scrollTop=o}async function V(){const e=await I();e.customFields=k,await M(e)}async function re(){const e=await ee(null);e&&(k.push({id:g("custom"),label:e.label,keywords:e.keywords}),await V(),v())}async function de(e){const t=k.find(s=>s.id===e);if(!t)return;const a=await ee(t);a&&(t.label=a.label,t.keywords=a.keywords,await V(),v(),h())}async function ue(e){const t=k.find(a=>a.id===e);t&&window.confirm(`删除自定义组件「${t.label}」？已放入模板的字段会保留，但不再参与页面匹配。`)&&(k=k.filter(a=>a.id!==e),await V(),v())}function pe(e){const t=f.find(a=>a.id===e);t&&(l=t,L.clear(),x=-1,(async()=>{const a=await I();a.activeProfileId=t.id,await M(a)})(),Y())}function J(e){const t=Date.now(),a={id:g("tpl"),name:`模板 ${f.length+1}`,sections:e?F.map(s=>X(s)):[],createdAt:t,updatedAt:t};(async()=>(await G(a),f=await j(),await pe(a.id),e||(L.add(0),v())))()}function Qe(){document.getElementById("tpl-select").addEventListener("change",e=>{(async()=>(await K(),pe(e.target.value)))()}),document.getElementById("tpl-name").addEventListener("change",e=>{l&&(l.name=e.target.value.trim()||"未命名模板",T(),$().then(()=>_(f,l.id,l.name,!1)))}),document.getElementById("btn-tpl-new").addEventListener("click",()=>J(!1)),document.getElementById("btn-tpl-full").addEventListener("click",()=>J(!0)),document.getElementById("btn-tpl-del").addEventListener("click",()=>{l&&window.confirm(`删除模板「${l.name}」？`)&&(async()=>{const e=await I();e.activeProfileId===l.id&&(e.activeProfileId=null,await M(e)),await he(l.id),f=await j(),l=f.find(t=>t.id===e.activeProfileId)??f[0]??null,Y()})()})}function Xe(){document.querySelectorAll(".rail-item").forEach(e=>{e.addEventListener("click",()=>{const t=e.dataset.page??"";document.querySelectorAll(".rail-item").forEach(a=>a.classList.toggle("active",a===e)),document.querySelectorAll(".page").forEach(a=>a.classList.toggle("active",a.dataset.pagePanel===t)),t==="records"&&et.show()})})}async function Ze(){const e=await chrome.runtime.sendMessage({type:"SYNC_FROM_EASYWORK"});if(!(e!=null&&e.ok))throw new Error((e==null?void 0:e.error)??"同步失败");const t=e.data;if(t.serverReachable){f=await j();const a=await I(),s=f.find(n=>n.id===a.activeProfileId)??f[0]??null;s!==l&&s?(l=s,Y()):!s&&l&&(l=null,Y()),_(f,(l==null?void 0:l.id)??null,(l==null?void 0:l.name)??"",!l)}return{message:t.message,className:t.serverReachable?"ok":"err"}}const et=Ke(document.getElementById("page-records"),{sync:Ze});He(document.getElementById("page-ai"));async function tt(){f=await j();const e=await I();k=e.customFields,l=f.find(t=>t.id===e.activeProfileId)??f[0]??null,Y()}Ne(p,{active:()=>l,removeSection:Ue,addItem:We,removeItem:ze,moveItem:Je,markDirty:T,saveNow:$,refreshSectionBadge:ae,renameSectionLabel:ce,cancelRename:h,beginRename:Ve});Ge(E,{tpl:()=>l,customFields:()=>k,chipsOpen:L,activeGroup:()=>x,onGotoGroup:ne,onGotoSection:ie,onToggleAdd:oe,onAddType:le,onCustomNew:re,onCustomEdit:de,onCustomDel:ue});Qe();Xe();let P=!1;p.addEventListener("scroll",()=>{P||(P=!0,requestAnimationFrame(()=>{P=!1,U()}))},{passive:!0});window.addEventListener("pagehide",()=>void K());document.addEventListener("visibilitychange",()=>{document.visibilityState==="hidden"&&K()});tt();
