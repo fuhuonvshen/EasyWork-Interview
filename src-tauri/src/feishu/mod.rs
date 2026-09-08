@@ -1,6 +1,6 @@
-// EasyWork - 飞书多维表格公司库（只读镜像，以在线表格为准）。
+// EasyWork - 飞书多维表格公司库（同步以在线表格为权威源）。
 // 凭证内置，用户零配置；同步 = 全量拉取 → 整体替换本地 companies 表。
-// 表格字段：公司(文本) / 行业(文本) / 网址(文本)，其余列忽略。
+// 表格字段：公司 / 行业 / 网址 / 备注；备注支持软件内编辑并回写云端。
 
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -19,9 +19,11 @@ const TABLE_ID: &str = "tbl7LJyQDhYFh7yZ";
 static TOKEN_CACHE: Mutex<Option<(String, i64)>> = Mutex::new(None);
 
 pub struct FeishuRecord {
+    pub record_id: String, // 云端行 id，供备注等字段回写
     pub name: String,
     pub industry: String,
     pub url: String,
+    pub remark: String,
 }
 
 fn now_secs() -> i64 {
@@ -112,9 +114,11 @@ async fn list_records(token: &str) -> Result<Vec<FeishuRecord>, String> {
         for it in items {
             let fields = it["fields"].as_object().cloned().unwrap_or_default();
             out.push(FeishuRecord {
+                record_id: it["record_id"].as_str().unwrap_or("").to_string(),
                 name: field_str(fields.get("公司")),
                 industry: field_str(fields.get("行业")),
                 url: field_str(fields.get("网址")),
+                remark: field_str(fields.get("备注")),
             });
         }
         page_token = data["data"]["has_more"].as_bool().unwrap_or(false).then(|| {
@@ -156,6 +160,30 @@ pub(crate) async fn create_record(
         return Err(format!("云端新建记录失败: {}", data["msg"].as_str().unwrap_or("未知错误")));
     }
     Ok(data["data"]["record"]["record_id"].as_str().unwrap_or("").to_string())
+}
+
+/// 更新云端某条记录的"备注"字段（返回错误信息已中性化为"云端"，不暴露飞书）
+pub(crate) async fn update_record_remark(record_id: &str, remark: &str) -> Result<(), String> {
+    let token = tenant_access_token().await?;
+    let client = reqwest::Client::new();
+    let resp = client
+        .patch(format!(
+            "{BITABLE_BASE}/apps/{}/tables/{}/records/{}",
+            APP_TOKEN, TABLE_ID, record_id
+        ))
+        .bearer_auth(&token)
+        .json(&serde_json::json!({ "fields": { "备注": remark } }))
+        .send()
+        .await
+        .map_err(|e| format!("云端更新失败: {}", e))?;
+    let data: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("解析云端响应失败: {}", e))?;
+    if data["code"].as_i64() != Some(0) {
+        return Err(format!("云端更新失败: {}", data["msg"].as_str().unwrap_or("未知错误")));
+    }
+    Ok(())
 }
 
 /// 同步公司库：全量拉取云端表格 → 整体替换本地 companies 表（以在线表格为准）。

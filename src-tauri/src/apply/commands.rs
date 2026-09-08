@@ -122,6 +122,31 @@ pub async fn company_update(
     .map_err(|e| format!("更新公司失败: {}", e))
 }
 
+/// 更新公司备注：本地落库 + 云端行回写（无云端 record_id 时仅本地）
+#[tauri::command]
+pub async fn company_update_remark(
+    db: State<'_, DbState>,
+    id: String,
+    remark: String,
+) -> Result<crate::database::models::Company, String> {
+    let company = crate::database::repo::company_get(&db.0, &id)
+        .await
+        .map_err(|e| format!("查询公司失败: {}", e))?
+        .ok_or_else(|| "公司不存在".to_string())?;
+    let remark = remark.trim().to_string();
+    if !company.feishu_record_id.trim().is_empty() {
+        // 先写云端，成功再落本地；云端失败不覆盖本地
+        crate::feishu::update_record_remark(&company.feishu_record_id, &remark).await?;
+    }
+    crate::database::repo::company_set_remark(&db.0, &id, &remark)
+        .await
+        .map_err(|e| format!("保存备注失败: {}", e))?;
+    crate::database::repo::company_get(&db.0, &id)
+        .await
+        .map_err(|e| format!("查询公司失败: {}", e))?
+        .ok_or_else(|| "公司不存在".to_string())
+}
+
 /// 删除公司
 #[tauri::command]
 pub async fn company_delete(

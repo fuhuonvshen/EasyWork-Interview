@@ -1,6 +1,6 @@
 // EasyWork - 投递工作台（替代 iframe 内嵌投递页）
 // 两个 tab：公司库（飞书共享表格只读镜像，以在线表格为准） / 投递记录（进度管理 + 扩展双向同步）
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   ArrowLeft, RefreshCw, Plus, Rocket, Trash2, Pencil,
@@ -278,10 +278,24 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
 
   const fmtTime = (ms: number) => (ms ? new Date(ms).toLocaleDateString("zh-CN") : "—");
 
-  // 公司表格：表头固定在外层，内容区独立滚动；横向滚动时同步表头
-  const headWrapRef = useRef<HTMLDivElement>(null);
-  const syncHeadScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (headWrapRef.current) headWrapRef.current.scrollLeft = e.currentTarget.scrollLeft;
+  // 备注列行内编辑（云端共享字段，保存即回写）
+  const [remarkEditId, setRemarkEditId] = useState<string | null>(null);
+  const [remarkDraft, setRemarkDraft] = useState("");
+  const [remarkSaving, setRemarkSaving] = useState(false);
+
+  const saveRemark = async (c: Company) => {
+    if (remarkSaving) return;
+    setRemarkSaving(true);
+    try {
+      const updated = await invoke<Company>("company_update_remark", { id: c.id, remark: remarkDraft });
+      setCompanies((prev) => prev.map((x) => (x.id === c.id ? updated : x)));
+      setRemarkEditId(null);
+      showToast("备注已保存", "success");
+    } catch (e) {
+      console.error("保存备注失败", e);
+      showToast(typeof e === "string" ? e : "保存备注失败", "error");
+    }
+    setRemarkSaving(false);
   };
 
   /** 网址单元格：可点击，仅显示 hostname；微信文章链接不显示（数据保留） */
@@ -476,55 +490,93 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
                 </p>
               </div>
             ) : (
-              <>
-                <div ref={headWrapRef} className="flex-shrink-0 overflow-hidden border-b border-gray-100">
-                  <table className="w-full table-fixed text-left text-xs">
-                    <thead className="bg-gray-50">
-                      <tr className="text-[11px] text-gray-400">
-                        <th className="px-4 py-2.5 font-medium w-[28%]">公司名称</th>
-                        <th className="px-4 py-2.5 font-medium w-[16%]">业务类型</th>
-                        <th className="px-4 py-2.5 font-medium">招聘网址</th>
-                        <th className="px-4 py-2.5 font-medium text-right w-[24%]">操作</th>
-                      </tr>
-                    </thead>
-                  </table>
-                </div>
-                <div className="flex-1 min-h-0 overflow-auto" onScroll={syncHeadScroll}>
-                  <table className="w-full table-fixed text-left text-xs">
-                    <tbody className="divide-y divide-gray-50">
-                      {filteredCompanies.map((c) => (
-                        <tr key={c.id} className="group hover:bg-gray-50/60 transition-colors">
-                          <td className="px-4 py-2.5 overflow-hidden">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="font-semibold text-gray-800 truncate">{c.name}</span>
-                              {c.builtin && <span className="text-[9px] text-gray-300 flex-shrink-0">内置</span>}
+              <div className="flex-1 min-h-0 overflow-auto">
+                <table className="w-full table-fixed text-left text-xs">
+                  <thead className="sticky top-0 bg-gray-50/95 backdrop-blur z-10">
+                    <tr className="text-[11px] text-gray-400">
+                      <th className="px-4 py-2.5 font-medium w-[26%]">公司名称</th>
+                      <th className="px-4 py-2.5 font-medium w-[14%]">业务类型</th>
+                      <th className="px-4 py-2.5 font-medium w-[16%]">备注</th>
+                      <th className="px-4 py-2.5 font-medium">招聘网址</th>
+                      <th className="px-4 py-2.5 font-medium text-right w-[20%]">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filteredCompanies.map((c) => (
+                      <tr key={c.id} className="group hover:bg-gray-50/60 transition-colors">
+                        <td className="px-4 py-2.5 overflow-hidden">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-semibold text-gray-800 truncate">{c.name}</span>
+                            {c.builtin && <span className="text-[9px] text-gray-300 flex-shrink-0">内置</span>}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 overflow-hidden">
+                          {c.industry ? (
+                            <span className="px-1.5 py-0.5 text-[10px] bg-teal-50 text-teal-600 rounded">{c.industry}</span>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {remarkEditId === c.id ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                autoFocus
+                                value={remarkDraft}
+                                onChange={(e) => setRemarkDraft(e.target.value)}
+                                disabled={remarkSaving}
+                                placeholder="备注…"
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") saveRemark(c);
+                                  if (e.key === "Escape") setRemarkEditId(null);
+                                }}
+                                className="w-full min-w-0 px-2 py-1 text-[11px] text-gray-700 bg-white border border-teal-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-200"
+                              />
+                              {remarkSaving ? (
+                                <Loader size={12} className="animate-spin text-teal-500 flex-shrink-0" />
+                              ) : (
+                                <>
+                                  <button onClick={() => saveRemark(c)} className="p-1 text-teal-600 hover:bg-teal-50 rounded flex-shrink-0" title="保存">
+                                    <Check size={12} />
+                                  </button>
+                                  <button onClick={() => setRemarkEditId(null)} className="p-1 text-gray-400 hover:bg-gray-100 rounded flex-shrink-0" title="取消">
+                                    <X size={12} />
+                                  </button>
+                                </>
+                              )}
                             </div>
-                          </td>
-                          <td className="px-4 py-2.5 overflow-hidden">
-                            {c.industry ? (
-                              <span className="px-1.5 py-0.5 text-[10px] bg-teal-50 text-teal-600 rounded">{c.industry}</span>
-                            ) : (
-                              <span className="text-gray-300">—</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-2.5"><UrlCell url={c.url} /></td>
-                          <td className="px-4 py-2.5">
-                            <div className="flex items-center justify-end gap-1.5">
+                          ) : (
+                            <div className="flex items-center gap-1 group/rem min-w-0">
+                              <span className="text-gray-500 truncate flex-1">
+                                {c.remark || <span className="text-gray-300">—</span>}
+                              </span>
                               <button
-                                onClick={() => goApply(c)}
-                                className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
-                                title="浏览器打开招聘链接并新建投递记录"
+                                onClick={() => { setRemarkDraft(c.remark); setRemarkEditId(c.id); }}
+                                className="p-1 rounded text-gray-300 opacity-0 group-hover/rem:opacity-100 hover:text-teal-600 hover:bg-teal-50 transition-opacity flex-shrink-0"
+                                title="编辑备注（保存后同步共享库）"
                               >
-                                <Send size={11} /> 去投递
+                                <Pencil size={11} />
                               </button>
                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5"><UrlCell url={c.url} /></td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => goApply(c)}
+                              className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors"
+                              title="浏览器打开招聘链接并新建投递记录"
+                            >
+                              <Send size={11} /> 去投递
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>

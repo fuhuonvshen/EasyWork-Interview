@@ -109,8 +109,11 @@ export interface Company {
   name: string;
   industry: string;   // 业务类型
   url: string;        // 招聘网站
+  remark: string;     // 备注（云端同步；可编辑并回写共享库）
   builtin: boolean;   // 是否内置清单
   created_at: string;
+  updated_at: number;      // 毫秒时间戳
+  feishu_record_id: string; // 云端行 id（空 = 未同步）
 }
 
 export interface ScheduledMeeting {

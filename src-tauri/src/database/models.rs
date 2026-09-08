@@ -198,6 +198,7 @@ pub struct Company {
     pub name: String,
     pub industry: String,    // 业务类型
     pub url: String,         // 招聘网站
+    pub remark: String,      // 备注（云端同步，远端为空时保留本地）
     pub builtin: bool,       // 是否为内置清单（可删除，不重新 seed）
     pub created_at: String,
     pub updated_at: i64,     // 毫秒时间戳，飞书共享同步的新者胜依据

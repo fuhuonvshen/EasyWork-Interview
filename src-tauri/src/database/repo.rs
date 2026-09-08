@@ -305,6 +305,8 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
         .execute(pool).await.ok();
     sqlx::query("ALTER TABLE companies ADD COLUMN feishu_record_id TEXT NOT NULL DEFAULT ''")
         .execute(pool).await.ok();
+    sqlx::query("ALTER TABLE companies ADD COLUMN remark TEXT NOT NULL DEFAULT ''")
+        .execute(pool).await.ok();
 
     // 首次启动 seed 内置公司清单（seed 版本 v3，仅一次整体替换；
     // 用户删除的内置公司不会重新出现）
@@ -1687,9 +1689,50 @@ pub async fn company_set_feishu_record_id(pool: &SqlitePool, id: &str, record_id
     Ok(())
 }
 
+/// 取一家公司
+pub async fn company_get(pool: &SqlitePool, id: &str) -> Result<Option<Company>> {
+    let row = sqlx::query_as::<_, Company>("SELECT * FROM companies WHERE id = ?")
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .context("查询公司失败")?;
+    Ok(row)
+}
+
+/// 更新备注（刷新 updated_at，远端记录同步调用方负责）
+pub async fn company_set_remark(pool: &SqlitePool, id: &str, remark: &str) -> Result<()> {
+    sqlx::query("UPDATE companies SET remark = ?, updated_at = ? WHERE id = ?")
+        .bind(remark)
+        .bind(chrono::Local::now().timestamp_millis())
+        .bind(id)
+        .execute(pool)
+        .await
+        .context("更新公司备注失败")?;
+    Ok(())
+}
+
 /// 飞书同步：全量替换本地公司表（以在线表格为权威源）。
-/// 传入的 record 含 name/industry/url，本地记录整体重建。
+/// 携带远端 record_id（供备注回写）；远端备注为空的行保留本地旧备注，
+/// 避免整体替换吞掉"云端列尚未填写"的离线备注。
 pub async fn company_replace_all(pool: &SqlitePool, records: &[crate::feishu::FeishuRecord]) -> Result<()> {
+    let mut local_remark_by_record: HashMap<String, String> = HashMap::new();
+    let mut local_remark_by_name: HashMap<String, String> = HashMap::new();
+    {
+        let existing = sqlx::query("SELECT name, feishu_record_id, remark FROM companies")
+            .fetch_all(pool)
+            .await
+            .context("读取旧公司记录失败")?;
+        for row in existing {
+            let name: String = row.get("name");
+            let rid: String = row.get("feishu_record_id");
+            let remark: String = row.get("remark");
+            if !rid.is_empty() {
+                local_remark_by_record.entry(rid).or_insert_with(|| remark.clone());
+            }
+            local_remark_by_name.entry(name).or_insert_with(|| remark.clone());
+        }
+    }
+
     let mut tx = pool.begin().await.context("开始替换公司库事务失败")?;
     sqlx::query("DELETE FROM companies")
         .execute(&mut *tx)
@@ -1702,15 +1745,26 @@ pub async fn company_replace_all(pool: &SqlitePool, records: &[crate::feishu::Fe
         if name.is_empty() {
             continue;
         }
+        let record_id = r.record_id.trim();
+        // 远端备注为空 → 合并本地旧备注（先按 record_id、再按名称）
+        let remark = if !r.remark.is_empty() {
+            r.remark.trim().to_string()
+        } else if !record_id.is_empty() {
+            local_remark_by_record.get(record_id).cloned().unwrap_or_default()
+        } else {
+            local_remark_by_name.get(name).cloned().unwrap_or_default()
+        };
         sqlx::query(
-            "INSERT INTO companies (id, name, industry, url, builtin, created_at, updated_at, feishu_record_id) VALUES (?, ?, ?, ?, 0, ?, ?, '')",
+            "INSERT INTO companies (id, name, industry, url, remark, builtin, created_at, updated_at, feishu_record_id) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)",
         )
         .bind(uuid::Uuid::new_v4().to_string())
         .bind(name)
         .bind(r.industry.trim())
         .bind(r.url.trim())
+        .bind(remark)
         .bind(&now)
         .bind(ts)
+        .bind(record_id)
         .execute(&mut *tx)
         .await
         .context("插入飞书公司记录失败")?;

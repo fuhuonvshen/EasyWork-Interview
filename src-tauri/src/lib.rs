@@ -233,6 +233,7 @@ pub fn run() {
             apply::commands::company_list,
             apply::commands::company_add,
             apply::commands::company_update,
+            apply::commands::company_update_remark,
             apply::commands::company_delete,
             apply::commands::company_add_shared,
             apply::commands::validate_company,
