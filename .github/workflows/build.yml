@@ -95,8 +95,20 @@ jobs:
           test -x llama-server && echo "llama-server OK"
           ls -la | grep -E "llama-server|dylib" | head -15
 
-      # 注：sherpa-onnx 不干预，构建方式与 EasyWork 的 publish.yml 完全一致，
-      # sherpa-onnx-sys 构建脚本自动下载匹配的预编译库。
+      # ── Windows 专用：sherpa-onnx 用 /MD（动态 CRT）预编译库（与 EasyWork publish.yml 同款）──
+      # sherpa-onnx-sys 自动下载的是 ...-MT-... 静态 CRT 资产，与 whisper.cpp 的 /MD
+      # 混链触发 /failifmismatch: RuntimeLibrary（MD vs MT）链接错误。
+      # 这里从 v1.13.3 Release 下载 MD 版静态库并设 SHERPA_ONNX_LIB_DIR 让构建脚本命中。
+      - name: Download sherpa-onnx MD prebuilt libs (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $pkg = "sherpa-onnx-v1.13.3-win-x64-static-MD-Release-lib"
+          $libdir = "${{ github.workspace }}\src-tauri\target\sherpa-onnx-prebuilt\$pkg\lib"
+          New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\src-tauri\target\sherpa-onnx-prebuilt"
+          curl.exe -fL -o "${{ github.workspace }}\src-tauri\target\sherpa-onnx-prebuilt\$pkg.tar.bz2" "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.3/$pkg.tar.bz2"
+          tar -xjf "${{ github.workspace }}\src-tauri\target\sherpa-onnx-prebuilt\$pkg.tar.bz2" -C "${{ github.workspace }}\src-tauri\target\sherpa-onnx-prebuilt"
+          echo "SHERPA_ONNX_LIB_DIR=$libdir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       # ── 普通 push：构建 + 上传 Artifact（不发布 Release）──
       - name: Build Tauri app (non-tag)
