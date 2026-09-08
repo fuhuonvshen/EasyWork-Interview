@@ -109,6 +109,27 @@ def _decode_part(part: email.message.Message) -> str:
         return payload.decode("utf-8", errors="replace")
 
 
+def _imap_id(conn: imaplib.IMAP4):
+    """RFC 2971 ID：向服务器声明客户端身份。
+
+    网易 163/126 的官方客户端接入示例把 ID 作为标准步骤（JavaMail store.id(IAM)），
+    未声明身份的连接更容易被风控判定为 unsafe。imaplib 无内置 ID 命令，
+    这里手工发送并等待 tagged 响应以保持连接状态同步；失败仅记日志不阻塞。
+    """
+    try:
+        tag = conn._new_tag()
+        body = (b'ID ("name" "EasyWork" "version" "1.0.9" '
+                b'"vendor" "EasyWork" "support-email" "easywork@localhost")')
+        conn.send(tag + b" " + body + b"\r\n")
+        typ, _data = conn._get_tagged_response(tag)
+        if typ != "OK":
+            logger.info("IMAP ID 被服务器拒绝（忽略）: %s", typ)
+        return typ == "OK"
+    except Exception as e:
+        logger.info("IMAP ID 发送失败（忽略）: %s", e)
+        return False
+
+
 def _imap_connect(host: str, email_addr: str, auth_code: str):
     """建立 IMAP4_SSL 连接并 SELECT INBOX（只读，不传 READONLY 因不写任何命令）。
     返回 (conn, uidvalidity)。认证失败抛 imaplib.IMAP4.error。"""
@@ -121,6 +142,7 @@ def _imap_connect(host: str, email_addr: str, auth_code: str):
         conn = imaplib.IMAP4_SSL(host, PORT, ssl_context=ctx, timeout=20)
     try:
         conn.login(email_addr, auth_code)
+        _imap_id(conn)  # 163/QQ 等要求客户端自报身份，缺失易被判 unsafe
         typ, data = conn.select("INBOX")
         if typ != "OK":
             raise imaplib.IMAP4.error(f"无法打开收件箱: {data}")
@@ -223,8 +245,10 @@ def _imap_round(account: dict, meta: dict, today: date) -> tuple[list[dict], dic
             })
         return mails, meta, None
     except imaplib.IMAP4.error as e:
+        logger.warning("邮箱 IMAP 失败 %s: %s", email_addr, e)
         return [], {**meta, acc_id: {**m, "last_error": f"邮箱连接失败: {e}", "last_scan_at": _now_iso()}}, None
     except Exception as e:  # 网络等
+        logger.warning("邮箱连接异常 %s: %s", email_addr, e)
         return [], {**meta, acc_id: {**m, "last_error": f"连接异常: {e}", "last_scan_at": _now_iso()}}, None
     finally:
         if conn is not None:
@@ -458,7 +482,10 @@ async def ignore_pending(pid: str):
 
 
 async def test_account(email_addr: str, auth_code: str, host: str | None = None) -> dict:
-    """快速连通性测试（LOGIN + SELECT），供设置弹窗「测试连接」。"""
+    """快速连通性测试（LOGIN + SELECT），供设置弹窗「测试连接」。
+
+    失败时 error 附上服务器原始报错（截断），并写入日志，便于排查。
+    """
     host = (host or "").strip() or default_host(email_addr)
     try:
         conn, _uidvalidity = await asyncio.to_thread(_imap_connect, host, email_addr.strip(), auth_code.strip())
@@ -468,11 +495,21 @@ async def test_account(email_addr: str, auth_code: str, host: str | None = None)
             pass
         return {"ok": True, "error": "", "host": host}
     except imaplib.IMAP4.error as e:
-        msg = str(e)
-        if "authenticationfailed" in msg.lower() or "login" in msg.lower():
-            msg = "授权码不正确（或未开启 IMAP 服务），请到网页邮箱开启 IMAP 并生成授权码"
+        logger.warning("邮箱测试连接失败 %s: %s", email_addr, e)
+        detail = str(e).strip().replace("\r", " ").replace("\n", " ")
+        if len(detail) > 200:
+            detail = detail[:200] + "…"
+        low = detail.lower()
+        if "unsafe login" in low:
+            msg = (f"网易判定该账号为不安全登录（服务器: {detail}）。"
+                   f"请先在浏览器登录一次网页邮箱完成验证、关闭代理/VPN 后重试；仍不行联系 kefu@188.com")
+        elif "authenticationfailed" in low or "login failed" in low or "invalid credentials" in low:
+            msg = f"认证失败，请核对授权码与完整邮箱地址（服务器: {detail}）"
+        else:
+            msg = f"连接失败（服务器: {detail}）"
         return {"ok": False, "error": msg, "host": host}
     except Exception as e:
+        logger.warning("邮箱测试连接异常 %s: %s", email_addr, e)
         return {"ok": False, "error": str(e), "host": host}
 
 

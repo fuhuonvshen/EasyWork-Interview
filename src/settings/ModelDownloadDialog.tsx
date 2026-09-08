@@ -99,8 +99,10 @@ export default function ModelDownloadDialog({
         authCode: emailForm.auth_code.trim(),
         host: emailForm.host.trim() || null,
       });
+      if (!res.ok) console.error("[邮箱测试失败]", res.error);
       setEmailTestMsg(res.ok ? { ok: true, text: `连接成功（${res.host}）` } : { ok: false, text: res.error || "连接失败" });
     } catch (e) {
+      console.error("[邮箱测试异常]", e);
       setEmailTestMsg({ ok: false, text: typeof e === "string" ? e : "连接失败" });
     }
     setEmailTesting(false);
