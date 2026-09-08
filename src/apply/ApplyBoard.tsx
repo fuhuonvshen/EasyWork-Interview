@@ -1,6 +1,6 @@
 // EasyWork - 投递工作台（替代 iframe 内嵌投递页）
 // 两个 tab：公司库（飞书共享表格只读镜像，以在线表格为准） / 投递记录（进度管理 + 扩展双向同步）
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   ArrowLeft, RefreshCw, Plus, Rocket, Trash2, Pencil,
@@ -278,6 +278,33 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
 
   const fmtTime = (ms: number) => (ms ? new Date(ms).toLocaleDateString("zh-CN") : "—");
 
+  // ── 公司表格：表头/表身两个表格但逐像素对齐 ──
+  // 表头容器在滚动区外固定（不随行滚动），背景铺满到容器右缘（滚动条不压在表头上方）；
+  // 表身出现纵向滚动条时会吃掉一部分内容宽度——这是此前两表错位的根因。
+  // 这里实测滚动条宽度，给表头表格右侧留相同空隙，两表内容宽度始终一致。
+  const headWrapRef = useRef<HTMLDivElement>(null);
+  const bodyWrapRef = useRef<HTMLDivElement>(null);
+  const [headGap, setHeadGap] = useState(0);
+
+  const syncHeadScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (headWrapRef.current) headWrapRef.current.scrollLeft = e.currentTarget.scrollLeft;
+  };
+
+  useEffect(() => {
+    const measure = () => {
+      const el = bodyWrapRef.current;
+      if (!el) return;
+      const hasVScroll = el.scrollHeight > el.clientHeight + 1;
+      setHeadGap(hasVScroll ? el.offsetWidth - el.clientWidth : 0);
+    };
+    window.addEventListener("resize", measure);
+    const raf = requestAnimationFrame(measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      cancelAnimationFrame(raf);
+    };
+  }, [companies, companyKeyword, industryFilter]);
+
   // 备注列行内编辑（云端共享字段，保存即回写）
   const [remarkEditId, setRemarkEditId] = useState<string | null>(null);
   const [remarkDraft, setRemarkDraft] = useState("");
@@ -490,17 +517,23 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
                 </p>
               </div>
             ) : (
-              <div className="flex-1 min-h-0 overflow-auto">
-                <table className="w-full table-fixed text-left text-xs">
-                  <thead className="sticky top-0 bg-gray-50/95 backdrop-blur z-10">
-                    <tr className="text-[11px] text-gray-400">
-                      <th className="px-4 py-2.5 font-medium w-[26%]">公司名称</th>
-                      <th className="px-4 py-2.5 font-medium w-[14%]">业务类型</th>
-                      <th className="px-4 py-2.5 font-medium w-[16%]">备注</th>
-                      <th className="px-4 py-2.5 font-medium">招聘网址</th>
-                      <th className="px-4 py-2.5 font-medium text-right w-[20%]">操作</th>
-                    </tr>
-                  </thead>
+              <>
+                {/* 表头固定在滚动区外；宽度按 headGap 扣掉表身滚动条占位，列线与表身对齐 */}
+                <div ref={headWrapRef} className="flex-shrink-0 overflow-hidden bg-gray-50 border-b border-gray-100">
+                  <table className="w-full table-fixed text-left text-xs" style={{ marginRight: headGap }}>
+                    <thead>
+                      <tr className="text-[11px] text-gray-400">
+                        <th className="px-4 py-2.5 font-medium w-[26%]">公司名称</th>
+                        <th className="px-4 py-2.5 font-medium w-[14%]">业务类型</th>
+                        <th className="px-4 py-2.5 font-medium w-[16%]">备注</th>
+                        <th className="px-4 py-2.5 font-medium">招聘网址</th>
+                        <th className="px-4 py-2.5 font-medium text-right w-[20%]">操作</th>
+                      </tr>
+                    </thead>
+                  </table>
+                </div>
+                <div ref={bodyWrapRef} className="flex-1 min-h-0 overflow-auto" onScroll={syncHeadScroll}>
+                  <table className="w-full table-fixed text-left text-xs">
                   <tbody className="divide-y divide-gray-50">
                     {filteredCompanies.map((c) => (
                       <tr key={c.id} className="group hover:bg-gray-50/60 transition-colors">
@@ -576,7 +609,8 @@ export default function ApplyBoard({ onBack }: { onBack: () => void }) {
                     ))}
                   </tbody>
                 </table>
-              </div>
+                </div>
+              </>
             )}
           </div>
         </div>

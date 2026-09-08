@@ -166,8 +166,9 @@ pub(crate) async fn create_record(
 pub(crate) async fn update_record_remark(record_id: &str, remark: &str) -> Result<(), String> {
     let token = tenant_access_token().await?;
     let client = reqwest::Client::new();
+    // 飞书单条更新记录是 PUT 方法（POST 是批量更新 batch_update）
     let resp = client
-        .patch(format!(
+        .put(format!(
             "{BITABLE_BASE}/apps/{}/tables/{}/records/{}",
             APP_TOKEN, TABLE_ID, record_id
         ))
