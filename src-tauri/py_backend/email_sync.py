@@ -470,11 +470,7 @@ async def test_account(email_addr: str, auth_code: str, host: str | None = None)
     except imaplib.IMAP4.error as e:
         msg = str(e)
         if "authenticationfailed" in msg.lower() or "login" in msg.lower():
-            # 附上服务器原始报错（截断过长内容），便于区分授权码/账号/风控等原因
-            detail = msg.strip().replace("\r", " ").replace("\n", " ")
-            if len(detail) > 120:
-                detail = detail[:120] + "…"
-            msg = f"认证失败：请核对授权码与完整邮箱地址（服务器返回: {detail or '无详情'}）"
+            msg = "授权码不正确（或未开启 IMAP 服务），请到网页邮箱开启 IMAP 并生成授权码"
         return {"ok": False, "error": msg, "host": host}
     except Exception as e:
         return {"ok": False, "error": str(e), "host": host}
