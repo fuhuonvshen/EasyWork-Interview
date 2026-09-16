@@ -328,7 +328,7 @@ button, a, input, select, textarea {
   color: #0f766e;
   background: rgba(16, 185, 129, 0.05);
 }
-.wb-dock-bar span {
+.wb-dock-bar-label {
   writing-mode: vertical-rl;
   font-size: 11px;
   font-weight: 600;
@@ -361,6 +361,265 @@ button, a, input, select, textarea {
 }
 .wb-dock-glass.wb-dock-collapsed .wb-dock-bar:hover {
   background: rgba(16, 185, 129, 0.1);
+}
+
+/* ── 侧边栏视图切换栏（对话 / 待办，位于放大·折叠按钮左侧）── */
+.wb-dock-switch {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+.wb-dock-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  transition: color 0.18s, background 0.18s;
+}
+.wb-dock-switch button:hover {
+  color: #0f766e;
+}
+.wb-dock-switch button.active {
+  color: #fff;
+  background: linear-gradient(135deg, #10b981, #0ea5a4);
+  box-shadow: 0 4px 10px -4px rgba(16, 185, 129, 0.7);
+}
+.wb-dock-switch-badge {
+  min-width: 13px;
+  padding: 0 3px;
+  border-radius: 999px;
+  font-size: 9px;
+  line-height: 13px;
+  text-align: center;
+  background: #10b981;
+  color: #fff;
+}
+.wb-dock-switch button.active .wb-dock-switch-badge {
+  background: rgba(255, 255, 255, 0.92);
+  color: #047857;
+}
+/* 折叠态竖排入口：待完成数量叠在头像右下角 */
+.wb-dock-bar-avatar {
+  position: relative;
+  display: flex;
+}
+.wb-dock-bar-count {
+  position: absolute;
+  right: -4px;
+  top: -4px;
+  min-width: 13px;
+  padding: 0 3px;
+  border-radius: 999px;
+  font-size: 9px;
+  line-height: 14px;
+  letter-spacing: 0;
+  writing-mode: horizontal-tb;
+  text-align: center;
+  background: #10b981;
+  color: #fff;
+  box-shadow: 0 0 0 1.5px #fff, 0 4px 10px -4px rgba(16, 185, 129, 0.9);
+}
+
+/* ── 侧边栏待办：上日历 / 下当日列表 ────────────────── */
+.wb-todo {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.wb-cal {
+  flex-shrink: 0;
+  padding: 4px 10px 6px;
+}
+.wb-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.wb-cal-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+.wb-cal-nav {
+  display: flex;
+  gap: 2px;
+}
+.wb-cal-nav button {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.wb-cal-nav button:hover {
+  color: #0f766e;
+  background: rgba(16, 185, 129, 0.1);
+}
+.wb-cal-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 2px;
+}
+.wb-cal-week span {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+.wb-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.wb-cal-cell {
+  height: 38px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.wb-cal-cell:disabled {
+  cursor: default;
+}
+.wb-cal-cell:not(:disabled):hover {
+  background: rgba(16, 185, 129, 0.09);
+}
+.wb-cal-day {
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  color: #475569;
+}
+.wb-cal-cell.wb-cal-edge .wb-cal-day {
+  color: #cbd5e1;
+}
+.wb-cal-cell.wb-cal-today {
+  box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.35);
+}
+.wb-cal-cell.wb-cal-today .wb-cal-day {
+  color: #059669;
+}
+/* 有未完成待办且已过期：日期标红 */
+.wb-cal-cell.wb-cal-overdue .wb-cal-day {
+  color: #ef4444;
+}
+.wb-cal-cell.wb-cal-sel,
+.wb-cal-cell.wb-cal-sel:hover {
+  background: linear-gradient(135deg, #10b981, #0ea5a4);
+  box-shadow: 0 4px 12px -4px rgba(16, 185, 129, 0.6);
+}
+.wb-cal-cell.wb-cal-sel .wb-cal-day {
+  color: #fff;
+}
+.wb-cal-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 5px;
+}
+.wb-cal-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+}
+.wb-cal-cell.wb-cal-sel .wb-cal-dot {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85);
+}
+.wb-cal-more {
+  font-size: 8px;
+  line-height: 1;
+  color: #94a3b8;
+}
+.wb-cal-cell.wb-cal-sel .wb-cal-more {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* 下半部分：选中日期的待办 */
+.wb-todo-detail {
+  flex: 1;
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid rgba(255, 255, 255, 0.6);
+}
+.wb-todo-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 10px 4px;
+  flex-shrink: 0;
+}
+.wb-todo-date {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #334155;
+  flex-shrink: 0;
+}
+.wb-todo-today {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #047857;
+  background: rgba(16, 185, 129, 0.14);
+}
+.wb-todo-undated {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.5);
+  color: #64748b;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.wb-todo-undated:hover {
+  color: #0f766e;
+  background: rgba(16, 185, 129, 0.12);
+}
+.wb-todo-undated.active {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(135deg, #10b981, #0ea5a4);
+}
+.wb-todo-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 8px 8px;
 }
 
 /* 顶部滚动提示条 */

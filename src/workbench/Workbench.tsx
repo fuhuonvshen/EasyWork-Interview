@@ -1,12 +1,14 @@
 // EasyWork - Workbench (landing page: 水滴气泡卡片 + 右侧常驻对话面板)
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { FileText, BookOpen, Rocket, Bot, FileSearch, MessageSquareHeart, Settings, PanelRightClose, Maximize2, Loader } from "lucide-react";
+import { FileText, BookOpen, Rocket, Bot, FileSearch, MessageSquareHeart, MessageSquare, ListTodo, Settings, PanelRightClose, Maximize2, Loader } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import AgentChat from "../agent/AgentChat";
 import ModelDownloadDialog from "../settings/ModelDownloadDialog";
 import FtueTour, { type FtueStep } from "../components/FtueTour";
-import type { AgentConversationSummary } from "../types";
+import DockTodo from "./DockTodo";
+import { showToast } from "../components/Toast";
+import type { AgentConversationSummary, TodoItem } from "../types";
 import type { CSSProperties } from "react";
 
 // 首屏新手指引（仅首次启动展示，完成后写 ftue_done 标记；
@@ -138,12 +140,15 @@ const WORKBENCH_CARDS: {
 export default function Workbench({ onEnter }: { onEnter: (title?: string, action?: string) => void }) {
   const [appVersion, setAppVersion] = useState("");
   const [showModel, setShowModel] = useState(false);
-  // 右侧常驻对话面板
+  // 右侧常驻面板：对话 / 待办（日历）两个视图
   const [dockOpen, setDockOpen] = useState(true);
+  const [dockTab, setDockTab] = useState<"chat" | "todo">("chat");
   const [dockConvId, setDockConvId] = useState<string | null>(null);
   const [dockConvs, setDockConvs] = useState<AgentConversationSummary[]>([]);
   const [dockLoading, setDockLoading] = useState(true);
   const [dockCreating, setDockCreating] = useState(false);
+  const [dockTodos, setDockTodos] = useState<TodoItem[]>([]);
+  const [dockTodoLoading, setDockTodoLoading] = useState(true);
 
   // ── 气泡物理：六个模块在场景内自由漂浮 + 互相碰撞不重叠 ──
   // 注意：.wb-pos 的 left/top 是相对 wb-scene 的坐标系，边界必须用场景尺寸，
@@ -270,6 +275,43 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
 
   const dockConvType = dockConvs.find((c) => c.id === dockConvId)?.type || "general";
 
+  // 侧边栏待办：进首页拉一次（切换栏角标要用），切到待办页再拉一次
+  const loadDockTodos = useCallback(() => {
+    invoke<TodoItem[]>("todo_list")
+      .then(setDockTodos)
+      .catch((e) => console.error("加载待办列表失败:", e))
+      .finally(() => setDockTodoLoading(false));
+  }, []);
+
+  useEffect(() => { loadDockTodos(); }, [loadDockTodos]);
+
+  const switchDockTab = (tab: "chat" | "todo") => {
+    setDockTab(tab);
+    if (tab === "todo") loadDockTodos();
+  };
+
+  const handleDockTodoToggle = async (id: string, done: boolean) => {
+    try {
+      await invoke("todo_update_status", { id, status: done ? "done" : "pending" });
+      loadDockTodos();
+    } catch (e) {
+      console.error("更新待办状态失败:", e);
+      showToast("更新待办状态失败", "error");
+    }
+  };
+
+  const handleDockTodoDelete = async (id: string) => {
+    try {
+      await invoke("todo_delete", { id });
+      loadDockTodos();
+    } catch (e) {
+      console.error("删除待办失败:", e);
+      showToast("删除待办失败", "error");
+    }
+  };
+
+  const pendingTodoCount = dockTodos.filter((t) => t.status === "pending").length;
+
   return (
     <div className="h-full flex flex-col relative">
       {/* 主内容：气泡场景 + 右侧对话面板（dock 上下满高，底部栏仅占左下） */}
@@ -313,7 +355,34 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-gray-900 leading-tight">面试助手</p>
-                  <p className="text-[10px] text-gray-400 leading-tight">快速问答 · 随时可用</p>
+                  <p className="text-[10px] text-gray-400 leading-tight truncate">
+                    {dockTab === "chat" ? "快速问答 · 随时可用" : "日历视图 · 按日期查看"}
+                  </p>
+                </div>
+                <div className="wb-dock-switch" role="tablist" aria-label="面板视图">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={dockTab === "chat"}
+                    onClick={() => switchDockTab("chat")}
+                    className={dockTab === "chat" ? "active" : ""}
+                  >
+                    <MessageSquare size={11} />
+                    对话
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={dockTab === "todo"}
+                    onClick={() => switchDockTab("todo")}
+                    className={dockTab === "todo" ? "active" : ""}
+                  >
+                    <ListTodo size={11} />
+                    待办
+                    {pendingTodoCount > 0 && (
+                      <span className="wb-dock-switch-badge">{pendingTodoCount}</span>
+                    )}
+                  </button>
                 </div>
                 <button
                   onClick={() => onEnter(undefined, "agent")}
@@ -331,7 +400,14 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
                 </button>
               </div>
               <div className="wb-dock-body">
-                {dockLoading ? (
+                {dockTab === "todo" ? (
+                  <DockTodo
+                    todos={dockTodos}
+                    loading={dockTodoLoading}
+                    onToggle={handleDockTodoToggle}
+                    onDelete={handleDockTodoDelete}
+                  />
+                ) : dockLoading ? (
                   <div className="flex-1 flex items-center justify-center gap-2 text-xs text-gray-400">
                     <Loader size={14} className="animate-spin" /> 加载中...
                   </div>
@@ -361,14 +437,29 @@ export default function Workbench({ onEnter }: { onEnter: (title?: string, actio
                   </div>
                 )}
               </div>
-              <p className="wb-dock-hint">点右上角展开完整面试助手（角色对话/模拟面试）</p>
+              <p className="wb-dock-hint">
+                {dockTab === "chat"
+                  ? "点右上角展开完整面试助手（角色对话/模拟面试）"
+                  : "点日期查看当天待办 · 新建/编辑请展开完整面试助手"}
+              </p>
             </>
           ) : (
-            <button className="wb-dock-bar" onClick={() => setDockOpen(true)} title="展开对话面板">
-              <div className="wb-dock-avatar">
-                <Bot size={14} />
-              </div>
-              <span>对话</span>
+            <button
+              className="wb-dock-bar"
+              onClick={() => setDockOpen(true)}
+              title={dockTab === "chat" ? "展开对话面板" : "展开待办面板"}
+            >
+              <span className="wb-dock-bar-avatar">
+                <div className="wb-dock-avatar">
+                  <Bot size={14} />
+                </div>
+                {pendingTodoCount > 0 && (
+                  <span className="wb-dock-bar-count" title="待完成待办">
+                    {pendingTodoCount}
+                  </span>
+                )}
+              </span>
+              <span className="wb-dock-bar-label">{dockTab === "chat" ? "对话" : "待办"}</span>
             </button>
           )}
         </aside>

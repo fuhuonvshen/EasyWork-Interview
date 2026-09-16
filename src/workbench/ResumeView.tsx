@@ -388,7 +388,7 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
               <div className="wb-dock-avatar" style={{ background: "linear-gradient(135deg, #f59e0b, #f97316)" }}>
                 <Bot size={14} />
               </div>
-              <span>对话</span>
+              <span className="wb-dock-bar-label">对话</span>
             </button>
           )}
         </aside>

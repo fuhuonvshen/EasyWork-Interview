@@ -301,7 +301,7 @@ export default function QuestionBankView({ onBack, onExpand }: {
               <div className="wb-dock-avatar" style={{ background: "linear-gradient(135deg, #8b5cf6, #6366f1)" }}>
                 <Bot size={14} />
               </div>
-              <span>对话</span>
+              <span className="wb-dock-bar-label">对话</span>
             </button>
           )}
         </aside>
