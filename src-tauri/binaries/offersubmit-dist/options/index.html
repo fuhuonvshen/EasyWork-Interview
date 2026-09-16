@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>OfferSubmit - 简历自动填写</title>
-  <script type="module" crossorigin src="/assets/options-CbZIerBq.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/storage-CODHKYEq.js">
+  <script type="module" crossorigin src="/assets/options-yxScVZUc.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/storage-BgeifeEi.js">
   <link rel="stylesheet" crossorigin href="/assets/storage-B7BOSUEO.css">
-  <link rel="stylesheet" crossorigin href="/assets/options-D5enGn7r.css">
+  <link rel="stylesheet" crossorigin href="/assets/options-CyN4_Yzk.css">
 </head>
 <body>
   <div class="app">
@@ -17,9 +17,13 @@
         <div class="brand-text"><b>OfferSubmit</b><span>简历自动填写助手</span></div>
       </div>
       <nav class="rail-nav">
-        <button type="button" class="rail-item active" data-page="editor">
+        <button type="button" class="rail-item active" data-page="moka">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+          默认模板
+        </button>
+        <button type="button" class="rail-item" data-page="editor">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6M9 11h2"/></svg>
-          简历模板
+          自定义模板
         </button>
         <button type="button" class="rail-item" data-page="records">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
@@ -34,11 +38,14 @@
     </aside>
 
     <main class="main">
-      <!-- 简历编辑：左目录 + 右整组表单流 -->
-      <section class="page active" id="page-editor" data-page-panel="editor">
+      <!-- 默认模板：Moka 通用简历页固定字段（视图由 mokaView.ts 渲染） -->
+      <section class="page active" id="page-moka" data-page-panel="moka"></section>
+
+      <!-- 自定义模板：左目录 + 右整组表单流 -->
+      <section class="page" id="page-editor" data-page-panel="editor">
         <div class="page-head">
           <div class="page-title">
-            <h1>简历模板</h1>
+            <h1>自定义模板</h1>
             <p>左侧按校招网申模块排布目录，右侧整组表单流式编辑，改动自动保存；一键填充按此内容匹配页面字段。</p>
           </div>
           <div class="toolbar">
