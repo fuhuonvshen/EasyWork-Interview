@@ -71,17 +71,28 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
     // 面试题库（AI 从面试转写中提取面试官问题，供复习）
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS interview_questions (
-            id               TEXT PRIMARY KEY,
-            category         TEXT NOT NULL,
-            difficulty       TEXT NOT NULL DEFAULT 'medium',
-            question         TEXT NOT NULL,
-            expected_answer  TEXT,
-            created_at       TEXT NOT NULL
+            id                 TEXT PRIMARY KEY,
+            category           TEXT NOT NULL,
+            difficulty         TEXT NOT NULL DEFAULT 'medium',
+            question           TEXT NOT NULL,
+            expected_answer    TEXT,
+            created_at         TEXT NOT NULL,
+            source_meeting_id  TEXT,
+            in_bank            INTEGER NOT NULL DEFAULT 0
         )",
     )
     .execute(pool)
     .await
     .context("创建 interview_questions 表失败")?;
+    // Add columns for databases created before the migration
+    let _ = sqlx::query("ALTER TABLE interview_questions ADD COLUMN source_meeting_id TEXT")
+        .execute(pool)
+        .await;
+    let _ = sqlx::query(
+        "ALTER TABLE interview_questions ADD COLUMN in_bank INTEGER NOT NULL DEFAULT 0",
+    )
+    .execute(pool)
+    .await;
 
     // 面试评估（AI 结构化输出）
     sqlx::query(
@@ -1227,7 +1238,7 @@ pub async fn todo_delete(pool: &SqlitePool, id: &str) -> Result<()> {
 
 // ── 面试（Interview）相关 ─────────────────────────────────────────
 
-use super::models::{InterviewAssessment, InterviewQuestion};
+use super::models::{InterviewAssessment, InterviewQuestion, QuestionSession};
 
 /// 将一条 meeting 标记为面试记录并写入面试元信息。
 /// 传 None 的字段保持不变（不覆盖已有值）。
@@ -1339,6 +1350,103 @@ pub async fn list_interview_questions(
         .context("查询面试题失败")?
     };
     Ok(rows)
+}
+
+/// 题库卡片流的行：题目 + 来源会议信息（会议被删时会议字段为 NULL）
+#[derive(sqlx::FromRow)]
+struct QuestionSessionRow {
+    id: String,
+    category: String,
+    difficulty: String,
+    question: String,
+    expected_answer: Option<String>,
+    created_at: String,
+    source_meeting_id: Option<String>,
+    in_bank: i64,
+    m_title: Option<String>,
+    m_company: Option<String>,
+    m_position: Option<String>,
+    m_stage: Option<String>,
+    m_created_at: Option<String>,
+}
+
+/// 按面试场次分组的题目（题库卡片流）。
+/// 没有来源会议、或来源会议已被删除的题目，统一归入一张「未归类」卡（meeting_id = None）。
+pub async fn list_question_sessions(pool: &SqlitePool) -> Result<Vec<QuestionSession>> {
+    let rows = sqlx::query_as::<_, QuestionSessionRow>(
+        "SELECT q.*,
+                m.title    AS m_title,
+                m.company  AS m_company,
+                m.position AS m_position,
+                m.stage    AS m_stage,
+                m.created_at AS m_created_at
+         FROM interview_questions q
+         LEFT JOIN meetings m ON q.source_meeting_id = m.id
+         WHERE q.in_bank = 1
+         ORDER BY q.created_at DESC",
+    )
+    .fetch_all(pool)
+    .await
+    .context("查询题库分组失败")?;
+
+    let mut sessions: Vec<QuestionSession> = Vec::new();
+    let mut index: HashMap<String, usize> = HashMap::new();
+
+    for r in rows {
+        // 会议标题为空 = 会议不存在（source_meeting_id 为 NULL 或指向已删会议）
+        let orphan = r.m_title.is_none();
+        let key = if orphan {
+            String::new()
+        } else {
+            r.source_meeting_id.clone().unwrap_or_default()
+        };
+        let question = InterviewQuestion {
+            id: r.id,
+            category: r.category,
+            difficulty: r.difficulty,
+            question: r.question,
+            expected_answer: r.expected_answer,
+            created_at: r.created_at,
+            source_meeting_id: r.source_meeting_id,
+            in_bank: r.in_bank != 0,
+        };
+        // 先取出下标再改 index/sessions：避免 match 里的借用和 insert 打架
+        let existing = index.get(&key).copied();
+        match existing {
+            Some(i) => sessions[i].questions.push(question),
+            None => {
+                index.insert(key.clone(), sessions.len());
+                sessions.push(QuestionSession {
+                    meeting_id: if orphan { None } else { Some(key) },
+                    title: r.m_title.unwrap_or_else(|| "未归类".to_string()),
+                    company: r.m_company,
+                    position: r.m_position,
+                    stage: r.m_stage,
+                    created_at: r.m_created_at,
+                    questions: vec![question],
+                });
+            }
+        }
+    }
+
+    // 会议时间倒序，「未归类」固定排最后（未归类没有会议时间，用首题时间兜底）
+    sessions.sort_by(|a, b| {
+        let (a_orphan, b_orphan) = (a.meeting_id.is_none(), b.meeting_id.is_none());
+        a_orphan.cmp(&b_orphan).then_with(|| {
+            let a_time = a
+                .created_at
+                .clone()
+                .or_else(|| a.questions.first().map(|q| q.created_at.clone()))
+                .unwrap_or_default();
+            let b_time = b
+                .created_at
+                .clone()
+                .or_else(|| b.questions.first().map(|q| q.created_at.clone()))
+                .unwrap_or_default();
+            b_time.cmp(&a_time)
+        })
+    });
+    Ok(sessions)
 }
 
 /// 查询某场面试提取出的所有题目（含未入题库的待确认项）

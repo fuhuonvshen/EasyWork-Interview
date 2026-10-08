@@ -10,6 +10,7 @@ import ResumeView from "./workbench/ResumeView";
 import MinutesApp from "./minutes";
 import AgentApp from "./agent/AgentApp";
 import QuestionBankView from "./questions/QuestionBankView";
+import PlazaView from "./plaza/PlazaView";
 import ApplyBoard from "./apply/ApplyBoard";
 import ReminderModal from "./ReminderModal";
 import TitleBar from "./components/TitleBar";
@@ -21,7 +22,7 @@ const MINUTES_TABS: MinutesTab[] = ["today", "history", "schedule", "reports"];
 const isMinutesTab = (v: string): v is MinutesTab => MINUTES_TABS.includes(v as MinutesTab);
 
 export default function App() {
-  const [view, setView] = useState<"workbench" | "minutes" | "agent" | "feedback" | "questions" | "apply" | "resume">("workbench");
+  const [view, setView] = useState<"workbench" | "minutes" | "agent" | "feedback" | "questions" | "plaza" | "apply" | "resume">("workbench");
   const [prefillTitle, setPrefillTitle] = useState("");
   const [initialTab, setInitialTab] = useState<MinutesTab>("today");
 
@@ -191,6 +192,8 @@ export default function App() {
       setView("feedback");
     } else if (action === "questions") {
       setView("questions");
+    } else if (action === "plaza") {
+      setView("plaza");
     } else if (action === "apply") {
       setView("apply");
     } else if (action === "resume") {
@@ -260,6 +263,9 @@ export default function App() {
       )}
       {view === "questions" && (
         <QuestionBankView onBack={() => setView("workbench")} onExpand={() => setView("agent")} />
+      )}
+      {view === "plaza" && (
+        <PlazaView onBack={() => setView("workbench")} />
       )}
       {view === "apply" && (
         <ApplyBoard onBack={() => setView("workbench")} />

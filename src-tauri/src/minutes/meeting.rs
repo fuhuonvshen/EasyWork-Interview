@@ -465,6 +465,16 @@ pub async fn interview_question_list(
         .map_err(|e| format!("查询面试题失败: {}", e))
 }
 
+/// 题库卡片流：按面试场次分组的题目（分类筛选在前端做，保证分类列表不随筛选塌缩）
+#[tauri::command]
+pub async fn interview_question_sessions(
+    db: State<'_, DbState>,
+) -> Result<Vec<crate::database::models::QuestionSession>, String> {
+    crate::database::repo::list_question_sessions(&db.0)
+        .await
+        .map_err(|e| format!("查询题库分组失败: {}", e))
+}
+
 #[tauri::command]
 pub async fn interview_question_delete(
     id: String,

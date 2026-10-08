@@ -225,6 +225,76 @@ button, a, input, select, textarea {
   .wb-card { animation: none; }
 }
 
+/* ── 题库卡片流封面（一场面试一张卡，配色由公司名 hash 出 --qc-h）── */
+/* 底色渐变足够暗（尾部 L=37%），白字直接可读，所以不叠 scrim 和高光：
+   实测叠了之后会在渐变交界处出现一条横向接缝 */
+.qb-cover {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-radius: 14px;
+  color: #fff;
+  background: linear-gradient(
+    160deg,
+    hsl(var(--qc-h, 160) 58% 52%) 0%,
+    hsl(calc(var(--qc-h, 160) + 32) 62% 37%) 100%
+  );
+}
+/* 公司首字水印 */
+.qb-cover-mark {
+  position: absolute;
+  right: 10px;
+  bottom: 6px;
+  font-size: 84px;
+  font-weight: 800;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.14);
+  user-select: none;
+  pointer-events: none;
+}
+.qb-cover-title {
+  position: relative;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-shadow: 0 1px 6px rgba(15, 23, 42, 0.3);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.qb-cover-sub {
+  position: relative;
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.86);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 详情页头部的小封面：只留色块和首字 */
+.qb-cover-sm {
+  aspect-ratio: auto;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border-radius: 12px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.qb-cover-initial {
+  position: relative;
+  font-size: 19px;
+  font-weight: 800;
+  text-shadow: 0 1px 5px rgba(15, 23, 42, 0.28);
+}
+
 /* ── 视图切换动画：点「最大化」时从右下角（dock 位置）放大淡入 ── */
 .view-enter {
   animation: view-genie-in 0.34s cubic-bezier(0.22, 1, 0.36, 1);

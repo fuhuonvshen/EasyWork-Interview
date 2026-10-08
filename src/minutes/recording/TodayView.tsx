@@ -1,10 +1,11 @@
 // EasyWork - Today View (recording + transcript + minutes + 面试题目提取)
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Mic, MicOff, Loader, Sparkles, X, FileAudio, BookOpen, Check } from "lucide-react";
 import Markdown from "../../components/Markdown";
 import Select from "../../components/Select";
 import FtueTour from "../../components/FtueTour";
+import { STAGE_OPTIONS } from "../../schedule/ScheduleForm";
 import { ERRORS, toUserError } from "../../errors";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { showToast } from "../../components/Toast";
@@ -50,6 +51,15 @@ export default function TodayView({
   const [company, setCompany] = useState("");
   const [position, setPosition] = useState("");
   const [stage, setStage] = useState("one");
+  // 面试模式没有名称输入框，标题用「公司 · 岗位 · 轮次」自动拼；
+  // 公司/岗位都空就没得拼，退回占位名（未命名面试 / 导入的面试）
+  const composedTitle = useMemo(() => {
+    if (!isInterview) return "";
+    const base = [company.trim(), position.trim()].filter(Boolean);
+    if (base.length === 0) return "";
+    const stageLabel = STAGE_OPTIONS.find((s) => s.value === stage)?.label ?? "";
+    return [...base, stageLabel].filter(Boolean).join(" · ");
+  }, [isInterview, company, position, stage]);
   const [elapsed, setElapsed] = useState(0);
   const dragStartXRef = useRef(0);
   const dragStartYRef = useRef(0);
@@ -150,7 +160,7 @@ export default function TodayView({
     try {
       await invoke("start_capture", {
         deviceName: selectedDevice,
-        label: meetingLabel || "未命名会议",
+        label: meetingLabel || composedTitle || (isInterview ? "未命名面试" : "未命名会议"),
       });
       setRecording(true);
       onRecordingChange(true);
@@ -164,7 +174,7 @@ export default function TodayView({
     } catch (e) {
       setError(toUserError(ERRORS.START_RECORDING, e));
     }
-  }, [selectedDevice, meetingLabel, onRecordingChange]);
+  }, [selectedDevice, meetingLabel, composedTitle, isInterview, onRecordingChange]);
 
   const importAudio = useCallback(async () => {
     setError(null);
@@ -178,7 +188,7 @@ export default function TodayView({
 
       const raw = await invoke<string>("generate_minutes", {
         wavPath: path,
-        meetingTitle: meetingLabel || (isInterview ? "导入的面试" : "导入的会议"),
+        meetingTitle: meetingLabel || composedTitle || (isInterview ? "导入的面试" : "导入的会议"),
         liveText: null,
         liveTranscriptJson: null,
         scheduleId: null,
@@ -215,7 +225,7 @@ export default function TodayView({
       setGenerating(false);
       onGeneratingChange(false);
     }
-  }, [meetingLabel, onMeetingCreated, onGeneratingChange, meetingType, isInterview, company, position, stage]);
+  }, [meetingLabel, composedTitle, onMeetingCreated, onGeneratingChange, meetingType, isInterview, company, position, stage]);
 
   const handleStopClick = useCallback(() => {
     setShowStopConfirm(true);
@@ -236,7 +246,7 @@ export default function TodayView({
 
       const raw = await invoke<string>("generate_minutes", {
         wavPath: path,
-        meetingTitle: meetingLabel || (isInterview ? "未命名面试" : "未命名会议"),
+        meetingTitle: meetingLabel || composedTitle || (isInterview ? "未命名面试" : "未命名会议"),
         liveText: liveText || null,
         liveTranscriptJson: JSON.stringify(liveTranscripts) || null,
         scheduleId: scheduleId || null,
@@ -279,7 +289,7 @@ export default function TodayView({
       setGenerating(false);
       onGeneratingChange(false);
     }
-  }, [meetingLabel, scheduleId, onMeetingCreated, onRecordingChange, onGeneratingChange, liveTranscripts, meetingType, isInterview, company, position, stage]);
+  }, [meetingLabel, composedTitle, scheduleId, onMeetingCreated, onRecordingChange, onGeneratingChange, liveTranscripts, meetingType, isInterview, company, position, stage]);
 
   // 勾选的题目加入题库（in_bank = 1）
   const handleAddToBank = async () => {

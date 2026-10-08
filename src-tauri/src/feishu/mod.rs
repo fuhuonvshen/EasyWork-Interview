@@ -2,6 +2,8 @@
 // 凭证内置，用户零配置；同步 = 全量拉取 → 整体替换本地 companies 表。
 // 表格字段：公司 / 行业 / 网址 / 备注；备注支持软件内编辑并回写云端。
 
+pub mod plaza;
+
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;

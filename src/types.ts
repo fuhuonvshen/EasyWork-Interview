@@ -41,6 +41,35 @@ export interface InterviewQuestion {
   in_bank: boolean;                  // 是否已加入题库（false=待用户确认）
 }
 
+// 题库卡片流的一张卡 = 一场面试
+export interface QuestionSession {
+  meeting_id: string | null;   // null = 未归类（无来源会议 / 会议已删除）
+  title: string;               // 会议名；未归类时为 "未归类"
+  company: string | null;
+  position: string | null;
+  stage: string | null;
+  created_at: string | null;
+  questions: InterviewQuestion[];
+}
+
+// 面经广场（云端共享）的一张卡 = 一份别人分享的面经
+export interface PlazaQuestion {
+  category: string;
+  difficulty: string;
+  question: string;
+}
+
+export interface PlazaSession {
+  record_id: string;           // 云端行 id（本地收藏记录用它）
+  title: string;
+  company: string;
+  position: string;
+  stage: string;               // 轮次文案（"一面" 等）
+  questions: PlazaQuestion[];  // 不含参考答案
+  favorites: number;           // 云端收藏数
+  shared_at: string;
+}
+
 export interface Resume {
   id: string;
   file_name: string;

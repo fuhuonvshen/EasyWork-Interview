@@ -217,6 +217,7 @@ pub fn run() {
             minutes::meeting::interview_question_list,
             minutes::meeting::interview_question_update,
             minutes::meeting::interview_question_delete,
+            minutes::meeting::interview_question_sessions,
             minutes::meeting::get_meeting_questions,
             minutes::meeting::add_questions_to_bank,
             minutes::meeting::save_resume,
@@ -239,6 +240,10 @@ pub fn run() {
             apply::commands::validate_company,
             // ── Feishu 共享公司库（只读镜像）──
             feishu::feishu_sync_companies,
+            // ── 面经广场（提交到多维表格，人工审核）──
+            feishu::plaza::plaza_share_session,
+            feishu::plaza::plaza_list_sessions,
+            feishu::plaza::plaza_set_favorite,
             minutes::schedule::add_scheduled_meeting,
             minutes::schedule::delete_scheduled_meeting,
             minutes::schedule::update_scheduled_meeting,

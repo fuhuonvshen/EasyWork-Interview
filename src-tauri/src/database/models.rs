@@ -141,6 +141,18 @@ pub struct InterviewQuestion {
     pub in_bank: bool,
 }
 
+/// 题库卡片流的一张卡 = 一场面试（按 source_meeting_id 分组）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuestionSession {
+    pub meeting_id: Option<String>, // None = 未归类（无来源会议 / 会议已删除）
+    pub title: String,              // 会议名；未归类时为 "未归类"
+    pub company: Option<String>,
+    pub position: Option<String>,
+    pub stage: Option<String>,
+    pub created_at: Option<String>, // 会议时间；未归类时用最新题目的时间
+    pub questions: Vec<InterviewQuestion>,
+}
+
 /// 面试评估（interview_assessments 表）— AI 结构化输出落库
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct InterviewAssessment {

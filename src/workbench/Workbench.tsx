@@ -1,7 +1,7 @@
 // EasyWork - Workbench (landing page: 水滴气泡卡片 + 右侧常驻对话面板)
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { FileText, BookOpen, Rocket, Bot, FileSearch, MessageSquareHeart, MessageSquare, ListTodo, Settings, PanelRightClose, Maximize2, Loader } from "lucide-react";
+import { FileText, BookOpen, Rocket, Bot, FileSearch, MessageSquareHeart, MessageSquare, MessagesSquare, ListTodo, Settings, PanelRightClose, Maximize2, Loader } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import AgentChat from "../agent/AgentChat";
 import ModelDownloadDialog from "../settings/ModelDownloadDialog";
@@ -117,6 +117,22 @@ const WORKBENCH_CARDS: {
       "--br3": "60% 40% 44% 58% / 44% 56% 48% 58%",
       "--tcolor": "#d97706", "--hb": "#fde68a",
       "--delay": "2.4s", "--dur": "4.7s", "--mdelay": "-3.2s", "--mdur": "6.8s",
+    } as CSSProperties,
+  },
+  {
+    key: "plaza",
+    icon: MessagesSquare,
+    title: "面经广场",
+    desc: "真实面经 · 互相分享",
+    action: "plaza",
+    pos: { left: 368, top: 128 },
+    style: {
+      "--w": "206px", "--rot": "-2deg", "--tdeep": "#e0f2fe", "--tbg": "#f0f9ff",
+      "--br": "50% 50% 46% 54% / 52% 48% 52% 48%",
+      "--br2": "46% 54% 52% 48% / 48% 52% 48% 52%",
+      "--br3": "54% 46% 48% 52% / 54% 46% 54% 46%",
+      "--tcolor": "#0284c7", "--hb": "#bae6fd",
+      "--delay": "1.5s", "--dur": "5s", "--mdelay": "-1.8s", "--mdur": "7s",
     } as CSSProperties,
   },
   {
