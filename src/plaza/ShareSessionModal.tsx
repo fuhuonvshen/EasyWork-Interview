@@ -50,7 +50,7 @@ export default function ShareSessionModal({ session, alreadyShared, onClose, onS
           difficulty: q.difficulty,
           question: q.question,
         })),
-        shared_at: sharedAt,
+        sharedAt,
       });
       setDone(true);
       onShared(recordId, sharedAt);

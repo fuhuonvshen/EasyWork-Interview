@@ -158,7 +158,7 @@ export default function PlazaView({ onBack }: { onBack: () => void }) {
     );
     invoke("update_setting", { key: "plaza_favorites", value: JSON.stringify(nextFavs) }).catch(() => {});
     try {
-      const count = await invoke<number>("plaza_set_favorite", { record_id: s.record_id, favorited: !nowFav });
+      const count = await invoke<number>("plaza_set_favorite", { recordId: s.record_id, favorited: !nowFav });
       setSessions((prev) => prev.map((x) => (x.record_id === s.record_id ? { ...x, favorites: count } : x)));
     } catch {
       setFavorites(favorites);

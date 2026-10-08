@@ -194,7 +194,9 @@ export default function QuestionBankView({ onBack, onExpand }: {
         category: editCategory.trim() || "未分类",
         difficulty: editDifficulty,
         question: editQuestion.trim(),
-        expected_answer: editAnswer.trim() || null,
+        // Tauri 命令参数名必须是 camelCase（Rust 的 expected_answer ← JS 的 expectedAnswer），
+        // 写成 snake_case 会被静默当成 None（参考答案被清空）
+        expectedAnswer: editAnswer.trim() || null,
       });
       showToast("已保存", "success");
       setEditing(null);
