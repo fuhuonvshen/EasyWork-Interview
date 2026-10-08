@@ -1,7 +1,7 @@
 // EasyWork - 面经广场：别人分享的真实面经（卡片流 + 详情 + 收藏）
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowLeft, Heart, Loader, RefreshCw, AlertCircle, MessagesSquare } from "lucide-react";
+import { ArrowLeft, Heart, Loader, RefreshCw, AlertCircle, MessagesSquare, Search, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import type { PlazaSession } from "../types";
 import { showToast } from "../components/Toast";
@@ -100,6 +100,9 @@ export default function PlazaView({ onBack }: { onBack: () => void }) {
   // 本地收藏的 record_id 列表（云端只存计数，谁是"我收藏的"只有本机知道）
   const [favorites, setFavorites] = useState<string[]>([]);
   const [favBusy, setFavBusy] = useState<string | null>(null);
+  // 搜索（按公司名关键字）与排序（最新 / 最热）
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<"latest" | "hot">("latest");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -126,6 +129,16 @@ export default function PlazaView({ onBack }: { onBack: () => void }) {
   }, []);
 
   const isFav = (id: string) => favorites.includes(id);
+
+  // 搜索按公司名过滤（数据量小，纯前端做）；热度排序按收藏数，"最新"保持服务端顺序
+  const visibleSessions = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q ? sessions.filter((s) => (s.company || "").toLowerCase().includes(q)) : sessions;
+    if (sort === "hot") {
+      return [...filtered].sort((a, b) => b.favorites - a.favorites || (a.shared_at < b.shared_at ? 1 : -1));
+    }
+    return filtered;
+  }, [sessions, query, sort]);
 
   // 刷新后选中项还在（按 id 找，不存对象）
   const activeSession = useMemo(
@@ -234,7 +247,9 @@ export default function PlazaView({ onBack }: { onBack: () => void }) {
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900 leading-tight">面经广场</h2>
                     <p className="text-[11px] text-gray-400">
-                      {loading ? "加载中..." : error ? "加载失败" : `大家分享的真实面经 · 共 ${sessions.length} 份`}
+                      {loading ? "加载中..." : error ? "加载失败" : query.trim()
+                        ? `搜索「${query.trim()}」· 找到 ${visibleSessions.length} 份`
+                        : `大家分享的真实面经 · 共 ${sessions.length} 份`}
                     </p>
                   </div>
                 </div>
@@ -247,6 +262,44 @@ export default function PlazaView({ onBack }: { onBack: () => void }) {
                   <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
                 </button>
               </div>
+
+              {/* 搜索 + 排序（广场为空时没有可搜的，省掉这一行） */}
+              {!error && sessions.length > 0 && (
+                <div className="px-6 py-2.5 border-b border-gray-50 flex items-center gap-2 flex-shrink-0">
+                  <div className="relative w-64 max-w-[45%]">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="搜索公司，如：字节跳动"
+                      className="w-full pl-8 pr-8 py-1.5 rounded-full border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-sky-200"
+                    />
+                    {query && (
+                      <button
+                        onClick={() => setQuery("")}
+                        title="清空搜索"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-gray-300 hover:text-gray-500"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="ml-auto flex items-center gap-1.5">
+                    {(["latest", "hot"] as const).map((k) => (
+                      <button
+                        key={k}
+                        onClick={() => setSort(k)}
+                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                          sort === k ? "bg-sky-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                        }`}
+                      >
+                        {k === "latest" ? "最新" : "最热"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex-1 overflow-y-auto px-6 py-5">
                 {loading ? (
@@ -275,9 +328,17 @@ export default function PlazaView({ onBack }: { onBack: () => void }) {
                     <p className="text-sm text-gray-400">广场还空着</p>
                     <p className="text-xs text-gray-300 mt-1">在「我的题库」里把面经分享出来，审核通过后就会出现在这里</p>
                   </div>
+                ) : visibleSessions.length === 0 ? (
+                  <div className="text-center py-14">
+                    <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-4">
+                      <Search size={24} className="text-gray-300" />
+                    </div>
+                    <p className="text-sm text-gray-400">没有找到「{query.trim()}」相关的面经</p>
+                    <p className="text-xs text-gray-300 mt-1">搜索的是公司名，换个关键字试试</p>
+                  </div>
                 ) : (
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-                    {sessions.map((s) => (
+                    {visibleSessions.map((s) => (
                       <PlazaCard
                         key={s.record_id}
                         session={s}
