@@ -567,7 +567,10 @@ export default function TodayView({
       {/* Minutes result modal — carousel: summary / transcript */}
       {showMinutes && minutes && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[85vh] mx-4 flex flex-col">
+          {/* 用 grid（而不是 flex-col）承载三段：max-h 封顶时 minmax(0,1fr) 行会被压扁，
+              各页的 h-full 百分比高度才能解析、内容才能内部滚动。flex + max-h 时
+              百分比高度链会断掉，页面按内容撑高后溢出被裁，表现为"不能滚动"。 */}
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[85vh] mx-4 grid grid-rows-[auto_minmax(0,1fr)_auto]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <Sparkles size={18} className="text-brand-500" />
@@ -582,7 +585,7 @@ export default function TodayView({
             </div>
 
             {/* Carousel pages */}
-            <div className="flex-1 overflow-hidden relative select-none min-h-0"
+            <div className="overflow-hidden relative select-none min-h-0"
               onMouseDown={(e) => handleDragStart(e.clientX, e.clientY)}
               onMouseUp={(e) => handleDragEnd(e.clientX, e.clientY)}
               onTouchStart={(e) => handleDragStart(e.touches[0].clientX, e.touches[0].clientY)}

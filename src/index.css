@@ -66,7 +66,7 @@ button, a, input, select, textarea {
   border-radius: 3px;
 }
 
-:::-webkit-scrollbar-thumb:hover {
+::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
 
