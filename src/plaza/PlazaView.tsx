@@ -103,6 +103,8 @@ export default function PlazaView({ onBack }: { onBack: () => void }) {
   // 搜索（按公司名关键字）与排序（最新 / 最热）
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"latest" | "hot">("latest");
+  // 只看我收藏的
+  const [favOnly, setFavOnly] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -133,12 +135,26 @@ export default function PlazaView({ onBack }: { onBack: () => void }) {
   // 搜索按公司名过滤（数据量小，纯前端做）；热度排序按收藏数，"最新"保持服务端顺序
   const visibleSessions = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = q ? sessions.filter((s) => (s.company || "").toLowerCase().includes(q)) : sessions;
+    let list = favOnly ? sessions.filter((s) => favorites.includes(s.record_id)) : sessions;
+    if (q) list = list.filter((s) => (s.company || "").toLowerCase().includes(q));
     if (sort === "hot") {
-      return [...filtered].sort((a, b) => b.favorites - a.favorites || (a.shared_at < b.shared_at ? 1 : -1));
+      return [...list].sort((a, b) => b.favorites - a.favorites || (a.shared_at < b.shared_at ? 1 : -1));
     }
-    return filtered;
-  }, [sessions, query, sort]);
+    return list;
+  }, [sessions, query, sort, favOnly, favorites]);
+
+  // 本地收藏过、且还挂在广场上的数量（收藏列表里可能残留已被下架的 record_id）
+  const favCount = sessions.filter((s) => favorites.includes(s.record_id)).length;
+
+  const headerSub = loading
+    ? "加载中..."
+    : error
+      ? "加载失败"
+      : favOnly
+        ? `我的收藏 · ${query.trim() ? `搜索「${query.trim()}」· ` : ""}${visibleSessions.length} 份`
+        : query.trim()
+          ? `搜索「${query.trim()}」· 找到 ${visibleSessions.length} 份`
+          : `大家分享的真实面经 · 共 ${sessions.length} 份`;
 
   // 刷新后选中项还在（按 id 找，不存对象）
   const activeSession = useMemo(
@@ -246,11 +262,7 @@ export default function PlazaView({ onBack }: { onBack: () => void }) {
                   </span>
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900 leading-tight">面经广场</h2>
-                    <p className="text-[11px] text-gray-400">
-                      {loading ? "加载中..." : error ? "加载失败" : query.trim()
-                        ? `搜索「${query.trim()}」· 找到 ${visibleSessions.length} 份`
-                        : `大家分享的真实面经 · 共 ${sessions.length} 份`}
-                    </p>
+                    <p className="text-[11px] text-gray-400">{headerSub}</p>
                   </div>
                 </div>
                 <button
@@ -285,6 +297,16 @@ export default function PlazaView({ onBack }: { onBack: () => void }) {
                       </button>
                     )}
                   </div>
+                  <button
+                    onClick={() => setFavOnly((v) => !v)}
+                    title={favOnly ? "显示全部面经" : "只看我收藏的"}
+                    className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-colors flex-shrink-0 ${
+                      favOnly ? "bg-rose-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    }`}
+                  >
+                    <Heart size={11} className={favOnly ? "fill-current" : ""} />
+                    我的收藏 {favCount}
+                  </button>
                   <div className="ml-auto flex items-center gap-1.5">
                     {(["latest", "hot"] as const).map((k) => (
                       <button
@@ -329,13 +351,23 @@ export default function PlazaView({ onBack }: { onBack: () => void }) {
                     <p className="text-xs text-gray-300 mt-1">在「我的题库」里把面经分享出来，审核通过后就会出现在这里</p>
                   </div>
                 ) : visibleSessions.length === 0 ? (
-                  <div className="text-center py-14">
-                    <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-4">
-                      <Search size={24} className="text-gray-300" />
+                  query.trim() ? (
+                    <div className="text-center py-14">
+                      <div className="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-4">
+                        <Search size={24} className="text-gray-300" />
+                      </div>
+                      <p className="text-sm text-gray-400">没有找到「{query.trim()}」相关的面经</p>
+                      <p className="text-xs text-gray-300 mt-1">{favOnly ? "换个关键字，或关掉「我的收藏」看全部" : "搜索的是公司名，换个关键字试试"}</p>
                     </div>
-                    <p className="text-sm text-gray-400">没有找到「{query.trim()}」相关的面经</p>
-                    <p className="text-xs text-gray-300 mt-1">搜索的是公司名，换个关键字试试</p>
-                  </div>
+                  ) : (
+                    <div className="text-center py-14">
+                      <div className="w-14 h-14 rounded-2xl bg-rose-50 flex items-center justify-center mx-auto mb-4">
+                        <Heart size={24} className="text-rose-300" />
+                      </div>
+                      <p className="text-sm text-gray-400">还没有收藏任何面经</p>
+                      <p className="text-xs text-gray-300 mt-1">点卡片右上角的爱心收藏，在这里就能找到</p>
+                    </div>
+                  )
                 ) : (
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                     {visibleSessions.map((s) => (
