@@ -176,6 +176,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 全量历史 + tags：自动生成更新说明要用 git log
 
       - name: Download release assets
         env:
@@ -190,9 +192,24 @@ jobs:
           TAG="$GITHUB_REF_NAME" VERSION="${TAG#v}"
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+          # 更新说明：优先 release-notes/<版本号>.md（发版时手写，面向用户）；
+          # 没有就从上个 tag 到当前的提交记录自动生成（滤掉版本号提交），保证不空白。
+          NOTES_FILE="release-notes/${VERSION}.md"
+          if [ -s "$NOTES_FILE" ]; then
+            NOTES=$(cat "$NOTES_FILE")
+          else
+            PREV_TAG=$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)
+            if [ -n "$PREV_TAG" ]; then
+              NOTES=$(git log --no-merges --pretty=format:'- %s' "${PREV_TAG}..${TAG}" | grep -v '^- chore: version' || true)
+            else
+              NOTES=$(git log --no-merges --pretty=format:'- %s' "$TAG" | grep -v '^- chore: version' || true)
+            fi
+          fi
+
           # Build JSON with jq (pre-installed on ubuntu)
           jq -n \
             --arg v "$VERSION" \
+            --arg notes "$NOTES" \
             --arg d "$DATE" \
             --arg win_installer "$(basename /tmp/release-assets/*.exe 2>/dev/null || echo '')" \
             --arg win_sig "$(cat /tmp/release-assets/*.exe.sig 2>/dev/null || echo '')" \
@@ -202,7 +219,7 @@ jobs:
             --arg tag "$TAG" \
             '{
               version: $v,
-              notes: "",
+              notes: $notes,
               pub_date: $d,
               platforms: {
                 "windows-x86_64": {
