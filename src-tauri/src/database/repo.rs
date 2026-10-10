@@ -1373,6 +1373,8 @@ struct QuestionSessionRow {
 /// 按面试场次分组的题目（题库卡片流）。
 /// 没有来源会议、或来源会议已被删除的题目，统一归入一张「未归类」卡（meeting_id = None）。
 pub async fn list_question_sessions(pool: &SqlitePool) -> Result<Vec<QuestionSession>> {
+    // 题目按提问顺序排列：created_at 是逐条插入时间（递增），同一场次内即提问顺序；
+    // 同时间戳时用 rowid 兜底稳定顺序。场次本身的新旧排序在下面 sort_by 里单独做。
     let rows = sqlx::query_as::<_, QuestionSessionRow>(
         "SELECT q.*,
                 m.title    AS m_title,
@@ -1383,7 +1385,7 @@ pub async fn list_question_sessions(pool: &SqlitePool) -> Result<Vec<QuestionSes
          FROM interview_questions q
          LEFT JOIN meetings m ON q.source_meeting_id = m.id
          WHERE q.in_bank = 1
-         ORDER BY q.created_at DESC",
+         ORDER BY q.created_at ASC, q.rowid ASC",
     )
     .fetch_all(pool)
     .await
