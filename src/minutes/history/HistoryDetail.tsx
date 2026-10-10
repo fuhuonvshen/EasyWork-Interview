@@ -283,7 +283,6 @@ export default function HistoryDetail({ meetingId, onBack, onReview }: {
                     评分 {detail.score}
                   </span>
                 )}
-                <p className="text-sm text-gray-400">{detail?.kind === "interview" ? "AI 生成的面试复盘" : "AI 生成的会议摘要"}</p>
               </div>
             )}
           </div>
@@ -310,7 +309,6 @@ export default function HistoryDetail({ meetingId, onBack, onReview }: {
                 面试题目
               </button>
             )}
-            <ExportDropdown content={detail.content} />
             <button
               onClick={loadTranscript}
               className="px-4 py-2 text-sm font-medium text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors flex items-center gap-1.5"
@@ -324,6 +322,7 @@ export default function HistoryDetail({ meetingId, onBack, onReview }: {
             >
               编辑纪要
             </button>
+            <ExportDropdown content={detail.content} />
           </div>
         )}
         {editing && (
