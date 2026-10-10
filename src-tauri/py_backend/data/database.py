@@ -71,6 +71,14 @@ class Database:
             )
         except Exception:
             pass  # Column already exists
+        # 会话场景（Agent 能力隔离，取值见 py_backend/scenes.py：general/review/resume/answer）。
+        # 空串 = 按 type 回退；例如回答教练场景由首条消息固化后，后续轮沿用。
+        try:
+            await self._conn.execute(
+                "ALTER TABLE agent_conversations ADD COLUMN scene TEXT NOT NULL DEFAULT ''"
+            )
+        except Exception:
+            pass  # Column already exists
 
         # 日程阶段
         try:
@@ -251,12 +259,20 @@ class Database:
         await self.conn.commit()
 
     async def get_conversation_meta(self, conv_id: str) -> dict | None:
-        """Return {"type": ..., "ref_id": ...} for a conversation, or None."""
+        """Return {"type": ..., "ref_id": ..., "scene": ...} for a conversation, or None."""
         cursor = await self.conn.execute(
-            "SELECT type, ref_id FROM agent_conversations WHERE id = ?", (conv_id,)
+            "SELECT type, ref_id, scene FROM agent_conversations WHERE id = ?", (conv_id,)
         )
         row = await cursor.fetchone()
         return dict(row) if row else None
+
+    async def set_conversation_scene(self, conv_id: str, scene: str):
+        """固化会话场景（如首条消息触发的回答教练场景，后续轮沿用同一身份与上下文）。"""
+        await self.conn.execute(
+            "UPDATE agent_conversations SET scene = ? WHERE id = ?",
+            (scene, conv_id),
+        )
+        await self.conn.commit()
 
     async def list_conversations(self) -> list[dict]:
         cursor = await self.conn.execute(

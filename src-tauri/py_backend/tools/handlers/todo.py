@@ -21,7 +21,11 @@ SCHEMA = {
     "type": "function",
     "function": {
         "name": "todo",
-        "description": "创建、查看、更新或删除待办事项，以及创建会议日程。当用户说「记一下、提醒我、别忘了、帮我记、安排会议」时调用。",
+        "description": (
+            "创建、查看、更新或删除待办事项，以及创建会议日程。"
+            "**仅当用户明确要求记录时**（「记一下、提醒我、别忘了、帮我记、安排会议」）才调用 create；"
+            "回答、分析、给建议的过程中绝不主动创建待办。"
+        ),
         "parameters": {
             "type": "object",
             "properties": {
@@ -84,7 +88,7 @@ SCHEMA = {
 }
 
 
-async def handle(args: dict) -> str:
+async def handle(args: dict, ctx: dict | None = None) -> str:
     action = args.get("action", "")
 
     if action == "create":

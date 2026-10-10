@@ -56,7 +56,7 @@ SCHEMA = {
 }
 
 
-async def handle(args: dict) -> str:
+async def handle(args: dict, ctx: dict | None = None) -> str:
     start_time = (args.get("start_time") or "").strip()
     if not start_time:
         return "❌ 创建日程失败：缺少开始时间"

@@ -1,5 +1,9 @@
 """Skill registry: scans src/agent/skills/ for SKILL.md files,
 parses YAML frontmatter, and discovers handlers from the handlers/ package.
+
+工具可见性与执行都按「场景」白名单强制（见 py_backend/scenes.py）：
+  - get_tool_definitions(scene)：只暴露该场景白名单内的工具
+  - execute_tool(..., scene=...)：执行期再校验一次，白名单外一律拒绝
 """
 
 from __future__ import annotations
@@ -9,6 +13,7 @@ import logging
 from pathlib import Path
 
 from ..config import SKILLS_DIR
+from ..scenes import SCENES, resolve_scene, tool_allowed
 from .handlers import HANDLERS, SCHEMAS as HANDLER_SCHEMAS
 
 logger = logging.getLogger("agent.skills")
@@ -22,8 +27,11 @@ class SkillRegistry:
         self.skills = skills  # list of {"name": str, "description": str}
         self.base_dir = base_dir
 
-    def get_tool_definitions(self, conv_type: str = "general") -> list[dict]:
-        """Build tool definitions for the LLM API.
+    def get_tool_definitions(self, scene: str = "general") -> list[dict]:
+        """Build tool definitions for the LLM API, scoped to a scene.
+
+        fail-closed：只暴露该场景白名单内的工具；未在 scenes.py 登记的工具
+        对任何场景都不可见。模型看不到工具，就不可能调用它（第一道防线）。
 
         Note: SKILL.md frontmatter description is only a human-readable fallback.
         When a HANDLER_SCHEMA exists, its description is what the LLM actually sees.
@@ -33,10 +41,15 @@ class SkillRegistry:
         Otherwise generate a default schema with a generic 'task' parameter.
         Also includes handler-only tools that lack a SKILL.md.
         """
+        resolved = resolve_scene(scene, None)
+        allowed = SCENES[resolved].tools
+
         seen: set[str] = set()
         result = []
         for s in self.skills:
             name = s["name"]
+            if name not in allowed:
+                continue
             seen.add(name)
             # Prefer handler-provided schema for precise parameter definitions
             if name in HANDLER_SCHEMAS:
@@ -68,24 +81,44 @@ class SkillRegistry:
 
         # Include handler-only tools (SCHEMA without SKILL.md)
         for name, schema in HANDLER_SCHEMAS.items():
-            if name not in seen:
+            if name in allowed and name not in seen:
                 result.append(schema)
                 seen.add(name)
-                logger.debug("Injected handler-only tool: %s", name)
 
+        logger.info("[skills] scene=%s 暴露工具: %s", resolved, sorted(seen) or ["无"])
         return result
 
-    async def execute_tool(self, name: str, arguments: dict) -> str | None:
+    async def execute_tool(
+        self,
+        name: str,
+        arguments: dict,
+        *,
+        scene: str = "general",
+        ctx: dict | None = None,
+    ) -> str | None:
         """Execute a tool by name with the given arguments.
+
+        执行期场景校验（第二道防线）：即使模型幻觉出白名单外的工具名，
+        也直接拒绝执行并返回说明，绝不落库/发请求。
+
+        ctx: 执行上下文（scene / conversation_id / ref_id），透传给 handler。
 
         Returns the result text, or None if no handler is registered
         (caller should fall back to SKILL.md loading / code generation).
         """
+        resolved = resolve_scene(scene, None)
+        if not tool_allowed(resolved, name):
+            logger.warning(
+                "[security] scene=%s 试图调用未授权工具 '%s'（args=%s），已拒绝",
+                resolved, name, str(arguments)[:200],
+            )
+            return f"⛔ 当前场景不允许调用工具 '{name}'，已拒绝执行。请基于已有信息直接回答。"
+
         handler = HANDLERS.get(name)
         if handler is None:
             return None
         try:
-            return await handler(arguments)
+            return await handler(arguments, ctx or {})
         except Exception as e:
             logger.error("Handler '%s' failed: %s", name, e)
             return f"❌ 工具 '{name}' 执行失败: {e}"

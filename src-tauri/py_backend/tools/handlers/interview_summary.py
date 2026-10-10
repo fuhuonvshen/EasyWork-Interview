@@ -34,25 +34,25 @@ SCHEMA = {
 }
 
 
-async def handle(args: dict) -> str:
+async def handle(args: dict, ctx: dict | None = None) -> str:
     interview_id = (args.get("interview_id") or "").strip()
     if not interview_id:
         return "❌ 读取面试记录失败：缺少 interview_id"
 
-    ctx = await db.get_interview_context(interview_id)
-    if ctx is None:
+    interview = await db.get_interview_context(interview_id)
+    if interview is None:
         return f"❌ 未找到面试记录：{interview_id}（可能已被删除）"
 
     lines = [
-        f"📄 面试: {ctx.get('title') or '未命名'}",
-        f"公司: {ctx.get('company') or '未知'} | 岗位: {ctx.get('position') or '未知'}"
-        + (f" | 阶段: {ctx.get('stage')}" if ctx.get("stage") else ""),
-        f"时间: {ctx.get('created_at', '')[:16]}",
+        f"📄 面试: {interview.get('title') or '未命名'}",
+        f"公司: {interview.get('company') or '未知'} | 岗位: {interview.get('position') or '未知'}"
+        + (f" | 阶段: {interview.get('stage')}" if interview.get("stage") else ""),
+        f"时间: {interview.get('created_at', '')[:16]}",
     ]
-    minutes = (ctx.get("minutes") or "").strip()
+    minutes = (interview.get("minutes") or "").strip()
     if minutes:
         lines.append(f"\n--- 面试纪要 ---\n{minutes[:3000]}")
-    transcript = (ctx.get("transcript") or "").strip()
+    transcript = (interview.get("transcript") or "").strip()
     if transcript and args.get("include_transcript", True):
         lines.append(f"\n--- 转写内容 ---\n{transcript[:8000]}")
     return "\n".join(lines)
