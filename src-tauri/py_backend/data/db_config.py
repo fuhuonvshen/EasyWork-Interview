@@ -8,6 +8,16 @@ import sys
 
 logger = logging.getLogger("agent.db_config")
 
+_SECRET_ATTR_HINTS = ("KEY", "TOKEN", "SECRET", "PASSWORD")
+
+
+def _masked(value: object, attr: str) -> str:
+    """敏感配置（如 API Key）只记录长度，不记录内容。"""
+    text = str(value)
+    if any(hint in attr.upper() for hint in _SECRET_ATTR_HINTS):
+        return f"<已隐去 {len(text)} 字符>"
+    return text[:40]
+
 
 def _update_config(attr: str, value: str):
     """Set config.<attr> = value in the already-imported config module."""
@@ -15,7 +25,7 @@ def _update_config(attr: str, value: str):
     if mod and hasattr(mod, attr):
         old = getattr(mod, attr)
         setattr(mod, attr, value)
-        logger.debug("  %s: %s -> %s", attr, repr(old)[:40], str(value)[:40])
+        logger.debug("  %s: %s -> %s", attr, _masked(old, attr), _masked(value, attr))
     else:
         logger.warning("config.py has no attribute '%s' — DB setting skipped", attr)
 
