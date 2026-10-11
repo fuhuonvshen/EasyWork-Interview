@@ -85,10 +85,11 @@ pub async fn generate_interview_minutes(
     interview_title: &str,
     company: &str,
     position: &str,
+    stage: Option<&str>,
     engine: &Arc<RwLock<LlmEngine>>,
 ) -> Result<String> {
     let system = super::template::interview_system_prompt();
-    let user = super::template::interview_user_prompt(transcript, company, position);
+    let user = super::template::interview_user_prompt(transcript, company, position, stage);
 
     let prompt_chars = system.chars().count() + user.chars().count();
     log::info!("Generating interview minutes via local LLM, prompt_chars={} (title={})", prompt_chars, interview_title);

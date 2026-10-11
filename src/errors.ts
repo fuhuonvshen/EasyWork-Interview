@@ -31,3 +31,15 @@ export function toUserError(context: string, raw: unknown): string {
   console.warn(`[${context}]`, detail);
   return context;
 }
+
+/**
+ * 转写/纪要类命令专用：Rust 侧返回的错误本身就是面向用户的中文原因
+ * （如「转写内容为空，请确认录制时有声音输入」），直接展示比通用文案
+ * 更有助于定位问题；非字符串错误（IPC 层异常等）仍退回通用文案。
+ */
+export function toCommandError(context: string, raw: unknown): string {
+  const detail = raw instanceof Error ? raw.message : String(raw);
+  console.warn(`[${context}]`, detail);
+  if (typeof raw === "string" && raw.trim()) return raw;
+  return context;
+}

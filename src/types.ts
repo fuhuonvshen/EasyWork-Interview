@@ -17,7 +17,7 @@ export interface MeetingRow {
   kind: string;              // "meeting" | "interview"
   company: string | null;
   position: string | null;
-  stage: string | null;      // "hr" | "one" | "two" | "three"
+  stage: string | null;      // "hr" | "one" | "two" | "three" | "ai"
   score: number | null;      // AI 评估总分 0-100
 }
 
@@ -152,7 +152,7 @@ export interface ScheduledMeeting {
   start_time: string;
   end_time: string;
   created_at: string;
-  stage: string;             // "hr" | "one" | "two" | "three"
+  stage: string;             // "hr" | "one" | "two" | "three" | "ai"
   company: string;           // AI 从会议通知提取
   position: string;          // AI 从会议通知提取
   notes: string;             // 其他要点（面试官/准备材料等）

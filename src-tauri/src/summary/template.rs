@@ -144,7 +144,7 @@ pub fn interview_system_prompt() -> String {
 ## 输出格式规范（严格按此结构）
 
 ### 一、面试概况
-公司、岗位、面试形式、时长、整体感受（一句话）。
+公司、岗位、面试轮次、面试形式、时长、整体感受（一句话）。
 
 ### 二、问答要点
 逐题列出：**Q：面试官的问题** → 我的回答要点 → 表现评价（✅ 亮点 / ⚠️ 不足）。
@@ -171,8 +171,25 @@ pub fn interview_system_prompt() -> String {
     .to_string()
 }
 
+/// 面试轮次代码 → 展示文案（与前端 STAGE_OPTIONS 保持一致）
+fn stage_label(code: &str) -> &str {
+    match code {
+        "hr" => "HR面",
+        "one" => "一面",
+        "two" => "二面",
+        "three" => "三面",
+        "ai" => "AI面",
+        other => other,
+    }
+}
+
 /// 面试纪要用户提示词
-pub fn interview_user_prompt(transcript: &str, company: &str, position: &str) -> String {
+pub fn interview_user_prompt(
+    transcript: &str,
+    company: &str,
+    position: &str,
+    stage: Option<&str>,
+) -> String {
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
     let mut s = String::new();
     if !company.is_empty() || !position.is_empty() {
@@ -181,6 +198,11 @@ pub fn interview_user_prompt(transcript: &str, company: &str, position: &str) ->
         s.push('\n');
         s.push_str("面试岗位: ");
         s.push_str(position);
+        s.push('\n');
+    }
+    if let Some(st) = stage.filter(|s| !s.trim().is_empty()) {
+        s.push_str("面试轮次: ");
+        s.push_str(stage_label(st.trim()));
         s.push('\n');
     }
     s.push_str("面试时间: ");

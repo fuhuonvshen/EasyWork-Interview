@@ -6,7 +6,7 @@ import Markdown from "../../components/Markdown";
 import Select from "../../components/Select";
 import FtueTour from "../../components/FtueTour";
 import { STAGE_OPTIONS } from "../../schedule/ScheduleForm";
-import { ERRORS, toUserError } from "../../errors";
+import { ERRORS, toCommandError, toUserError } from "../../errors";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { showToast } from "../../components/Toast";
 import type { AudioDevice, InterviewQuestion } from "../../types";
@@ -221,7 +221,7 @@ export default function TodayView({
       onGeneratingChange(false);
       onMeetingCreated();
     } catch (e) {
-      setError(toUserError(ERRORS.GENERATE_MINUTES, e));
+      setError(toCommandError(ERRORS.GENERATE_MINUTES, e));
       setGenerating(false);
       onGeneratingChange(false);
     }
@@ -283,7 +283,7 @@ export default function TodayView({
         new Notification("EasyWork", { body: isInterview ? "面试复盘已生成，点击查看" : "会议纪要已生成，点击查看" });
       }
     } catch (e) {
-      setError(toUserError(ERRORS.GENERATE_MINUTES, e));
+      setError(toCommandError(ERRORS.GENERATE_MINUTES, e));
       setRecording(false);
       onRecordingChange(false);
       setGenerating(false);

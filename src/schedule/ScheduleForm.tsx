@@ -7,6 +7,7 @@ export const STAGE_OPTIONS = [
   { value: "one", label: "一面" },
   { value: "two", label: "二面" },
   { value: "three", label: "三面" },
+  { value: "ai", label: "AI面" },
 ];
 
 interface Props {
