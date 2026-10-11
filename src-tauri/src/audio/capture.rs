@@ -245,11 +245,17 @@ impl AudioCapture {
 
         // ── Mixer + Writer thread (meetily-style: dual buffer → aligned mix) ──
         let writer_handle = std::thread::spawn(move || {
+            // 16-bit 整数存储：浏览器可直接播放（不再需要 _playback 副本），
+            // 体积为浮点格式的一半。读取链路已按文件真实格式解码。
+            #[inline]
+            fn to_i16(s: f32) -> i16 {
+                (s.clamp(-1.0, 1.0) * 32767.0).round() as i16
+            }
             let spec = hound::WavSpec {
                 channels,
                 sample_rate,
-                bits_per_sample: 32,
-                sample_format: hound::SampleFormat::Float,
+                bits_per_sample: 16,
+                sample_format: hound::SampleFormat::Int,
             };
             let mut writer = match hound::WavWriter::create(&output_path_for_writer, spec) {
                 Ok(w) => w,
@@ -286,7 +292,7 @@ impl AudioCapture {
                         let mixed = if sum > 1.0 { 1.0 + (sum - 1.0) * 0.1 }
                             else if sum < -1.0 { -1.0 + (sum + 1.0) * 0.1 }
                             else { sum };
-                        let _ = writer.write_sample(mixed);
+                        let _ = writer.write_sample(to_i16(mixed));
                         total_written += 1;
                     }
                 }
@@ -294,7 +300,7 @@ impl AudioCapture {
                 while sys_queue.len() >= window_size && mic_queue.is_empty() {
                     let win: Vec<f32> = sys_queue.drain(..window_size).collect();
                     for &s in &win {
-                        let _ = writer.write_sample(s.clamp(-1.0, 1.0));
+                        let _ = writer.write_sample(to_i16(s));
                         total_written += 1;
                     }
                 }
@@ -302,7 +308,7 @@ impl AudioCapture {
                 while mic_queue.len() >= window_size && sys_queue.is_empty() {
                     let win: Vec<f32> = mic_queue.drain(..window_size).collect();
                     for &m in &win {
-                        let _ = writer.write_sample(m.clamp(-1.0, 1.0));
+                        let _ = writer.write_sample(to_i16(m));
                         total_written += 1;
                     }
                 }
@@ -313,7 +319,7 @@ impl AudioCapture {
                     // Write remaining sys data directly (no mic to mix with)
                     if !sys_queue.is_empty() {
                         for &s in &sys_queue {
-                            let _ = writer.write_sample(s.clamp(-1.0, 1.0));
+                            let _ = writer.write_sample(to_i16(s));
                             total_written += 1;
                         }
                         sys_queue.clear();
@@ -321,7 +327,7 @@ impl AudioCapture {
                     // Write remaining mic data
                     if !mic_queue.is_empty() {
                         for &m in &mic_queue {
-                            let _ = writer.write_sample(m.clamp(-1.0, 1.0));
+                            let _ = writer.write_sample(to_i16(m));
                             total_written += 1;
                         }
                         mic_queue.clear();
@@ -331,7 +337,7 @@ impl AudioCapture {
                         let n = sys_cons.pop_slice(&mut sys_buf);
                         if n == 0 { break; }
                         for &s in &sys_buf[..n] {
-                            let _ = writer.write_sample(s);
+                            let _ = writer.write_sample(to_i16(s));
                             total_written += 1;
                         }
                     }
@@ -339,7 +345,7 @@ impl AudioCapture {
                         let n = mic_cons.pop_slice(&mut mic_buf);
                         if n == 0 { break; }
                         for &m in &mic_buf[..n] {
-                            let _ = writer.write_sample(m);
+                            let _ = writer.write_sample(to_i16(m));
                             total_written += 1;
                         }
                     }

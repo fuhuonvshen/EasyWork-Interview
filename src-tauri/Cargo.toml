@@ -28,6 +28,10 @@ anyhow = "1"
 ringbuf = "0.4"
 hound = "3.5"
 
+# 导入外部音频的解码（mp3/m4a/aac/flac/ogg 等；WAV 仍走 hound）
+# aac/isomp4 覆盖 m4a（iOS 录音/微信导出常见），alac 兼容无损 m4a
+symphonia = { version = "0.5", features = ["aac", "alac", "isomp4", "mp3"] }
+
 # Real-time noise suppression (RNNoise pure-Rust port)
 nnnoiseless = { version = "0.5.2", default-features = false }
 tokio = { version = "1", features = ["full"] }

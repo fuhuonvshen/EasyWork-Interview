@@ -135,16 +135,9 @@ pub async fn whisper_transcribe(
     wav_path: String,
     state: State<'_, WhisperState>,
 ) -> Result<String, String> {
-    let mut reader = hound::WavReader::open(&wav_path)
-        .map_err(|e| format!("无法打开 WAV 文件: {}", e))?;
-    let spec = reader.spec();
-    let duration = reader.duration() as usize;
-    let samples: Vec<f32> = reader.samples::<f32>().filter_map(|s| s.ok()).collect();
-    if samples.is_empty() {
-        return Err(format!("WAV 无有效采样 ({} 帧, {:?})", duration, spec.sample_format));
-    }
-    let audio =
-        crate::whisper::engine::convert_audio_for_whisper(&samples, spec.channels, spec.sample_rate);
+    let (samples, channels, sample_rate) =
+        crate::audio::decode::read_wav_f32_hound(&wav_path)?;
+    let audio = crate::whisper::engine::convert_audio_for_whisper(&samples, channels, sample_rate);
 
     let engine = {
         let guard = state.0.lock().map_err(|e| format!("状态锁失败: {}", e))?;

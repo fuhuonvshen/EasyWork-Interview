@@ -1,11 +1,12 @@
 // EasyWork - Meeting & minutes database commands
 
-use tauri::State;
+use tauri::{Manager, State};
 use crate::database::models::{Meeting, Minutes, Transcript};
 use crate::state::{DbState, LlmState, SenseVoiceState, WhisperState};
 
 #[tauri::command]
 pub async fn generate_minutes(
+    app: tauri::AppHandle,
     wav_path: String,
     meeting_title: String,
     live_text: Option<String>,
@@ -21,16 +22,18 @@ pub async fn generate_minutes(
     db: State<'_, DbState>,
     llm_state: State<'_, LlmState>,
 ) -> Result<String, String> {
-    // 1. Transcribe WAV (system audio)
-    let mut reader = hound::WavReader::open(&wav_path)
-        .map_err(|e| format!("无法打开 WAV 文件: {}", e))?;
-    let spec = reader.spec();
-    let samples: Vec<f32> = reader.samples::<f32>().filter_map(|s| s.ok()).collect();
+    // 1. 读取音频（WAV 按真实采样格式解码；mp3/m4a 等导入格式走通用解码）
+    let (samples, channels, sample_rate) = match read_audio_samples(&wav_path) {
+        Ok(v) => v,
+        Err(e) => {
+            log::error!("generate_minutes: 读取音频失败（{}）: {}", wav_path, e);
+            return Err(e);
+        }
+    };
     if samples.is_empty() {
-        return Err("WAV 文件中没有有效的音频采样".into());
+        return Err("音频文件中没有有效的音频采样".into());
     }
-    let audio =
-        crate::whisper::engine::convert_audio_for_whisper(&samples, spec.channels, spec.sample_rate);
+    let audio = crate::whisper::engine::convert_audio_for_whisper(&samples, channels, sample_rate);
 
     let sv_engine = {
         let sv = sensevoice_state.0.lock().map_err(|e| format!("状态锁失败: {}", e))?;
@@ -118,6 +121,7 @@ pub async fn generate_minutes(
     let minutes = if is_interview {
         crate::summary::gen::generate_interview_minutes(
             &full_transcript, &meeting_title, company.as_deref().unwrap_or(""), position.as_deref().unwrap_or(""),
+            stage.as_deref(),
             &llm_state.0,
         )
         .await
@@ -128,10 +132,43 @@ pub async fn generate_minutes(
             .map_err(|e| format!("纪要生成失败: {}", e))?
     };
 
+    // 源文件已在录音目录（录制产物/已有副本）→ 直接入库；
+    // 外部导入的文件 → 转存一份 16k 单声道副本到录音目录再入库：
+    // 既保证播放范围（asset 协议只允许 APPDATA 目录），也避免删除音频时
+    // 连带删掉用户自己的原始文件
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("无法获取应用数据目录: {}", e))?;
+    let settings = crate::database::repo::get_all_settings(&db.0)
+        .await
+        .unwrap_or_default();
+    let dir = crate::settings::resolve_path(
+        &app_data_dir, &settings, "recordings_dir", "recordings",
+    );
+    std::fs::create_dir_all(&dir).map_err(|e| format!("无法创建录制目录: {}", e))?;
+    let in_recordings = std::fs::canonicalize(&wav_path)
+        .ok()
+        .and_then(|src| {
+            std::fs::canonicalize(&dir)
+                .ok()
+                .map(|d| src.starts_with(&d))
+        })
+        .unwrap_or(false);
+    let wav_path = if in_recordings {
+        wav_path
+    } else {
+        let stored = crate::audio::decode::write_wav_16k_mono(&dir, &audio)?;
+        log::info!("导入音频已转存: {} -> {}", wav_path, stored);
+        stored
+    };
+
     // 3. Save to database
     let meeting_id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Local::now().to_rfc3339();
-    let duration_secs = (samples.len() as f64 / spec.sample_rate as f64) as i64;
+    // 交织样本数 ÷ 声道数 = 帧数，帧数 ÷ 采样率 = 时长
+    let duration_secs =
+        (samples.len() as f64 / channels.max(1) as f64 / sample_rate.max(1) as f64) as i64;
 
     let meeting = Meeting {
         id: meeting_id.clone(),
@@ -564,4 +601,20 @@ pub async fn delete_resume(
     crate::database::repo::delete_resume(&db.0)
         .await
         .map_err(|e| format!("删除简历失败: {}", e))
+}
+
+/// 读取音频为交织 f32 样本（样本, 声道数, 采样率）。
+/// .wav 优先 hound 按真实采样格式解码；打不开或读不出样本的（float64 等）
+/// 回退 symphonia；mp3/m4a/aac/flac/ogg 等非 WAV 格式直接走 symphonia。
+fn read_audio_samples(wav_path: &str) -> Result<(Vec<f32>, u16, u32), String> {
+    if crate::audio::decode::is_wav_path(wav_path) {
+        match crate::audio::decode::read_wav_f32_hound(wav_path) {
+            Ok(parsed) => return Ok(parsed),
+            Err(e) => {
+                log::warn!("hound 无法解码 WAV（{}），回退通用解码: {}", wav_path, e);
+            }
+        }
+    }
+    crate::audio::decode::decode_audio_file(wav_path)
+        .map_err(|e| format!("无法读取音频文件（{}）", e))
 }

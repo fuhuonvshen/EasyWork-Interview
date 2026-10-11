@@ -59,7 +59,7 @@ pub async fn pick_audio_file(
     let file = app
         .dialog()
         .file()
-        .add_filter("音频文件 (WAV)", &["wav"])
+        .add_filter("音频文件 (WAV, MP3, M4A, AAC, FLAC, OGG)", &["wav", "mp3", "m4a", "aac", "flac", "ogg"])
         .set_title("选择录音文件")
         .blocking_pick_file();
 

@@ -385,15 +385,22 @@ pub fn check_meeting_models(app: AppHandle) -> Result<serde_json::Value, String>
     }))
 }
 
-/// Convert a float32 WAV (recording format) to a 16-bit PCM WAV for browser
-/// playback — WebKit/Safari cannot decode float32 WAV. Idempotent: skips if
-/// the `*_playback.wav` sibling already exists. Returns the playback path.
+/// Prepare an audio file for browser playback — WebKit/Safari cannot decode
+/// float32 WAV. 16-bit 整数 WAV（新存储格式）浏览器可直接播放：原样返回，
+/// 不生成副本。仅 float32 WAV（存量录音）转成 16-bit 的 `*_playback.wav`
+/// 兄弟文件，幂等复用（已存在则跳过转换）。Returns the playable path.
 #[tauri::command]
 pub async fn prepare_playback_audio(wav_path: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let src = std::path::Path::new(&wav_path);
         if !src.exists() {
             return Err("音频文件不存在".to_string());
+        }
+        if let Ok(reader) = hound::WavReader::open(src) {
+            let spec = reader.spec();
+            if spec.sample_format == hound::SampleFormat::Int && spec.bits_per_sample == 16 {
+                return Ok(wav_path.clone());
+            }
         }
         let stem = src
             .file_stem()
@@ -404,14 +411,13 @@ pub async fn prepare_playback_audio(wav_path: String) -> Result<String, String> 
             return Ok(dest.to_string_lossy().to_string());
         }
 
-        let mut reader = hound::WavReader::open(src)
-            .map_err(|e| format!("无法读取音频: {}", e))?;
-        let spec = reader.spec();
-        let samples: Vec<f32> = reader.samples::<f32>().filter_map(|s| s.ok()).collect();
+        let (samples, channels, sample_rate) =
+            crate::audio::decode::read_wav_f32_hound(&wav_path)
+                .map_err(|e| format!("无法读取音频: {}", e))?;
 
         let out_spec = hound::WavSpec {
-            channels: spec.channels,
-            sample_rate: spec.sample_rate,
+            channels,
+            sample_rate,
             bits_per_sample: 16,
             sample_format: hound::SampleFormat::Int,
         };
