@@ -545,10 +545,10 @@ class Database:
 
         Returns:
             {"id", "title", "company", "position", "stage", "score",
-             "transcript", "minutes"} 或 None
+             "duration_secs", "transcript", "minutes"} 或 None
         """
         cursor = await self.conn.execute(
-            "SELECT id, title, created_at, company, position, stage, score "
+            "SELECT id, title, created_at, company, position, stage, score, duration_secs "
             "FROM meetings WHERE id = ?", (interview_id,)
         )
         row = await cursor.fetchone()

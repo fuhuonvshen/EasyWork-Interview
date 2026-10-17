@@ -53,7 +53,7 @@ function MessageCollapsible({ title, icon, content }: { title: string; icon: str
           {title}
         </button>
         {open && (
-          <div className="mt-1 text-xs text-gray-400 whitespace-pre-wrap border-l-2 border-gray-200 pl-2 max-h-48 overflow-y-auto">
+          <div className="selectable mt-1 text-xs text-gray-400 whitespace-pre-wrap border-l-2 border-gray-200 pl-2 max-h-48 overflow-y-auto">
             {content}
           </div>
         )}
@@ -315,7 +315,7 @@ export default function AgentChat({ conversationId, onConversationUpdate, conver
               const dataContent = msg.content.replace(/^\[上传了文件: [^\]]+\]\n\n/, "");
               return (
                 <div key={msg.id} className="flex justify-end">
-                  <div className="max-w-[90%] rounded-2xl px-4 py-3 bg-blue-50 border border-blue-200">
+                  <div className="selectable max-w-[90%] rounded-2xl px-4 py-3 bg-blue-50 border border-blue-200">
                     <div className="flex items-center gap-2 text-sm font-medium text-blue-700 mb-2">
                       <Paperclip size={14} />
                       已上传: {fileName}
@@ -341,7 +341,7 @@ export default function AgentChat({ conversationId, onConversationUpdate, conver
                 }`}
               >
                 <div
-                  className={`max-w-[90%] rounded-2xl px-4 py-3 ${
+                  className={`selectable max-w-[90%] rounded-2xl px-4 py-3 ${
                     msg.role === "user"
                       ? "bg-emerald-600 text-white"
                       : "bg-gray-100 text-gray-700"
@@ -374,7 +374,7 @@ export default function AgentChat({ conversationId, onConversationUpdate, conver
                       思考过程
                     </button>
                     {!thinkingCollapsed && (
-                      <div className="mt-1 text-xs text-gray-500 whitespace-pre-wrap border-l-2 border-gray-300 pl-2 max-h-48 overflow-y-auto">
+                      <div className="selectable mt-1 text-xs text-gray-500 whitespace-pre-wrap border-l-2 border-gray-300 pl-2 max-h-48 overflow-y-auto">
                         {stream.thinking}
                       </div>
                     )}

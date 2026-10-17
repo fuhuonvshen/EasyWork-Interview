@@ -16,6 +16,8 @@ import ReminderModal from "./ReminderModal";
 import TitleBar from "./components/TitleBar";
 import { ToastContainer } from "./components/Toast";
 import UpdateDialog from "./components/UpdateDialog";
+import { RecordingSessionProvider } from "./minutes/recording/RecordingSession";
+import FloatingRecorder from "./minutes/recording/FloatingRecorder";
 import type { MinutesTab } from "./types";
 
 const MINUTES_TABS: MinutesTab[] = ["today", "history", "schedule", "reports"];
@@ -25,6 +27,14 @@ export default function App() {
   const [view, setView] = useState<"workbench" | "minutes" | "agent" | "feedback" | "questions" | "plaza" | "apply" | "resume">("workbench");
   const [prefillTitle, setPrefillTitle] = useState("");
   const [initialTab, setInitialTab] = useState<MinutesTab>("today");
+  // 递增导航令牌：让 MinutesApp 在「已在 minutes、initialTab 未变」时也能被强制切 tab
+  const [navNonce, setNavNonce] = useState(0);
+
+  const openMinutes = useCallback((tab: MinutesTab) => {
+    setInitialTab(tab);
+    setNavNonce((n) => n + 1);
+    setView("minutes");
+  }, []);
 
   // Load startup page setting
   useEffect(() => {
@@ -138,8 +148,7 @@ export default function App() {
       if (view === "workbench") {
         setView("workbench");
       } else if (view === "minutes") {
-        if (tab && isMinutesTab(tab)) setInitialTab(tab);
-        setView("minutes");
+        openMinutes(tab && isMinutesTab(tab) ? tab : "today");
       } else if (view === "agent") {
         setView("agent");
       } else if (view === "apply") {
@@ -149,7 +158,7 @@ export default function App() {
       }
     });
     return () => { unlisten.then((f) => f()); };
-  }, []);
+  }, [openMinutes]);
 
   // 生产环境禁用浏览器右键菜单
   useEffect(() => {
@@ -166,9 +175,8 @@ export default function App() {
   const navigateToRecording = useCallback((title: string, scheduleId?: string) => {
     setPrefillTitle(title);
     setCurrentScheduleId(scheduleId || null);
-    setInitialTab("today");
-    setView("minutes");
-  }, []);
+    openMinutes("today");
+  }, [openMinutes]);
 
   // 面试详情页「让 AI 深度复盘」：创建 review 对话并注入面试上下文
   const handleReview = useCallback(async (meetingId: string, title: string) => {
@@ -201,10 +209,9 @@ export default function App() {
     } else {
       setPrefillTitle(title || "");
       setCurrentScheduleId(null);
-      setInitialTab(action && isMinutesTab(action) ? action : "today");
-      setView("minutes");
+      openMinutes(action && isMinutesTab(action) ? action : "today");
     }
-  }, []);
+  }, [openMinutes]);
 
   useEffect(() => {
     const poll = async () => {
@@ -236,6 +243,7 @@ export default function App() {
   }, []);
 
   return (
+    <RecordingSessionProvider>
     <div className="h-screen relative overflow-hidden">
       {/* 底层：浅灰蓝渐变 + 微光光斑（底图） */}
       <div className="app-bg absolute inset-0" />
@@ -253,6 +261,7 @@ export default function App() {
           prefillTitle={prefillTitle}
           scheduleId={currentScheduleId}
           initialTab={initialTab}
+          navNonce={navNonce}
           onBack={() => setView("workbench")}
           onNavigateRecording={navigateToRecording}
           onReview={handleReview}
@@ -279,6 +288,9 @@ export default function App() {
       </div>
       </div>
 
+      {/* 全局悬浮球：录音/生成中显示，点击回到录音页 */}
+      <FloatingRecorder onOpen={() => openMinutes("today")} />
+
       {reminder && (
         <ReminderModal
           reminder={reminder}
@@ -300,5 +312,6 @@ export default function App() {
       )}
       <ToastContainer />
     </div>
+    </RecordingSessionProvider>
   );
 }

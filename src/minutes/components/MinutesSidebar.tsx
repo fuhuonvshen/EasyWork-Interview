@@ -14,14 +14,12 @@ export default function MinutesSidebar({
   onTabChange,
   historySubTab,
   onHistorySubTabChange,
-  isBusy,
   onBack,
 }: {
   tab: MinutesTab;
   onTabChange: (tab: MinutesTab) => void;
   historySubTab: "meetings" | "week" | "month";
   onHistorySubTabChange: (sub: "meetings" | "week" | "month") => void;
-  isBusy: boolean;
   onBack: () => void;
 }) {
   return (
@@ -29,11 +27,7 @@ export default function MinutesSidebar({
       <div className="px-4 py-4 border-b border-gray-50">
         <button
           onClick={onBack}
-          disabled={isBusy}
-          className={`flex items-center gap-1.5 text-xs transition-colors mb-2 ${
-            isBusy ? "text-gray-300 cursor-not-allowed" : "text-gray-400 hover:text-gray-700"
-          }`}
-          title={isBusy ? "请先停止录制" : undefined}
+          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition-colors mb-2"
         >
           <ArrowLeft size={14} />
           返回工作台
@@ -43,20 +37,15 @@ export default function MinutesSidebar({
 
       <nav className="flex-1 px-2 py-2 space-y-1 overflow-y-auto">
         {TABS.map(({ key, icon: Icon, label }) => {
-          const disabled = isBusy && key !== "today";
           return (
             <div key={key}>
               <button
-                onClick={() => { if (!disabled) { onTabChange(key); } }}
-                disabled={disabled}
+                onClick={() => onTabChange(key)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
-                  disabled
-                    ? "text-gray-300 cursor-not-allowed"
-                    : tab === key
-                      ? "bg-brand-50 text-brand-700"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                  tab === key
+                    ? "bg-brand-50 text-brand-700"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 }`}
-                title={disabled ? "录制中无法切换" : undefined}
               >
                 <Icon size={20} />
                 {label}

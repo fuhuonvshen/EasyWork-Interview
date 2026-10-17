@@ -9,31 +9,30 @@ import { STAGE_OPTIONS } from "../../schedule/ScheduleForm";
 import { ERRORS, toCommandError, toUserError } from "../../errors";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { showToast } from "../../components/Toast";
+import { useRecordingSession, type RecordingConfig } from "./RecordingSession";
 import type { AudioDevice, InterviewQuestion } from "../../types";
 
 export default function TodayView({
   prefillTitle,
   scheduleId,
-  onMeetingCreated,
-  onRecordingChange,
-  onGeneratingChange,
 }: {
   prefillTitle: string;
   scheduleId: string | null;
-  onMeetingCreated: () => void;
-  onRecordingChange: (recording: boolean) => void;
-  onGeneratingChange: (generating: boolean) => void;
 }) {
+  const {
+    phase, startedAt, liveTranscripts, config: sessionConfig, error: sessionError,
+    clearError, startRecording: startSession, stopAndGenerate, generateFromImport,
+    pendingResult, takePendingResult,
+  } = useRecordingSession();
+
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState("");
   const [meetingLabel, setMeetingLabel] = useState(prefillTitle || "");
-  const [recording, setRecording] = useState(false);
 
   useEffect(() => {
     if (prefillTitle) setMeetingLabel(prefillTitle);
   }, [prefillTitle]);
 
-  const [generating, setGenerating] = useState(false);
   const [minutes, setMinutes] = useState<string | null>(null);
   const [currentMeetingId, setCurrentMeetingId] = useState<string | null>(null);
   const [showMinutes, setShowMinutes] = useState(false);
@@ -43,7 +42,6 @@ export default function TodayView({
   const [selectedQ, setSelectedQ] = useState<Set<string>>(new Set());
   const [addingQ, setAddingQ] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [liveTranscripts, setLiveTranscripts] = useState<{ speaker: string; text: string }[]>([]);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [meetingType, setMeetingType] = useState("其他");
   // ── 面试语义（Phase 1）：默认面试模式，可切换回会议模式 ──
@@ -64,13 +62,17 @@ export default function TodayView({
   const dragStartXRef = useRef(0);
   const dragStartYRef = useRef(0);
 
-  // 录制计时
+  // 录音计时：锚定 provider 的开始时间戳，切页重挂后依然准确
   useEffect(() => {
-    if (!recording) return;
-    setElapsed(0);
-    const t = setInterval(() => setElapsed((s) => s + 1), 1000);
+    if (phase !== "recording" || !startedAt) {
+      setElapsed(0);
+      return;
+    }
+    const tick = () => setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    tick();
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [recording]);
+  }, [phase, startedAt]);
 
   const formatElapsed = (total: number) => {
     const h = Math.floor(total / 3600);
@@ -86,6 +88,8 @@ export default function TodayView({
     dragStartYRef.current = clientY ?? 0;
   };
   const handleDragEnd = (clientX: number, clientY?: number) => {
+    // 拖拽产生了文本选区（用户在选正文内容）时不算滑动，不翻页
+    if (window.getSelection()?.toString()) return;
     const dx = clientX - dragStartXRef.current;
     const dy = (clientY ?? 0) - dragStartYRef.current;
     const pageCount = questions.length > 0 ? 3 : 2;
@@ -135,46 +139,24 @@ export default function TodayView({
     return () => clearInterval(interval);
   }, [loadDevices]);
 
-  useEffect(() => {
-    if (!recording) return;
-    setLiveTranscripts([]);
-
-    const poll = async () => {
-      try {
-        const chunks = await invoke<{ speaker: string; text: string }[]>("get_transcript_chunks");
-        if (chunks.length > 0) {
-          setLiveTranscripts((prev) => [...prev, ...chunks]);
-        }
-      } catch {}
-    };
-
-    poll();
-    const interval = setInterval(poll, 1000);
-    return () => clearInterval(interval);
-  }, [recording]);
+  // start 时快照配置，停止后即使页面重挂也按当时的标题/公司/阶段生成
+  const buildConfig = useCallback((): RecordingConfig => ({
+    title: meetingLabel || composedTitle || (isInterview ? "未命名面试" : "未命名会议"),
+    label: meetingLabel,
+    scheduleId: scheduleId || null,
+    meetingType,
+    isInterview,
+    company: isInterview ? (company || null) : null,
+    position: isInterview ? (position || null) : null,
+    stage: isInterview ? (stage || null) : null,
+  }), [meetingLabel, composedTitle, scheduleId, meetingType, isInterview, company, position, stage]);
 
   const startRecording = useCallback(async () => {
     if (!selectedDevice) return;
     setError(null);
     setMinutes(null);
-    try {
-      await invoke("start_capture", {
-        deviceName: selectedDevice,
-        label: meetingLabel || composedTitle || (isInterview ? "未命名面试" : "未命名会议"),
-      });
-      setRecording(true);
-      onRecordingChange(true);
-
-      if ("Notification" in window && Notification.permission === "default") {
-        Notification.requestPermission();
-      }
-      if ("Notification" in window && Notification.permission === "granted") {
-        new Notification("EasyWork", { body: "录制已开始" });
-      }
-    } catch (e) {
-      setError(toUserError(ERRORS.START_RECORDING, e));
-    }
-  }, [selectedDevice, meetingLabel, composedTitle, isInterview, onRecordingChange]);
+    await startSession(selectedDevice, buildConfig());
+  }, [selectedDevice, startSession, buildConfig]);
 
   const importAudio = useCallback(async () => {
     setError(null);
@@ -182,50 +164,11 @@ export default function TodayView({
     try {
       const path = await invoke<string | null>("pick_audio_file");
       if (!path) return;
-
-      setGenerating(true);
-      onGeneratingChange(true);
-
-      const raw = await invoke<string>("generate_minutes", {
-        wavPath: path,
-        meetingTitle: meetingLabel || composedTitle || (isInterview ? "导入的面试" : "导入的会议"),
-        liveText: null,
-        liveTranscriptJson: null,
-        scheduleId: null,
-        meetingType: meetingType,
-        isInterview: isInterview,
-        company: isInterview ? (company || null) : null,
-        position: isInterview ? (position || null) : null,
-        stage: isInterview ? (stage || null) : null,
-      });
-      let result: { meetingId: string; content: string; questions?: InterviewQuestion[] };
-      try {
-        const parsed = JSON.parse(raw);
-        if (typeof parsed?.meetingId === "string" && typeof parsed?.content === "string") {
-          result = parsed;
-        } else {
-          throw new Error(ERRORS.PARSE_MINUTES);
-        }
-      } catch (parseErr) {
-        throw new Error(ERRORS.PARSE_MINUTES);
-      }
-      setCurrentMeetingId(result.meetingId);
-      setMinutes(result.content);
-      // 面试题目：默认全选
-      const qs = Array.isArray(result.questions) ? (result.questions as InterviewQuestion[]) : [];
-      setQuestions(qs);
-      setSelectedQ(new Set(qs.map((q) => q.id)));
-      setShowMinutes(true);
-      setCarouselPage(0);
-      setGenerating(false);
-      onGeneratingChange(false);
-      onMeetingCreated();
+      await generateFromImport(path, buildConfig());
     } catch (e) {
       setError(toCommandError(ERRORS.GENERATE_MINUTES, e));
-      setGenerating(false);
-      onGeneratingChange(false);
     }
-  }, [meetingLabel, composedTitle, onMeetingCreated, onGeneratingChange, meetingType, isInterview, company, position, stage]);
+  }, [generateFromImport, buildConfig]);
 
   const handleStopClick = useCallback(() => {
     setShowStopConfirm(true);
@@ -233,63 +176,22 @@ export default function TodayView({
 
   const stopRecording = useCallback(async () => {
     setShowStopConfirm(false);
-    try {
-      const liveText = liveTranscripts
-        .map((item) => `[${item.speaker}] ${item.text}`)
-        .join("\n");
+    await stopAndGenerate();
+  }, [stopAndGenerate]);
 
-      const path = await invoke<string>("stop_capture");
-      setRecording(false);
-      onRecordingChange(false);
-      setGenerating(true);
-      onGeneratingChange(true);
-
-      const raw = await invoke<string>("generate_minutes", {
-        wavPath: path,
-        meetingTitle: meetingLabel || composedTitle || (isInterview ? "未命名面试" : "未命名会议"),
-        liveText: liveText || null,
-        liveTranscriptJson: JSON.stringify(liveTranscripts) || null,
-        scheduleId: scheduleId || null,
-        meetingType: meetingType,
-        isInterview: isInterview,
-        company: isInterview ? (company || null) : null,
-        position: isInterview ? (position || null) : null,
-        stage: isInterview ? (stage || null) : null,
-      });
-      let result: { meetingId: string; content: string; questions?: InterviewQuestion[] };
-      try {
-        const parsed = JSON.parse(raw);
-        if (typeof parsed?.meetingId === "string" && typeof parsed?.content === "string") {
-          result = parsed;
-        } else {
-          throw new Error(ERRORS.PARSE_MINUTES);
-        }
-      } catch (parseErr) {
-        throw new Error(ERRORS.PARSE_MINUTES);
-      }
-      setCurrentMeetingId(result.meetingId);
-      setMinutes(result.content);
-      // 面试题目：默认全选
-      const qs = Array.isArray(result.questions) ? (result.questions as InterviewQuestion[]) : [];
-      setQuestions(qs);
-      setSelectedQ(new Set(qs.map((q) => q.id)));
-      setShowMinutes(true);
-      setCarouselPage(0);
-      setGenerating(false);
-      onGeneratingChange(false);
-      onMeetingCreated();
-
-      if ("Notification" in window && Notification.permission === "granted") {
-        new Notification("EasyWork", { body: isInterview ? "面试复盘已生成，点击查看" : "会议纪要已生成，点击查看" });
-      }
-    } catch (e) {
-      setError(toCommandError(ERRORS.GENERATE_MINUTES, e));
-      setRecording(false);
-      onRecordingChange(false);
-      setGenerating(false);
-      onGeneratingChange(false);
-    }
-  }, [meetingLabel, composedTitle, scheduleId, onMeetingCreated, onRecordingChange, onGeneratingChange, liveTranscripts, meetingType, isInterview, company, position, stage]);
+  // 生成完成（可能发生在用户切到别的页面时）：挂载后消费一次并弹纪要
+  useEffect(() => {
+    const result = takePendingResult();
+    if (!result) return;
+    setCurrentMeetingId(result.meetingId);
+    setMinutes(result.content);
+    // 面试题目：默认全选
+    const qs = Array.isArray(result.questions) ? result.questions : [];
+    setQuestions(qs);
+    setSelectedQ(new Set(qs.map((q) => q.id)));
+    setShowMinutes(true);
+    setCarouselPage(0);
+  }, [pendingResult, takePendingResult]);
 
   // 勾选的题目加入题库（in_bank = 1）
   const handleAddToBank = async () => {
@@ -317,7 +219,9 @@ export default function TodayView({
   };
 
   // ── Recording mode: full-screen transcript view ──
-  if (recording || generating) {
+  if (phase !== "idle") {
+    const recording = phase === "recording";
+    const generating = phase === "generating";
     return (
       <div className="h-full flex flex-col">
         <header className="px-6 py-3 bg-white flex items-center justify-between flex-shrink-0">
@@ -327,7 +231,9 @@ export default function TodayView({
               <span className="relative inline-flex w-2.5 h-2.5 rounded-full bg-red-500" />
             </span>
             <div>
-              <h2 className="text-sm font-semibold text-gray-900">{meetingLabel || (isInterview ? "面试录音中" : "会议录音中")}</h2>
+              <h2 className="text-sm font-semibold text-gray-900">
+                {sessionConfig?.label || (sessionConfig?.isInterview ? "面试录音中" : "会议录音中")}
+              </h2>
               <p className="text-[11px] text-gray-400 pointer-events-none">
                 {generating ? "正在生成纪要..." : `${formatElapsed(elapsed)} · ${liveTranscripts.length} 条转写`}
               </p>
@@ -350,10 +256,10 @@ export default function TodayView({
         </header>
 
         <main className="flex-1 overflow-y-auto px-8 py-6">
-          {error && (
+          {(error || sessionError) && (
             <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">
-              {error}
-              <button className="ml-2 underline hover:no-underline" onClick={() => setError(null)}>关闭</button>
+              {error || sessionError}
+              <button className="ml-2 underline hover:no-underline" onClick={() => { setError(null); clearError(); }}>关闭</button>
             </div>
           )}
 
@@ -372,7 +278,7 @@ export default function TodayView({
             </div>
           )}
 
-          <div className="max-w-3xl mx-auto space-y-3">
+          <div className="selectable max-w-3xl mx-auto space-y-3">
             {liveTranscripts.map((item, i) => {
               const s = getSpeakerStyle(item.speaker);
               return (
@@ -419,10 +325,10 @@ export default function TodayView({
         </header>
         <div className="flex-1 flex items-center justify-center px-8 py-8">
           <div className="w-full max-w-md space-y-6">
-          {error && (
+          {(error || sessionError) && (
             <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">
-              {error}
-              <button className="ml-2 underline hover:no-underline" onClick={() => setError(null)}>关闭</button>
+              {error || sessionError}
+              <button className="ml-2 underline hover:no-underline" onClick={() => { setError(null); clearError(); }}>关闭</button>
             </div>
           )}
 
@@ -481,12 +387,7 @@ export default function TodayView({
                 <label className="block text-xs font-medium text-gray-500 mb-1.5">面试阶段</label>
                 <Select
                   value={stage}
-                  options={[
-                    { value: "hr", label: "HR面" },
-                    { value: "one", label: "一面" },
-                    { value: "two", label: "二面" },
-                    { value: "three", label: "三面" },
-                  ]}
+                  options={STAGE_OPTIONS}
                   onChange={setStage}
                 />
               </div>
@@ -555,7 +456,6 @@ export default function TodayView({
 
           <button
             onClick={importAudio}
-            disabled={generating}
             className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-gray-600 text-sm font-medium rounded-full border-2 border-dashed border-gray-300 hover:border-brand-400 hover:text-brand-600 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <FileAudio size={16} />导入已有音频
@@ -596,12 +496,12 @@ export default function TodayView({
                 style={{ transform: `translateX(-${carouselPage * 100}%)` }}
               >
                 {/* Page 1: Summary */}
-                <div className="min-w-full h-full min-h-0 overflow-y-auto px-6 py-4">
+                <div className="selectable min-w-full h-full min-h-0 overflow-y-auto px-6 py-4">
                   <Markdown content={minutes} />
                 </div>
 
                 {/* Page 2: Transcript with speaker labels */}
-                <div className="min-w-full h-full min-h-0 overflow-y-auto px-6 py-4">
+                <div className="selectable min-w-full h-full min-h-0 overflow-y-auto px-6 py-4">
                   {liveTranscripts.length === 0 ? (
                     <p className="text-sm text-gray-400 pointer-events-none">无转写记录</p>
                   ) : (
@@ -626,7 +526,7 @@ export default function TodayView({
 
                 {/* Page 3: 面试题目（勾选 → 加入题库） */}
                 {questions.length > 0 && (
-                  <div className="min-w-full h-full min-h-0 overflow-y-auto px-6 py-4">
+                  <div className="selectable min-w-full h-full min-h-0 overflow-y-auto px-6 py-4">
                     <div className="flex items-center justify-between mb-3 gap-3">
                       <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
                         <BookOpen size={15} className="text-brand-500" />
@@ -647,6 +547,10 @@ export default function TodayView({
                         <label
                           key={q.id}
                           className="flex items-start gap-3 px-4 py-3 rounded-xl bg-white border border-gray-100 shadow-sm hover:border-brand-200 cursor-pointer transition-colors"
+                          onClick={(e) => {
+                            // 拖选题目文字产生的点击不应勾选/取消勾选
+                            if (window.getSelection()?.toString()) { e.preventDefault(); e.stopPropagation(); }
+                          }}
                         >
                           <input
                             type="checkbox"

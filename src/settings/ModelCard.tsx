@@ -32,6 +32,8 @@ export interface ModelCardProps {
   totalBytes: number;
   speed: number;
   disabled?: boolean;
+  /** 录音/生成中锁定删除（避免破坏正在使用的模型） */
+  deleteDisabled?: boolean;
   color?: "accent" | "violet";
   /** Show a small label next to the delete button when downloaded (e.g. "就绪") */
   readyLabel?: string;
@@ -77,8 +79,9 @@ export default function ModelCard({
               {p.readyLabel && (
                 <span className="text-[10px] text-green-600 bg-green-50 px-2 py-1 rounded font-medium">{p.readyLabel}</span>
               )}
-              <button onClick={p.onDelete}
-                className="text-[10px] text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors">
+              <button onClick={p.onDelete} disabled={p.deleteDisabled}
+                title={p.deleteDisabled ? "录音/生成中不可删除模型" : undefined}
+                className="text-[10px] text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-red-400">
                 删除
               </button>
             </div>

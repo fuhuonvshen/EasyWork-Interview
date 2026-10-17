@@ -237,7 +237,7 @@ export default function QuestionBankView({ onBack, onExpand }: {
   // 单道题的正文行（卡片流和详情页共用同一套操作）
   const questionRow = (q: InterviewQuestion) => (
     <div key={q.id} className="group flex items-start gap-3 px-4 py-3.5 rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md hover:border-violet-100 transition-all">
-      <div className="flex-1 min-w-0">
+      <div className="selectable flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">{q.category}</span>
           {DIFF_LABEL[q.difficulty] && (

@@ -34,6 +34,9 @@ pub async fn generate_minutes(
         return Err("音频文件中没有有效的音频采样".into());
     }
     let audio = crate::whisper::engine::convert_audio_for_whisper(&samples, channels, sample_rate);
+    // 交织样本数 ÷ 声道数 = 帧数，帧数 ÷ 采样率 = 时长
+    let duration_secs =
+        (samples.len() as f64 / channels.max(1) as f64 / sample_rate.max(1) as f64) as i64;
 
     let sv_engine = {
         let sv = sensevoice_state.0.lock().map_err(|e| format!("状态锁失败: {}", e))?;
@@ -122,6 +125,7 @@ pub async fn generate_minutes(
         crate::summary::gen::generate_interview_minutes(
             &full_transcript, &meeting_title, company.as_deref().unwrap_or(""), position.as_deref().unwrap_or(""),
             stage.as_deref(),
+            duration_secs,
             &llm_state.0,
         )
         .await
@@ -166,9 +170,6 @@ pub async fn generate_minutes(
     // 3. Save to database
     let meeting_id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Local::now().to_rfc3339();
-    // 交织样本数 ÷ 声道数 = 帧数，帧数 ÷ 采样率 = 时长
-    let duration_secs =
-        (samples.len() as f64 / channels.max(1) as f64 / sample_rate.max(1) as f64) as i64;
 
     let meeting = Meeting {
         id: meeting_id.clone(),

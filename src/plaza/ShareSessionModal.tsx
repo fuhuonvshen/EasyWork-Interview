@@ -162,7 +162,7 @@ export default function ShareSessionModal({ session, alreadyShared, onClose, onS
               <label className="text-xs font-medium text-gray-500">将分享以下 {session.questions.length} 道题</label>
               <span className="text-[10px] text-gray-300">参考答案不上传</span>
             </div>
-            <div className="rounded-xl border border-gray-100 bg-gray-50/60 max-h-52 overflow-y-auto divide-y divide-gray-100">
+            <div className="selectable rounded-xl border border-gray-100 bg-gray-50/60 max-h-52 overflow-y-auto divide-y divide-gray-100">
               {session.questions.map((q) => (
                 <div key={q.id} className="px-3.5 py-2.5">
                   <div className="flex items-center gap-2 mb-1">

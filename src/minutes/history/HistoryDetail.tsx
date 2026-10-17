@@ -7,6 +7,7 @@ import ExportDropdown from "../../components/ExportDropdown";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { ERRORS, toUserError } from "../../errors";
 import { showToast } from "../../components/Toast";
+import { useRecordingSession } from "../recording/RecordingSession";
 import type { InterviewQuestion } from "../../types";
 
 interface MeetingDetail {
@@ -53,6 +54,7 @@ export default function HistoryDetail({ meetingId, onBack, onReview }: {
   onBack: () => void;
   onReview?: (meetingId: string, title: string) => void;
 }) {
+  const { phase } = useRecordingSession();
   const [detail, setDetail] = useState<MeetingDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -130,6 +132,8 @@ export default function HistoryDetail({ meetingId, onBack, onReview }: {
   }, [transcriptChunks, audioSrc]);
 
   const seekTo = (start: number | undefined) => {
+    // 录音中禁止播放：系统音频会被回环捕获进当前录音
+    if (phase === "recording") return;
     const audio = audioRef.current;
     if (start === undefined || !audio) return;
     audio.currentTime = start;
@@ -393,11 +397,18 @@ export default function HistoryDetail({ meetingId, onBack, onReview }: {
             </div>
             {audioSrc && (
               <div className="px-6 pt-4 pb-1 border-b border-gray-50">
-                <audio ref={audioRef} src={audioSrc} controls className="w-full" />
+                {phase === "recording" ? (
+                  <p className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-700">
+                    <PlayCircle size={12} />
+                    录音中已禁用音频播放（播放内容会被系统音频捕获、录入本场录音），录音结束后可听
+                  </p>
+                ) : (
+                  <audio ref={audioRef} src={audioSrc} controls className="w-full" />
+                )}
                 <div className="flex items-center justify-between mt-1.5">
                   <p className="text-xs text-gray-400 flex items-center gap-1">
                     <PlayCircle size={12} />
-                    点击句子可跳转到对应音频位置
+                    {phase === "recording" ? "录音中不可播放" : "点击句子可跳转到对应音频位置"}
                   </p>
                   <button
                     onClick={() => setConfirmDeleteAudio(true)}
@@ -422,14 +433,21 @@ export default function HistoryDetail({ meetingId, onBack, onReview }: {
                   {transcriptChunks.map((item, i) => {
                     const s = getSpeakerStyle(item.speaker);
                     const clickable = item.start !== undefined && !!audioSrc;
-                    const active = clickable && currentIndex === i;
+                    // 录音中不允许跳转播放（会被录入当前录音），但保留文字选中
+                    const canSeek = clickable && phase !== "recording";
+                    const active = canSeek && currentIndex === i;
                     return (
                       <button
                         key={i}
-                        onClick={() => seekTo(item.start)}
+                        onClick={() => {
+                          // 拖选转写文字产生的点击不应触发音频跳转
+                          if (window.getSelection()?.toString()) return;
+                          if (!canSeek) return;
+                          seekTo(item.start);
+                        }}
                         disabled={!clickable}
-                        className={`w-full text-left flex gap-3 items-start rounded-lg px-2 py-1.5 transition-colors ${
-                          active ? "bg-brand-50 ring-1 ring-brand-200" : clickable ? "hover:bg-gray-50 cursor-pointer" : "cursor-default"
+                        className={`selectable w-full text-left flex gap-3 items-start rounded-lg px-2 py-1.5 transition-colors ${
+                          active ? "bg-brand-50 ring-1 ring-brand-200" : canSeek ? "hover:bg-gray-50 cursor-pointer" : "cursor-default"
                         }`}
                       >
                         {item.speaker && (
@@ -510,7 +528,7 @@ export default function HistoryDetail({ meetingId, onBack, onReview }: {
                           className="mt-0.5 w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 flex-shrink-0"
                         />
                       )}
-                      <div className="min-w-0 flex-1">
+                      <div className="selectable min-w-0 flex-1">
                         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-100">{q.category}</span>
                           {q.in_bank && (

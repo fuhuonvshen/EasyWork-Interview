@@ -9,12 +9,14 @@ import MeetingListView from "./history/MeetingListView";
 import ReportList from "./reports/ReportList";
 import ReportViewModal from "./reports/ReportViewModal";
 import MeetingModelCheck from "./components/MeetingModelCheck";
+import { useRecordingSession } from "./recording/RecordingSession";
 import type { MinutesTab, ReportItem } from "../types";
 
 export default function MinutesApp({
   prefillTitle,
   scheduleId,
   initialTab,
+  navNonce,
   onBack,
   onNavigateRecording,
   onReview,
@@ -22,21 +24,22 @@ export default function MinutesApp({
   prefillTitle: string;
   scheduleId: string | null;
   initialTab: MinutesTab;
+  navNonce: number;
   onBack: () => void;
   onNavigateRecording: (title: string, scheduleId?: string) => void;
   onReview?: (meetingId: string, title: string) => void;
 }) {
   const [tab, setTab] = useState<MinutesTab>(initialTab);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const isBusy = isRecording || isGenerating;
+  const { phase } = useRecordingSession();
+  const isBusy = phase !== "idle";
 
   const [savedReports, setSavedReports] = useState<ReportItem[]>([]);
   const [viewingReport, setViewingReport] = useState<string | null>(null);
   const [historySubTab, setHistorySubTab] = useState<"meetings" | "week" | "month">("meetings");
 
-  useEffect(() => { setTab(initialTab); }, [initialTab]);
+  // navNonce：同一 tab 的重复导航（如点悬浮球回录音页）也能强制生效
+  useEffect(() => { setTab(initialTab); setSelectedId(null); }, [initialTab, navNonce]);
 
   const loadReports = useCallback(() => {
     invoke<ReportItem[]>("list_reports")
@@ -59,7 +62,6 @@ export default function MinutesApp({
         onTabChange={(key) => { setTab(key); setSelectedId(null); }}
         historySubTab={historySubTab}
         onHistorySubTabChange={setHistorySubTab}
-        isBusy={isBusy}
         onBack={onBack}
       />
 
@@ -68,9 +70,6 @@ export default function MinutesApp({
           <TodayView
             prefillTitle={prefillTitle}
             scheduleId={scheduleId}
-            onMeetingCreated={() => {}}
-            onRecordingChange={setIsRecording}
-            onGeneratingChange={setIsGenerating}
           />
         )}
         {tab === "history" && selectedId && (

@@ -7,6 +7,7 @@ import type { ModelInfo, SpeechModelEntry, LlmModelEntry, EmailAccount, EmailSca
 import ModelCard from "./ModelCard";
 import { useModelDownload, DownloadStatus } from "./useModelDownload";
 import { showToast } from "../components/Toast";
+import { useRecordingSession } from "../minutes/recording/RecordingSession";
 
 function parseAccounts(raw: string | undefined): EmailAccount[] {
   try {
@@ -65,6 +66,10 @@ export default function ModelDownloadDialog({
 }: {
   onDone: () => void; onClose: () => void;
 }) {
+  // 录音/生成中锁定模型变更：语音模型下载完成会自动加载、删除会破坏正在使用的引擎
+  const { phase } = useRecordingSession();
+  const sessionBusy = phase !== "idle";
+
   const [tab, setTab] = useState<"general" | "speech" | "llm" | "email">("general");
   const [agentSettings, setAgentSettings] = useState<Record<string, string>>({});
   const [defaultRoot, setDefaultRoot] = useState("");
@@ -342,7 +347,7 @@ export default function ModelDownloadDialog({
           {!binaryReady && (
             <button
               onClick={startBinaryDownload}
-              disabled={binaryDownloading}
+              disabled={binaryDownloading || sessionBusy}
               className="flex-shrink-0 px-3 py-1 text-xs font-medium text-white bg-violet-500 rounded-lg hover:bg-violet-600 disabled:opacity-50 transition-colors"
             >
               {binaryDownloading ? "下载中..." : "下载"}
@@ -381,7 +386,8 @@ export default function ModelDownloadDialog({
             downloadedBytes={llm.downloadedBytes}
             totalBytes={llm.totalBytes}
             speed={llm.speed}
-            disabled={llm.downloading !== null}
+            disabled={llm.downloading !== null || sessionBusy}
+            deleteDisabled={sessionBusy}
             color="violet"
             onDownload={() => llm.startDownload(m.name)}
             onCancel={llm.cancelDownload}
@@ -426,6 +432,12 @@ export default function ModelDownloadDialog({
             </button>
           ))}
         </div>
+
+        {sessionBusy && (
+          <div className="mx-6 mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-[11px] text-amber-700 flex-shrink-0">
+            {phase === "recording" ? "录音中" : "纪要生成中"}：模型下载、删除与切换已暂时锁定，避免影响正在进行的任务。
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
           {/* ── Tab: 通用设置 ── */}
@@ -534,7 +546,8 @@ export default function ModelDownloadDialog({
                       downloadedBytes={speech.downloadedBytes}
                       totalBytes={speech.totalBytes}
                       speed={speech.speed}
-                      disabled={speech.downloading !== null}
+                      disabled={speech.downloading !== null || sessionBusy}
+                      deleteDisabled={sessionBusy}
                       onDownload={() => speech.startDownload(m.name)}
                       onCancel={speech.cancelDownload}
                       onDelete={() => speech.setDeleteTarget(m)}
@@ -574,7 +587,9 @@ export default function ModelDownloadDialog({
                   <select
                     value={agentSettings["agent_llm_backend"] || "local"}
                     onChange={(e) => updateAgentSetting("agent_llm_backend", e.target.value)}
-                    className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg"
+                    disabled={sessionBusy}
+                    title={sessionBusy ? "录音/生成中不可切换模型" : undefined}
+                    className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <option value="local">本地模型 (llama.cpp)</option>
                     <option value="online">在线模型 (OpenAI 兼容)</option>

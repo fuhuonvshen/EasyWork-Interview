@@ -34,6 +34,16 @@ textarea,
   user-select: text;
 }
 
+/* 正文内容可选区（纪要/转写/AI 回复/题目等长文本）：允许选中复制。
+   界面 chrome（菜单栏、侧边栏、按钮、列表标题）保持全局不可选。
+   必须带后代选择器——全局规则用 `*` 直接命中了每个元素，只给容器加
+   一次 user-select 不够。 */
+.selectable,
+.selectable * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* Smooth transitions for all interactive elements */
 button, a, input, select, textarea {
   transition: all 0.15s ease;

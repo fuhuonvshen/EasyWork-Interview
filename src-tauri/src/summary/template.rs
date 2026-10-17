@@ -183,12 +183,23 @@ fn stage_label(code: &str) -> &str {
     }
 }
 
+fn format_duration(secs: i64) -> String {
+    let m = secs / 60;
+    let s = secs % 60;
+    if m > 0 {
+        format!("{} 分 {} 秒", m, s)
+    } else {
+        format!("{} 秒", s)
+    }
+}
+
 /// 面试纪要用户提示词
 pub fn interview_user_prompt(
     transcript: &str,
     company: &str,
     position: &str,
     stage: Option<&str>,
+    duration_secs: i64,
 ) -> String {
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
     let mut s = String::new();
@@ -203,6 +214,11 @@ pub fn interview_user_prompt(
     if let Some(st) = stage.filter(|s| !s.trim().is_empty()) {
         s.push_str("面试轮次: ");
         s.push_str(stage_label(st.trim()));
+        s.push('\n');
+    }
+    if duration_secs > 0 {
+        s.push_str("面试时长: ");
+        s.push_str(&format_duration(duration_secs));
         s.push('\n');
     }
     s.push_str("面试时间: ");

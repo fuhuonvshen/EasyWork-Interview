@@ -10,6 +10,7 @@
   D. 题库数据正确性：来源绑定 + 同来源查重
   E. 会话级场景持久化：回答教练场景跨轮沿用（回归 2026-10-10 线上事故）
   F. 原始故障复现：回答教练场景下模型试图入库 → 被拒绝
+  G. 复盘上下文注入面试时长（duration_secs → "X 分 Y 秒"；缺省不注入）
 
 测试使用临时数据库（AGENT_DB_PATH 指向临时目录），不触碰真实数据。
 """
@@ -196,6 +197,39 @@ async def main():
     # 定义期同样不可见（模型根本看不到这个工具）
     check({d["function"]["name"] for d in reg.get_tool_definitions(turn["scene"])} == set(),
           "answer 场景工具清单为空（定义期模型看不到任何工具）")
+
+    # ═══ G. 复盘上下文注入面试时长 ═══
+    section("G. 复盘上下文注入面试时长")
+    # 临时库无 meetings/transcripts/minutes 表（生产由 Rust 建），按 get_interview_context 用到的列建最小表
+    await db.conn.execute(
+        "CREATE TABLE IF NOT EXISTS meetings ("
+        "  id TEXT PRIMARY KEY, title TEXT, created_at TEXT, company TEXT, position TEXT,"
+        "  stage TEXT, score INTEGER, duration_secs INTEGER, kind TEXT)"
+    )
+    await db.conn.execute("CREATE TABLE IF NOT EXISTS transcripts (meeting_id TEXT, content TEXT)")
+    await db.conn.execute("CREATE TABLE IF NOT EXISTS minutes (meeting_id TEXT, content TEXT)")
+    await db.conn.execute(
+        "INSERT INTO meetings (id, title, created_at, company, position, stage, duration_secs, kind) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        ("m-dur", "汉高 · AI面", "2026-10-11T15:32:02", "汉高", "产品经理", "ai", 1919, "interview"),
+    )
+    await db.conn.commit()
+
+    conv4 = await db.create_conversation("review", ref_id="m-dur")
+    turn_dur = await _prepare_turn(conv4, "请复盘这场面试")
+    check("时长: 31 分 59 秒" in turn_dur["context_block"], "复盘上下文含时长（1919 秒 → 31 分 59 秒）")
+    check("阶段: AI面" in turn_dur["context_block"], "复盘上下文阶段代码译为中文（ai → AI面）")
+
+    out = await HANDLERS["interview_summary"]({"interview_id": "m-dur", "include_transcript": False})
+    check("时长: 31 分 59 秒" in out, "interview_summary 工具输出含时长")
+
+    # duration 缺失（旧记录默认 0）时不注入时长行
+    await db.conn.execute("UPDATE meetings SET duration_secs = 0 WHERE id = 'm-dur'")
+    await db.conn.commit()
+    turn_dur2 = await _prepare_turn(conv4, "请复盘这场面试")
+    check("时长" not in turn_dur2["context_block"], "时长为 0 时不注入时长行")
+    out2 = await HANDLERS["interview_summary"]({"interview_id": "m-dur", "include_transcript": False})
+    check("时长" not in out2, "工具输出同样不含时长行")
 
     # ═══ 汇总 ═══
     print(f"\n{'=' * 50}")

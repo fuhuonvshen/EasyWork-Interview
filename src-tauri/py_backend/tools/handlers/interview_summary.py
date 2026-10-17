@@ -43,12 +43,18 @@ async def handle(args: dict, ctx: dict | None = None) -> str:
     if interview is None:
         return f"❌ 未找到面试记录：{interview_id}（可能已被删除）"
 
+    # 延迟导入：chat 在模块顶层导入 tools.registry → handlers，顶层导入会循环
+    from ...llm.chat import _fmt_duration
+
     lines = [
         f"📄 面试: {interview.get('title') or '未命名'}",
         f"公司: {interview.get('company') or '未知'} | 岗位: {interview.get('position') or '未知'}"
         + (f" | 阶段: {interview.get('stage')}" if interview.get("stage") else ""),
         f"时间: {interview.get('created_at', '')[:16]}",
     ]
+    duration = _fmt_duration(interview.get("duration_secs"))
+    if duration:
+        lines.append(f"时长: {duration}")
     minutes = (interview.get("minutes") or "").strip()
     if minutes:
         lines.append(f"\n--- 面试纪要 ---\n{minutes[:3000]}")
