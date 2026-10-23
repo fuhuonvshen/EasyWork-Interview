@@ -1,7 +1,7 @@
 // EasyWork - Today View (recording + transcript + minutes + 面试题目提取)
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Mic, MicOff, Loader, Sparkles, X, FileAudio, BookOpen, Check } from "lucide-react";
+import { Mic, MicOff, Loader, Sparkles, X, FileAudio, BookOpen, Check, PanelRightClose, PanelRightOpen } from "lucide-react";
 import Markdown from "../../components/Markdown";
 import Select from "../../components/Select";
 import FtueTour from "../../components/FtueTour";
@@ -10,6 +10,8 @@ import { ERRORS, toCommandError, toUserError } from "../../errors";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { showToast } from "../../components/Toast";
 import { useRecordingSession, type RecordingConfig } from "./RecordingSession";
+import { useInterviewAssist } from "./InterviewAssist";
+import AssistPane from "./AssistPane";
 import type { AudioDevice, InterviewQuestion } from "../../types";
 
 export default function TodayView({
@@ -24,6 +26,7 @@ export default function TodayView({
     clearError, startRecording: startSession, stopAndGenerate, generateFromImport,
     pendingResult, takePendingResult,
   } = useRecordingSession();
+  const assist = useInterviewAssist();
 
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState("");
@@ -32,6 +35,24 @@ export default function TodayView({
   useEffect(() => {
     if (prefillTitle) setMeetingLabel(prefillTitle);
   }, [prefillTitle]);
+
+  // 实时辅助仅支持在线模型；设置改动需重启应用（设置页已有提示）
+  useEffect(() => {
+    let cancelled = false;
+    invoke<Record<string, string>>("get_settings")
+      .then((s) => {
+        if (cancelled) return;
+        const backend = s["agent_llm_backend"] || "local";
+        const key = (s["agent_online_key"] || "").trim();
+        setAssistOnlineReady(backend === "online" && key.length > 0);
+      })
+      .catch(() => {
+        if (!cancelled) setAssistOnlineReady(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [minutes, setMinutes] = useState<string | null>(null);
   const [currentMeetingId, setCurrentMeetingId] = useState<string | null>(null);
@@ -49,6 +70,9 @@ export default function TodayView({
   const [company, setCompany] = useState("");
   const [position, setPosition] = useState("");
   const [stage, setStage] = useState("one");
+  // 实时辅助答题：仅在线模型可用，默认开启
+  const [assistOnlineReady, setAssistOnlineReady] = useState<boolean | null>(null);
+  const [assistEnabled, setAssistEnabled] = useState(true);
   // 面试模式没有名称输入框，标题用「公司 · 岗位 · 轮次」自动拼；
   // 公司/岗位都空就没得拼，退回占位名（未命名面试 / 导入的面试）
   const composedTitle = useMemo(() => {
@@ -146,10 +170,11 @@ export default function TodayView({
     scheduleId: scheduleId || null,
     meetingType,
     isInterview,
+    assistEnabled: isInterview && assistOnlineReady === true && assistEnabled,
     company: isInterview ? (company || null) : null,
     position: isInterview ? (position || null) : null,
     stage: isInterview ? (stage || null) : null,
-  }), [meetingLabel, composedTitle, scheduleId, meetingType, isInterview, company, position, stage]);
+  }), [meetingLabel, composedTitle, scheduleId, meetingType, isInterview, assistOnlineReady, assistEnabled, company, position, stage]);
 
   const startRecording = useCallback(async () => {
     if (!selectedDevice) return;
@@ -164,7 +189,8 @@ export default function TodayView({
     try {
       const path = await invoke<string | null>("pick_audio_file");
       if (!path) return;
-      await generateFromImport(path, buildConfig());
+      // 导入音频没有实时 transcript-chunk；显式关闭辅助，避免未来误触发
+      await generateFromImport(path, { ...buildConfig(), assistEnabled: false });
     } catch (e) {
       setError(toCommandError(ERRORS.GENERATE_MINUTES, e));
     }
@@ -222,6 +248,7 @@ export default function TodayView({
   if (phase !== "idle") {
     const recording = phase === "recording";
     const generating = phase === "generating";
+    const showAssist = recording && !!sessionConfig?.assistEnabled;
     return (
       <div className="h-full flex flex-col">
         <header className="px-6 py-3 bg-white flex items-center justify-between flex-shrink-0">
@@ -240,12 +267,25 @@ export default function TodayView({
             </div>
           </div>
           {recording && (
-            <button
-              onClick={handleStopClick}
-              className="flex items-center gap-2 px-5 py-2 bg-red-500 text-white text-sm font-medium rounded-full hover:bg-red-600 active:scale-95 transition-all"
-            >
-              <MicOff size={16} />停止
-            </button>
+            <div className="flex items-center gap-2">
+              {showAssist && (
+                <button
+                  type="button"
+                  onClick={assist.toggleVisible}
+                  title={assist.visible ? "隐藏辅助答题" : "显示辅助答题"}
+                  aria-label={assist.visible ? "隐藏辅助答题" : "显示辅助答题"}
+                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                >
+                  {assist.visible ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
+                </button>
+              )}
+              <button
+                onClick={handleStopClick}
+                className="flex items-center gap-2 px-5 py-2 bg-red-500 text-white text-sm font-medium rounded-full hover:bg-red-600 active:scale-95 transition-all"
+              >
+                <MicOff size={16} />停止
+              </button>
+            </div>
           )}
           {generating && (
             <div className="flex items-center gap-2 text-sm text-brand-600">
@@ -255,7 +295,8 @@ export default function TodayView({
           )}
         </header>
 
-        <main className="flex-1 overflow-y-auto px-8 py-6">
+        <div className="flex-1 min-h-0 flex">
+          <main className={`flex-1 min-w-0 overflow-y-auto ${showAssist && assist.visible ? "px-6" : "px-8"} py-6`}>
           {(error || sessionError) && (
             <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">
               {error || sessionError}
@@ -294,7 +335,9 @@ export default function TodayView({
               );
             })}
           </div>
-        </main>
+          </main>
+          {showAssist && assist.visible && <AssistPane turns={assist.turns} />}
+        </div>
 
         <ConfirmDialog
           open={showStopConfirm}
@@ -433,6 +476,40 @@ export default function TodayView({
               <p className="mt-2 text-[11px] text-gray-400 leading-relaxed">
                 ⚠️ 录制真实面试前请征得对方同意。系统仅在本机处理音频与转写，数据不出设备。
               </p>
+            </div>
+          )}
+
+          {isInterview && (
+            <div className="p-3 rounded-xl border border-gray-100 bg-white">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-gray-700">实时辅助答题</p>
+                  <p className="mt-1 text-[10px] text-gray-400 leading-relaxed">
+                    {assistOnlineReady === null
+                      ? "正在检查在线模型配置…"
+                      : assistOnlineReady
+                        ? "只识别系统音频（面试官），逐段实时请求在线模型；会关闭思考模式。"
+                        : "仅支持在线模型。请到设置 → 面试助手切换，修改后需重启应用。"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-label="实时辅助答题"
+                  aria-checked={assistOnlineReady === true && assistEnabled}
+                  disabled={assistOnlineReady !== true}
+                  onClick={() => setAssistEnabled((v) => !v)}
+                  className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    assistOnlineReady === true && assistEnabled ? "bg-accent-500" : "bg-gray-200"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
+                      assistOnlineReady === true && assistEnabled ? "translate-x-4" : ""
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           )}
 

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 
 # ── Request models ──
@@ -10,6 +12,18 @@ from pydantic import BaseModel
 class ChatRequest(BaseModel):
     conversation_id: str
     message: str
+
+
+class InterviewAssistMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class InterviewAssistRequest(BaseModel):
+    question: str
+    history: list[InterviewAssistMessage] = Field(default_factory=list)
+    company: str | None = None
+    position: str | None = None
 
 
 class AttachFileRequest(BaseModel):

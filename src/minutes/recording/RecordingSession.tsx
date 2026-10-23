@@ -23,6 +23,8 @@ export interface RecordingConfig {
   scheduleId: string | null;
   meetingType: string;
   isInterview: boolean;
+  /** 实时辅助答题：仅在线模型 + 面试录音时开启 */
+  assistEnabled: boolean;
   company: string | null;
   position: string | null;
   stage: string | null;

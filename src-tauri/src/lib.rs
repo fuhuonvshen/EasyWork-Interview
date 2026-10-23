@@ -23,8 +23,9 @@ mod resume;
 mod state;
 
 use state::{
-    AgentProcessState, AgentSidecarState, CaptureState, ChildProcesses, DbState, DiarizationState, KillOnDrop,
-    LlmState, ReminderState, SenseVoiceState, TranscriptBufState, TranscriptTaskState, WhisperState,
+    AgentProcessState, AgentSidecarState, CaptureState, ChildProcesses, DbState, DiarizationState,
+    InterviewAssistState, KillOnDrop, LlmState, ReminderState, SenseVoiceState, TranscriptBufState,
+    TranscriptTaskState, WhisperState,
 };
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -98,6 +99,7 @@ pub fn run() {
         )))
         .manage(DiarizationState(Mutex::new(None)))
         .manage(AgentSidecarState(agent::sidecar::AgentSidecar::new(9876)))
+        .manage(InterviewAssistState(Mutex::new(None)))
         .manage(AgentProcessState(std::sync::Arc::new(
             std::sync::Mutex::new(KillOnDrop(None)),
         )))
@@ -276,6 +278,8 @@ pub fn run() {
             agent::commands::agent_delete_conversation,
             agent::commands::agent_rename_conversation,
             agent::commands::agent_get_messages,
+            agent::interview::interview_assist_start,
+            agent::interview::interview_assist_cancel,
             agent::commands::todo_create,
             agent::commands::todo_list,
             agent::commands::todo_update_status,

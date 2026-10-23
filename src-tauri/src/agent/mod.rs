@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod interview;
 pub mod sidecar;
 
 use anyhow::Result;

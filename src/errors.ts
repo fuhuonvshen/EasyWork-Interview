@@ -22,6 +22,7 @@ export const ERRORS = {
   LOAD_MINUTES: "加载纪要失败",
   PARSE_MINUTES: "纪要数据解析异常，请重试",
   SAVE_MINUTES: "保存纪要失败，请重试",
+  INTERVIEW_ASSIST: "实时辅助暂不可用，请检查在线模型设置",
   NETWORK: "网络连接异常",
 } as const;
 

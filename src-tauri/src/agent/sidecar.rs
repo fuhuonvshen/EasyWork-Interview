@@ -19,12 +19,14 @@ const HEALTH_CHECK_INTERVAL: Duration = Duration::from_millis(500);
 const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Manages the Python agent sidecar process and HTTP connection.
+#[derive(Clone)]
 pub struct AgentSidecar {
     client: Client,
     /// Dedicated client for SSE streaming: no 180s cap (long local generations)
     /// and no system proxy (localhost only, mirrors Python trust_env=False).
     stream_client: Client,
-    base_url: RwLock<String>,
+    /// Arc so spawned stream tasks and `set_port` share the same live port.
+    base_url: Arc<RwLock<String>>,
 }
 
 impl AgentSidecar {
@@ -39,7 +41,7 @@ impl AgentSidecar {
                 .timeout(Duration::from_secs(600))
                 .build()
                 .expect("Failed to create stream client"),
-            base_url: RwLock::new(format!("http://127.0.0.1:{}", port)),
+            base_url: Arc::new(RwLock::new(format!("http://127.0.0.1:{}", port))),
         }
     }
 

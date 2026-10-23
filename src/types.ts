@@ -214,6 +214,19 @@ export type AgentStreamEvent =
   | { type: "error"; conversation_id: string; message: string }
   | { type: "done"; conversation_id: string; tool_calls_used: string[] };
 
+/** Rust 回环/麦克风转写段事件（实时辅助只消费 speaker !== "我" 的部分） */
+export interface TranscriptChunkEvent {
+  speaker: string;
+  text: string;
+  start?: number;
+}
+
+/** 实时辅助答题的流式事件（Rust 注入 request_id） */
+export type InterviewAssistStreamEvent =
+  | { type: "delta"; request_id: string; text: string }
+  | { type: "done"; request_id: string }
+  | { type: "error"; request_id: string; message: string };
+
 export interface ToolCall {
   name: string;
   arguments: Record<string, unknown>;

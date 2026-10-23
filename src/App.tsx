@@ -17,6 +17,7 @@ import TitleBar from "./components/TitleBar";
 import { ToastContainer } from "./components/Toast";
 import UpdateDialog from "./components/UpdateDialog";
 import { RecordingSessionProvider } from "./minutes/recording/RecordingSession";
+import { InterviewAssistProvider } from "./minutes/recording/InterviewAssist";
 import FloatingRecorder from "./minutes/recording/FloatingRecorder";
 import type { MinutesTab } from "./types";
 
@@ -244,6 +245,7 @@ export default function App() {
 
   return (
     <RecordingSessionProvider>
+    <InterviewAssistProvider>
     <div className="h-screen relative overflow-hidden">
       {/* 底层：浅灰蓝渐变 + 微光光斑（底图） */}
       <div className="app-bg absolute inset-0" />
@@ -312,6 +314,7 @@ export default function App() {
       )}
       <ToastContainer />
     </div>
+    </InterviewAssistProvider>
     </RecordingSessionProvider>
   );
 }

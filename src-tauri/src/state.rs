@@ -20,6 +20,12 @@ pub struct ReminderState(pub std::sync::Arc<std::sync::Mutex<Option<serde_json::
 pub struct TranscriptTaskState(pub Mutex<Vec<tauri::async_runtime::JoinHandle<()>>>);
 /// Agent sidecar HTTP proxy for communicating with the Python agent server.
 pub struct AgentSidecarState(pub AgentSidecar);
+/// 当前实时辅助答题的 SSE 任务；新问题到来时 abort 上一条。
+pub struct InterviewAssistTask {
+    pub request_id: String,
+    pub handle: tauri::async_runtime::JoinHandle<()>,
+}
+pub struct InterviewAssistState(pub Mutex<Option<InterviewAssistTask>>);
 /// Handle to the Python agent server child process (for lifecycle management).
 /// Wrapped in KillOnDrop so the process is killed when the app exits.
 pub struct KillOnDrop(pub Option<tokio::process::Child>);

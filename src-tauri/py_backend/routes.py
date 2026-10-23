@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from .llm import chat
+from . import interview_assist
 from .config import AGENT_INPUT_DIR, MEMORIES_DIR
 from .data.database import db
 from .export import render_export
@@ -30,6 +31,7 @@ from .data.models import (
     DeleteRequest,
     ExportRequest,
     ExportResponse,
+    InterviewAssistRequest,
     OkResponse,
     RenameRequest,
     ResumeTemplateResponse,
@@ -145,6 +147,21 @@ async def chat_stream_endpoint(req: ChatRequest, request: Request) -> StreamingR
     skills = request.app.state.skill_registry
     return StreamingResponse(
         chat.chat_stream(req, skills),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ── 实时辅助答题（仅在线模型，无工具/场景/数据库）──────────────
+
+
+@router.post("/interview_assist/stream")
+async def interview_assist_stream_endpoint(req: InterviewAssistRequest) -> StreamingResponse:
+    reason = interview_assist.online_unavailable_reason()
+    if reason:
+        raise HTTPException(status_code=409, detail=reason)
+    return StreamingResponse(
+        interview_assist.stream_answer(req),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
