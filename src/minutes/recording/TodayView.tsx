@@ -1,5 +1,6 @@
 // EasyWork - Today View (recording + transcript + minutes + 面试题目提取)
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Mic, MicOff, Loader, Sparkles, X, FileAudio, BookOpen, Check, PanelRightClose, PanelRightOpen } from "lucide-react";
 import Markdown from "../../components/Markdown";
@@ -64,27 +65,25 @@ export default function TodayView({
   const [addingQ, setAddingQ] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
-  const [meetingType, setMeetingType] = useState("其他");
-  // ── 面试语义（Phase 1）：默认面试模式，可切换回会议模式 ──
-  const [isInterview, setIsInterview] = useState(true);
   const [company, setCompany] = useState("");
   const [position, setPosition] = useState("");
   const [stage, setStage] = useState("one");
   // 实时辅助答题：仅在线模型可用，默认开启
   const [assistOnlineReady, setAssistOnlineReady] = useState<boolean | null>(null);
   const [assistEnabled, setAssistEnabled] = useState(true);
-  // 面试模式没有名称输入框，标题用「公司 · 岗位 · 轮次」自动拼；
-  // 公司/岗位都空就没得拼，退回占位名（未命名面试 / 导入的面试）
+  // 标题优先用记录名称；否则用「公司 · 岗位 · 轮次」自动拼，
+  // 公司/岗位都空就退回占位名（未命名面试 / 导入的面试）
   const composedTitle = useMemo(() => {
-    if (!isInterview) return "";
     const base = [company.trim(), position.trim()].filter(Boolean);
     if (base.length === 0) return "";
     const stageLabel = STAGE_OPTIONS.find((s) => s.value === stage)?.label ?? "";
     return [...base, stageLabel].filter(Boolean).join(" · ");
-  }, [isInterview, company, position, stage]);
+  }, [company, position, stage]);
   const [elapsed, setElapsed] = useState(0);
   const dragStartXRef = useRef(0);
   const dragStartYRef = useRef(0);
+  const splitRef = useRef<HTMLDivElement>(null);
+  const assistDragRef = useRef<{ startX: number; startWidth: number; totalWidth: number } | null>(null);
 
   // 录音计时：锚定 provider 的开始时间戳，切页重挂后依然准确
   useEffect(() => {
@@ -105,6 +104,42 @@ export default function TodayView({
     const mm = String(m).padStart(2, "0");
     const ss = String(s).padStart(2, "0");
     return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+  };
+
+  useEffect(() => () => {
+    document.body.style.cursor = "";
+  }, []);
+
+  const handleAssistDividerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const container = splitRef.current;
+    const pane = container?.querySelector<HTMLElement>("[data-assist-pane]");
+    if (!container || !pane) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    assistDragRef.current = {
+      startX: e.clientX,
+      startWidth: pane.getBoundingClientRect().width,
+      totalWidth: container.getBoundingClientRect().width,
+    };
+    document.body.style.cursor = "col-resize";
+  };
+
+  const handleAssistDividerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = assistDragRef.current;
+    if (!drag) return;
+    const delta = drag.startX - e.clientX;
+    const maxWidth = Math.min(drag.totalWidth * 0.68, drag.totalWidth - 290);
+    const width = Math.min(Math.max(drag.startWidth + delta, 300), maxWidth);
+    assist.setPanePercent((width / drag.totalWidth) * 100);
+  };
+
+  const handleAssistDividerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!assistDragRef.current) return;
+    assistDragRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    document.body.style.cursor = "";
   };
 
   const handleDragStart = (clientX: number, clientY?: number) => {
@@ -165,16 +200,16 @@ export default function TodayView({
 
   // start 时快照配置，停止后即使页面重挂也按当时的标题/公司/阶段生成
   const buildConfig = useCallback((): RecordingConfig => ({
-    title: meetingLabel || composedTitle || (isInterview ? "未命名面试" : "未命名会议"),
+    title: meetingLabel || composedTitle || "未命名面试",
     label: meetingLabel,
     scheduleId: scheduleId || null,
-    meetingType,
-    isInterview,
-    assistEnabled: isInterview && assistOnlineReady === true && assistEnabled,
-    company: isInterview ? (company || null) : null,
-    position: isInterview ? (position || null) : null,
-    stage: isInterview ? (stage || null) : null,
-  }), [meetingLabel, composedTitle, scheduleId, meetingType, isInterview, assistOnlineReady, assistEnabled, company, position, stage]);
+    meetingType: "其他",
+    isInterview: true,
+    assistEnabled: assistOnlineReady === true && assistEnabled,
+    company: company || null,
+    position: position || null,
+    stage: stage || null,
+  }), [meetingLabel, composedTitle, scheduleId, assistOnlineReady, assistEnabled, company, position, stage]);
 
   const startRecording = useCallback(async () => {
     if (!selectedDevice) return;
@@ -259,7 +294,7 @@ export default function TodayView({
             </span>
             <div>
               <h2 className="text-sm font-semibold text-gray-900">
-                {sessionConfig?.label || (sessionConfig?.isInterview ? "面试录音中" : "会议录音中")}
+                {sessionConfig?.label || "面试录音中"}
               </h2>
               <p className="text-[11px] text-gray-400 pointer-events-none">
                 {generating ? "正在生成纪要..." : `${formatElapsed(elapsed)} · ${liveTranscripts.length} 条转写`}
@@ -268,23 +303,23 @@ export default function TodayView({
           </div>
           {recording && (
             <div className="flex items-center gap-2">
-              {showAssist && (
-                <button
-                  type="button"
-                  onClick={assist.toggleVisible}
-                  title={assist.visible ? "隐藏辅助答题" : "显示辅助答题"}
-                  aria-label={assist.visible ? "隐藏辅助答题" : "显示辅助答题"}
-                  className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                >
-                  {assist.visible ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
-                </button>
-              )}
               <button
                 onClick={handleStopClick}
                 className="flex items-center gap-2 px-5 py-2 bg-red-500 text-white text-sm font-medium rounded-full hover:bg-red-600 active:scale-95 transition-all"
               >
                 <MicOff size={16} />停止
               </button>
+              {showAssist && (
+                <button
+                  type="button"
+                  onClick={assist.toggleVisible}
+                  title={assist.visible ? "隐藏辅助答题" : "显示辅助答题"}
+                  aria-label={assist.visible ? "隐藏辅助答题" : "显示辅助答题"}
+                  className="p-2 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+                >
+                  {assist.visible ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
+                </button>
+              )}
             </div>
           )}
           {generating && (
@@ -295,7 +330,7 @@ export default function TodayView({
           )}
         </header>
 
-        <div className="flex-1 min-h-0 flex">
+        <div ref={splitRef} className="flex-1 min-h-0 flex">
           <main className={`flex-1 min-w-0 overflow-y-auto ${showAssist && assist.visible ? "px-6" : "px-8"} py-6`}>
           {(error || sessionError) && (
             <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">
@@ -336,7 +371,35 @@ export default function TodayView({
             })}
           </div>
           </main>
-          {showAssist && assist.visible && <AssistPane turns={assist.turns} />}
+          {showAssist && assist.visible && (
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="调整辅助答题栏宽度"
+              aria-valuemin={20}
+              aria-valuemax={80}
+              aria-valuenow={Math.round(assist.panePercent)}
+              title="拖动调整宽度，双击恢复默认"
+              onPointerDown={handleAssistDividerDown}
+              onPointerMove={handleAssistDividerMove}
+              onPointerUp={handleAssistDividerUp}
+              onPointerCancel={handleAssistDividerUp}
+              onDoubleClick={() => assist.setPanePercent(40)}
+              className="group relative w-2.5 flex-shrink-0 cursor-col-resize touch-none"
+            >
+              <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-200 transition-colors group-hover:bg-brand-300" />
+              <div className="absolute top-1/2 left-1/2 h-9 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gray-200 opacity-0 transition-opacity group-hover:opacity-100" />
+            </div>
+          )}
+          {showAssist && assist.visible && (
+            <div
+              data-assist-pane
+              style={{ width: `${assist.panePercent}%`, minWidth: 300, maxWidth: "calc(100% - 290px)" }}
+              className="flex min-h-0 flex-shrink-0"
+            >
+              <AssistPane turns={assist.turns} />
+            </div>
+          )}
         </div>
 
         <ConfirmDialog
@@ -386,132 +449,76 @@ export default function TodayView({
             />
           </div>
 
-          {/* 模式切换：面试记录（默认）/ 会议记录 */}
-          <div className="flex rounded-xl bg-gray-100 p-1">
-            <button
-              onClick={() => setIsInterview(true)}
-              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-colors ${isInterview ? "bg-white text-brand-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
-            >
-              🎯 面试记录
-            </button>
-            <button
-              onClick={() => setIsInterview(false)}
-              className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-colors ${!isInterview ? "bg-white text-brand-700 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
-            >
-              📋 会议记录
-            </button>
-          </div>
-
-          {isInterview ? (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">公司</label>
-                  <input
-                    type="text"
-                    value={company}
-                    onChange={(e) => setCompany(e.target.value)}
-                    placeholder="例如：XX科技"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 focus:bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">岗位</label>
-                  <input
-                    type="text"
-                    value={position}
-                    onChange={(e) => setPosition(e.target.value)}
-                    placeholder="例如：前端工程师"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 focus:bg-white"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">面试阶段</label>
-                <Select
-                  value={stage}
-                  options={STAGE_OPTIONS}
-                  onChange={setStage}
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">会议名称</label>
-                <input
-                  type="text"
-                  value={meetingLabel}
-                  onChange={(e) => setMeetingLabel(e.target.value)}
-                  placeholder="例如：周例会"
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 focus:bg-white"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">会议类型</label>
-                <Select
-                  value={meetingType}
-                  options={[
-                    { value: "其他", label: "通用" },
-                    { value: "周会", label: "周会" },
-                    { value: "培训", label: "培训" },
-                    { value: "项目评审", label: "项目评审" },
-                  ]}
-                  onChange={setMeetingType}
-                />
-              </div>
-            </>
-          )}
-
-          {isInterview && (
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">记录名称（可留空自动生成）</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">公司</label>
               <input
                 type="text"
-                value={meetingLabel}
-                onChange={(e) => setMeetingLabel(e.target.value)}
-                placeholder={`${company || "公司"}-${position || "岗位"}-面试`}
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                placeholder="例如：XX科技"
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 focus:bg-white"
               />
-              <p className="mt-2 text-[11px] text-gray-400 leading-relaxed">
-                ⚠️ 录制真实面试前请征得对方同意。系统仅在本机处理音频与转写，数据不出设备。
-              </p>
             </div>
-          )}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">岗位</label>
+              <input
+                type="text"
+                value={position}
+                onChange={(e) => setPosition(e.target.value)}
+                placeholder="例如：前端工程师"
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 focus:bg-white"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">面试阶段</label>
+            <Select
+              value={stage}
+              options={STAGE_OPTIONS}
+              onChange={setStage}
+            />
+          </div>
 
-          {isInterview && (
-            <div className="p-3 rounded-xl border border-gray-100 bg-white">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-gray-700">实时辅助答题</p>
-                  <p className="mt-1 text-[10px] text-gray-400 leading-relaxed">
-                    {assistOnlineReady === null
-                      ? "正在检查在线模型配置…"
-                      : assistOnlineReady
-                        ? "只识别系统音频（面试官），逐段实时请求在线模型；会关闭思考模式。"
-                        : "仅支持在线模型。请到设置 → 面试助手切换，修改后需重启应用。"}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-label="实时辅助答题"
-                  aria-checked={assistOnlineReady === true && assistEnabled}
-                  disabled={assistOnlineReady !== true}
-                  onClick={() => setAssistEnabled((v) => !v)}
-                  className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
-                    assistOnlineReady === true && assistEnabled ? "bg-accent-500" : "bg-gray-200"
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">记录名称（可留空自动生成）</label>
+            <input
+              type="text"
+              value={meetingLabel}
+              onChange={(e) => setMeetingLabel(e.target.value)}
+              placeholder={`${company || "公司"}-${position || "岗位"}-面试`}
+              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400 focus:bg-white"
+            />
+            <p className="mt-2 text-[11px] text-gray-400 leading-relaxed">
+              ⚠️ 录制真实面试前请征得对方同意。系统仅在本机处理音频与转写，数据不出设备。
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl border border-gray-100 bg-white">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-gray-700">实时辅助答题</p>
+              <button
+                type="button"
+                role="switch"
+                aria-label="实时辅助答题"
+                aria-checked={assistOnlineReady === true && assistEnabled}
+                disabled={assistOnlineReady !== true}
+                onClick={() => setAssistEnabled((v) => !v)}
+                className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  assistOnlineReady === true && assistEnabled ? "bg-accent-500" : "bg-gray-200"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
+                    assistOnlineReady === true && assistEnabled ? "translate-x-4" : ""
                   }`}
-                >
-                  <span
-                    className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
-                      assistOnlineReady === true && assistEnabled ? "translate-x-4" : ""
-                    }`}
-                  />
-                </button>
-              </div>
+                />
+              </button>
             </div>
-          )}
+            {assistOnlineReady === false && (
+              <p className="mt-2 text-[11px] text-gray-400">暂不可用，请先到设置中开启。</p>
+            )}
+          </div>
 
           <button
             onClick={startRecording}

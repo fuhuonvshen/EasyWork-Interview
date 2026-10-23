@@ -29,6 +29,9 @@ interface InterviewAssistValue {
   active: boolean;
   visible: boolean;
   toggleVisible: () => void;
+  /** 右侧栏宽度百分比（拖动分隔条调整，跨页面保留） */
+  panePercent: number;
+  setPanePercent: (value: number) => void;
   turns: AssistTurn[];
 }
 
@@ -64,6 +67,7 @@ export function InterviewAssistProvider({ children }: { children: ReactNode }) {
   const { phase, startedAt, config } = useRecordingSession();
   const [turns, setTurns] = useState<AssistTurn[]>([]);
   const [visible, setVisible] = useState(true);
+  const [panePercent, setPanePercentState] = useState(40);
 
   const turnsRef = useRef<AssistTurn[]>([]);
   const activeRef = useRef(false);
@@ -234,9 +238,14 @@ export function InterviewAssistProvider({ children }: { children: ReactNode }) {
   }, [updateTurns]);
 
   const toggleVisible = useCallback(() => setVisible((v) => !v), []);
+  const setPanePercent = useCallback((value: number) => {
+    setPanePercentState(Math.min(80, Math.max(20, Math.round(value * 10) / 10)));
+  }, []);
 
   return (
-    <InterviewAssistContext.Provider value={{ active, visible, toggleVisible, turns }}>
+    <InterviewAssistContext.Provider
+      value={{ active, visible, toggleVisible, panePercent, setPanePercent, turns }}
+    >
       {children}
     </InterviewAssistContext.Provider>
   );

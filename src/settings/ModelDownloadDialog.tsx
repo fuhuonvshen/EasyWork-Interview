@@ -32,6 +32,19 @@ function guessImapHost(email: string): string {
   return KNOWN_IMAP[domain] || (domain ? `imap.${domain}` : "");
 }
 
+// 只列当前后端能直接拼出 /v1/chat/completions 的主流 OpenAI 兼容服务。
+const ONLINE_PROVIDERS = [
+  { value: "deepseek", label: "DeepSeek", url: "https://api.deepseek.com" },
+  { value: "dashscope", label: "阿里云百炼（通义千问）", url: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+  { value: "moonshot", label: "月之暗面 Kimi", url: "https://api.moonshot.cn/v1" },
+  { value: "siliconflow", label: "硅基流动", url: "https://api.siliconflow.cn/v1" },
+  { value: "openai", label: "OpenAI", url: "https://api.openai.com/v1" },
+] as const;
+
+function normalizeOnlineUrl(url: string): string {
+  return url.trim().replace(/\/+$/, "").replace(/\/v1$/, "");
+}
+
 // ── Confirm Delete Modal ──
 function ConfirmDeleteModal({
   title, message, onConfirm, onCancel,
@@ -72,6 +85,7 @@ export default function ModelDownloadDialog({
 
   const [tab, setTab] = useState<"general" | "speech" | "llm" | "email">("general");
   const [agentSettings, setAgentSettings] = useState<Record<string, string>>({});
+  const [onlineProvider, setOnlineProvider] = useState("custom");
   const [defaultRoot, setDefaultRoot] = useState("");
   const [autoStart, setAutoStart] = useState(false);
 
@@ -275,6 +289,9 @@ export default function ModelDownloadDialog({
         originalBackend.current = s["agent_llm_backend"] || "local";
         setAgentSettings(s);
         setEmailAccounts(parseAccounts(s["email_accounts"]));
+        const savedUrl = normalizeOnlineUrl(s["agent_online_url"] || "");
+        const preset = ONLINE_PROVIDERS.find((p) => normalizeOnlineUrl(p.url) === savedUrl);
+        setOnlineProvider(preset?.value || "custom");
       })
       .catch((e) => console.warn("加载设置失败", e));
     invoke<{ root: string }>("get_default_paths").then((d) => setDefaultRoot(d.root)).catch(() => {});
@@ -283,6 +300,12 @@ export default function ModelDownloadDialog({
 
   const updateAgentSetting = (key: string, value: string) => {
     setAgentSettings((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleOnlineProviderChange = (value: string) => {
+    setOnlineProvider(value);
+    const preset = ONLINE_PROVIDERS.find((p) => p.value === value);
+    if (preset) updateAgentSetting("agent_online_url", preset.url);
   };
 
   const handleSave = async () => {
@@ -605,6 +628,32 @@ export default function ModelDownloadDialog({
                 {agentSettings["agent_llm_backend"] === "online" && (
                   <>
                     <div>
+                      <label className="text-xs font-medium text-gray-700">API 服务商</label>
+                      <select
+                        value={onlineProvider}
+                        onChange={(e) => handleOnlineProviderChange(e.target.value)}
+                        className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg"
+                      >
+                        {ONLINE_PROVIDERS.map((p) => (
+                          <option key={p.value} value={p.value}>{p.label}</option>
+                        ))}
+                        <option value="custom">其他（自定义地址）</option>
+                      </select>
+                    </div>
+                    {onlineProvider === "custom" && (
+                      <div>
+                        <label className="text-xs font-medium text-gray-700">API 地址</label>
+                        <input type="text"
+                          value={agentSettings["agent_online_url"] || ""}
+                          onChange={(e) => updateAgentSetting("agent_online_url", e.target.value)}
+                          placeholder="https://api.example.com/v1" className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg"
+                        />
+                      </div>
+                    )}
+                    <p className="text-[10px] text-gray-400 -mt-1">
+                      选择主流服务商会自动填入对应的 OpenAI 兼容地址；「其他」可填写自定义地址（可含或省略末尾 /v1）。保存后重启 EasyWork 生效
+                    </p>
+                    <div>
                       <label className="text-xs font-medium text-gray-700">API Key</label>
                       <input type="password"
                         value={agentSettings["agent_online_key"] || ""}
@@ -620,17 +669,6 @@ export default function ModelDownloadDialog({
                         placeholder="例如 qwen-plus / gpt-4o / deepseek-chat" className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg"
                       />
                     </div>
-                    <div>
-                      <label className="text-xs font-medium text-gray-700">API 地址</label>
-                      <input type="text"
-                        value={agentSettings["agent_online_url"] || ""}
-                        onChange={(e) => updateAgentSetting("agent_online_url", e.target.value)}
-                        placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg"
-                      />
-                    </div>
-                    <p className="text-[10px] text-gray-400 -mt-1">
-                      支持任意 OpenAI 兼容接口（DeepSeek / 阿里云百炼 / OpenAI 等），地址可含或省略末尾 /v1。保存后重启 EasyWork 生效
-                    </p>
                     <div className="flex items-center justify-between border-t border-gray-50 pt-3">
                       <div>
                         <span className="text-xs font-medium text-gray-700">推理思考</span>
