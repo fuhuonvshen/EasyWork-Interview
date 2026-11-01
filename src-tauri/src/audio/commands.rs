@@ -11,6 +11,41 @@ use crate::state::{
 };
 use std::sync::Arc;
 
+/// 单段转写：优先在线识别（设置中启用时），失败或无结果回退本地引擎。
+#[derive(Clone)]
+struct SegmentTranscriber {
+    online: Option<crate::asr::online::OnlineAsrConfig>,
+    use_sensevoice: bool,
+    sv: Option<Arc<crate::sensevoice::engine::SenseVoiceEngine>>,
+    whisper: Arc<crate::whisper::engine::WhisperEngine>,
+}
+
+impl SegmentTranscriber {
+    async fn run(&self, samples: &[f32]) -> Option<String> {
+        if let Some(ref config) = self.online {
+            match crate::asr::online::transcribe(config, samples).await {
+                Ok(text) if !text.trim().is_empty() => return Some(text),
+                Ok(_) => {}
+                Err(e) => log::warn!("在线语音识别失败，回退本地模型: {}", e),
+            }
+        }
+
+        let mut result = if self.use_sensevoice && self.sv.is_some() {
+            self.sv.as_ref().unwrap().transcribe(samples).await
+        } else {
+            self.whisper.transcribe(samples).await
+        };
+        if let Err(ref _e) = result {
+            if self.use_sensevoice && self.sv.is_some() {
+                result = self.whisper.transcribe(samples).await;
+            } else if let Some(ref sv) = self.sv {
+                result = sv.transcribe(samples).await;
+            }
+        }
+        result.ok().filter(|text| !text.trim().is_empty())
+    }
+}
+
 #[tauri::command]
 pub fn list_devices() -> Result<Vec<AudioDevice>, String> {
     list_output_devices()
@@ -72,6 +107,12 @@ pub async fn start_capture(
     );
     std::fs::create_dir_all(&output_dir).map_err(|e| format!("无法创建录制目录: {}", e))?;
 
+    // 在线识别为可选主引擎：未启用 / 配置不完整时为 None，行为与旧版本完全一致。
+    let online_asr = crate::asr::online::OnlineAsrConfig::from_settings(&settings);
+    if let Some(ref config) = online_asr {
+        log::info!("在线语音识别已启用: {}", config.provider_label());
+    }
+
     let mut capture = AudioCapture::start(CaptureConfig {
         device_name,
         output_dir,
@@ -113,7 +154,16 @@ pub async fn start_capture(
         }
     }
     let sv_engine = if use_sensevoice { sv_engine } else { None };
-    log::info!("Transcription engine: {}", if use_sensevoice { "SenseVoice" } else { "Whisper" });
+    log::info!(
+        "Transcription engine: {}",
+        if online_asr.is_some() {
+            "Online ASR（失败回退本地）"
+        } else if use_sensevoice {
+            "SenseVoice"
+        } else {
+            "Whisper"
+        }
+    );
 
     // Read diarization engine (optional — fall back to fixed labels if unavailable)
     let diarize_engine: Option<Arc<DiarizationEngine>> = {
@@ -143,6 +193,12 @@ pub async fn start_capture(
         let sv_engine_opt = sv_engine.clone();
         let prefer_sv = use_sensevoice;
         let model_path = vad_model.clone();
+        let transcriber = SegmentTranscriber {
+            online: online_asr.clone(),
+            use_sensevoice: prefer_sv,
+            sv: sv_engine_opt.clone(),
+            whisper: w_engine.clone(),
+        };
 
         tauri::async_runtime::spawn(async move {
             let vad_config = sherpa_onnx::VadModelConfig {
@@ -239,30 +295,18 @@ pub async fn start_capture(
                     };
 
                     transcribed = true;
-                    let w = w_engine.clone();
-                    let sv = sv_engine_opt.clone();
                     let app = app_handle.clone();
                     let buf = buf_clone.clone();
                     let spk = speaker_label.clone();
-                    let use_sv = prefer_sv;
                     let seg_start = start_secs;
+                    let transcriber = transcriber.clone();
                     tauri::async_runtime::spawn(async move {
-                        let mut r = if use_sv && sv.is_some() {
-                            sv.as_ref().unwrap().transcribe(&samples).await
-                        } else {
-                            w.transcribe(&samples).await
-                        };
-                        if let Err(ref _e) = r {
-                            if use_sv && sv.is_some() { r = w.transcribe(&samples).await; }
-                            else if sv.is_some() { r = sv.as_ref().unwrap().transcribe(&samples).await; }
-                        }
-                        if let Ok(t) = r {
-                            if !t.trim().is_empty() {
-                                log::info!("[{}] {:.1}s '{}'", spk, dur, t.trim());
-                                let c = serde_json::json!({"speaker": spk, "text": t.trim(), "start": seg_start});
-                                let _ = app.emit("transcript-chunk", &c);
-                                if let Ok(mut g) = buf.lock() { g.push(c); }
-                            }
+                        if let Some(t) = transcriber.run(&samples).await {
+                            let t = t.trim().to_string();
+                            log::info!("[{}] {:.1}s '{}'", spk, dur, t);
+                            let c = serde_json::json!({"speaker": spk, "text": t, "start": seg_start});
+                            let _ = app.emit("transcript-chunk", &c);
+                            if let Ok(mut g) = buf.lock() { g.push(c); }
                         }
                     });
                 }
@@ -286,30 +330,18 @@ pub async fn start_capture(
                     default_speaker.to_string()
                 };
 
-                let w = w_engine.clone();
-                let sv = sv_engine_opt.clone();
                 let app = app_handle.clone();
                 let buf = buf_clone.clone();
                 let spk = speaker_label.clone();
-                let use_sv = prefer_sv;
                 let seg_start = start_secs;
+                let transcriber = transcriber.clone();
                 tauri::async_runtime::spawn(async move {
-                    let mut r = if use_sv && sv.is_some() {
-                        sv.as_ref().unwrap().transcribe(&samples).await
-                    } else {
-                        w.transcribe(&samples).await
-                    };
-                    if let Err(ref _e) = r {
-                        if use_sv && sv.is_some() { r = w.transcribe(&samples).await; }
-                        else if sv.is_some() { r = sv.as_ref().unwrap().transcribe(&samples).await; }
-                    }
-                    if let Ok(t) = r {
-                        if !t.trim().is_empty() {
-                            log::info!("[{}] {:.1}s '{}'", spk, dur, t.trim());
-                            let c = serde_json::json!({"speaker": spk, "text": t.trim(), "start": seg_start});
-                            let _ = app.emit("transcript-chunk", &c);
-                            if let Ok(mut g) = buf.lock() { g.push(c); }
-                        }
+                    if let Some(t) = transcriber.run(&samples).await {
+                        let t = t.trim().to_string();
+                        log::info!("[{}] {:.1}s '{}'", spk, dur, t);
+                        let c = serde_json::json!({"speaker": spk, "text": t, "start": seg_start});
+                        let _ = app.emit("transcript-chunk", &c);
+                        if let Ok(mut g) = buf.lock() { g.push(c); }
                     }
                 });
             }

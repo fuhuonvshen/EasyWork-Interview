@@ -49,6 +49,8 @@ sherpa-onnx = "1.13"
 
 # Model download
 reqwest = { version = "0.12", features = ["stream", "json", "multipart", "system-proxy"] }
+# 讯飞在线语音识别（WebSocket 流式）
+tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
 futures-util = "0.3"
 base64 = "0.22"
 hmac = "0.12"

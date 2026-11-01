@@ -45,6 +45,23 @@ function normalizeOnlineUrl(url: string): string {
   return url.trim().replace(/\/+$/, "").replace(/\/v1$/, "");
 }
 
+// 在线语音识别服务商：前三个使用 OpenAI 兼容 /audio/transcriptions；
+// 百炼额外走 chat + input_audio；讯飞使用 WebSocket 语音听写。
+type AsrProviderPreset = {
+  value: string;
+  label: string;
+  url?: string;
+  model?: string;
+};
+
+const ASR_ONLINE_PROVIDERS: AsrProviderPreset[] = [
+  { value: "dashscope", label: "阿里云百炼（Qwen3-ASR）", url: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen3-asr-flash" },
+  { value: "siliconflow", label: "硅基流动（SenseVoice）", url: "https://api.siliconflow.cn/v1", model: "FunAudioLLM/SenseVoiceSmall" },
+  { value: "openai", label: "OpenAI（Whisper）", url: "https://api.openai.com/v1", model: "gpt-4o-mini-transcribe" },
+  { value: "xfyun", label: "科大讯飞（语音听写）" },
+  { value: "custom", label: "其他（OpenAI 兼容接口）" },
+];
+
 // ── Confirm Delete Modal ──
 function ConfirmDeleteModal({
   title, message, onConfirm, onCancel,
@@ -86,6 +103,7 @@ export default function ModelDownloadDialog({
   const [tab, setTab] = useState<"general" | "speech" | "llm" | "email">("general");
   const [agentSettings, setAgentSettings] = useState<Record<string, string>>({});
   const [onlineProvider, setOnlineProvider] = useState("custom");
+  const [asrProvider, setAsrProvider] = useState("dashscope");
   const [defaultRoot, setDefaultRoot] = useState("");
   const [autoStart, setAutoStart] = useState(false);
 
@@ -292,6 +310,12 @@ export default function ModelDownloadDialog({
         const savedUrl = normalizeOnlineUrl(s["agent_online_url"] || "");
         const preset = ONLINE_PROVIDERS.find((p) => normalizeOnlineUrl(p.url) === savedUrl);
         setOnlineProvider(preset?.value || "custom");
+        const savedAsrProvider = s["asr_online_provider"] || "";
+        const savedAsrUrl = normalizeOnlineUrl(s["asr_online_url"] || "");
+        const asrPreset =
+          ASR_ONLINE_PROVIDERS.find((p) => p.value === savedAsrProvider) ||
+          ASR_ONLINE_PROVIDERS.find((p) => p.url && normalizeOnlineUrl(p.url) === savedAsrUrl);
+        setAsrProvider(asrPreset?.value || (savedAsrUrl ? "custom" : "dashscope"));
       })
       .catch((e) => console.warn("加载设置失败", e));
     invoke<{ root: string }>("get_default_paths").then((d) => setDefaultRoot(d.root)).catch(() => {});
@@ -306,6 +330,24 @@ export default function ModelDownloadDialog({
     setOnlineProvider(value);
     const preset = ONLINE_PROVIDERS.find((p) => p.value === value);
     if (preset) updateAgentSetting("agent_online_url", preset.url);
+  };
+
+  const handleAsrBackendChange = (value: string) => {
+    updateAgentSetting("asr_backend", value);
+    if (value !== "online" || agentSettings["asr_online_provider"]) return;
+    const preset = ASR_ONLINE_PROVIDERS[0];
+    updateAgentSetting("asr_online_provider", preset.value);
+    if (preset.url) updateAgentSetting("asr_online_url", preset.url);
+    if (preset.model) updateAgentSetting("asr_online_model", preset.model);
+    setAsrProvider(preset.value);
+  };
+
+  const handleAsrProviderChange = (value: string) => {
+    setAsrProvider(value);
+    updateAgentSetting("asr_online_provider", value);
+    const preset = ASR_ONLINE_PROVIDERS.find((p) => p.value === value);
+    if (preset?.url) updateAgentSetting("asr_online_url", preset.url);
+    if (preset?.model) updateAgentSetting("asr_online_model", preset.model);
   };
 
   const handleSave = async () => {
@@ -343,6 +385,18 @@ export default function ModelDownloadDialog({
     }
     onDone();
   };
+
+  const asrOnlineConfigured = asrProvider === "xfyun"
+    ? Boolean(
+        agentSettings["asr_online_app_id"]?.trim() &&
+        agentSettings["asr_online_key"]?.trim() &&
+        agentSettings["asr_online_secret"]?.trim()
+      )
+    : Boolean(
+        agentSettings["asr_online_key"]?.trim() &&
+        agentSettings["asr_online_model"]?.trim() &&
+        (asrProvider !== "custom" || agentSettings["asr_online_url"]?.trim())
+      );
 
   const tabs = [
     { key: "general" as const, label: "通用设置", icon: Settings },
@@ -541,41 +595,150 @@ export default function ModelDownloadDialog({
           {/* ── Tab: 会议纪要 ── */}
           {tab === "speech" && (
             <>
-              {/* 语音识别（本地模型） */}
+              {/* 语音识别：本地模型 / 在线识别 */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Mic size={15} className="text-accent-500" />
                   <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">语音识别</span>
                 </div>
                 <div className="p-3 rounded-xl border border-gray-100 bg-white space-y-3">
-                  {speech.loading && (
-                    <div className="flex items-center gap-3 text-sm text-gray-400 py-4 justify-center">
-                      <Loader size={16} className="animate-spin" />
-                      加载模型列表...
+                  <div>
+                    <label className="text-xs font-medium text-gray-700">识别方式</label>
+                    <select
+                      value={agentSettings["asr_backend"] || "local"}
+                      onChange={(e) => handleAsrBackendChange(e.target.value)}
+                      disabled={sessionBusy}
+                      title={sessionBusy ? "录音/生成中不可切换识别方式" : undefined}
+                      className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <option value="local">本地模型（免费，离线可用）</option>
+                      <option value="online">在线识别（准确率更高）</option>
+                    </select>
+                  </div>
+
+                  {(agentSettings["asr_backend"] || "local") === "local" && (
+                    <div className="border-t border-gray-50 pt-3 space-y-3">
+                      {speech.loading && (
+                        <div className="flex items-center gap-3 text-sm text-gray-400 py-4 justify-center">
+                          <Loader size={16} className="animate-spin" />
+                          加载模型列表...
+                        </div>
+                      )}
+                      {speech.error && (
+                        <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">{speech.error}</div>
+                      )}
+                      {!speech.loading && speech.models.map((m) => (
+                        <ModelCard
+                          key={m.kind + ":" + m.name}
+                          displayName={m.displayName}
+                          sizeDisplay={m.size_display}
+                          downloaded={m.downloaded}
+                          isRecommended={m.is_recommended}
+                          isDownloading={speech.downloading === m.name}
+                          downloadProgress={speech.progress}
+                          downloadedBytes={speech.downloadedBytes}
+                          totalBytes={speech.totalBytes}
+                          speed={speech.speed}
+                          disabled={speech.downloading !== null || sessionBusy}
+                          deleteDisabled={sessionBusy}
+                          onDownload={() => speech.startDownload(m.name)}
+                          onCancel={speech.cancelDownload}
+                          onDelete={() => speech.setDeleteTarget(m)}
+                        />
+                      ))}
                     </div>
                   )}
-                  {speech.error && (
-                    <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-sm text-red-700">{speech.error}</div>
+
+                  {agentSettings["asr_backend"] === "online" && (
+                    <>
+                      <div className="border-t border-gray-50 pt-3">
+                        <label className="text-xs font-medium text-gray-700">服务商</label>
+                        <select
+                          value={asrProvider}
+                          onChange={(e) => handleAsrProviderChange(e.target.value)}
+                          disabled={sessionBusy}
+                          className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {ASR_ONLINE_PROVIDERS.map((p) => (
+                            <option key={p.value} value={p.value}>{p.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {asrProvider === "xfyun" ? (
+                        <>
+                          <div>
+                            <label className="text-xs font-medium text-gray-700">APPID</label>
+                            <input type="text"
+                              value={agentSettings["asr_online_app_id"] || ""}
+                              onChange={(e) => updateAgentSetting("asr_online_app_id", e.target.value)}
+                              placeholder="讯飞开放平台 APPID" className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-gray-700">APIKey</label>
+                            <input type="password"
+                              value={agentSettings["asr_online_key"] || ""}
+                              onChange={(e) => updateAgentSetting("asr_online_key", e.target.value)}
+                              placeholder="讯飞开放平台 APIKey" className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-gray-700">APISecret</label>
+                            <input type="password"
+                              value={agentSettings["asr_online_secret"] || ""}
+                              onChange={(e) => updateAgentSetting("asr_online_secret", e.target.value)}
+                              placeholder="讯飞开放平台 APISecret" className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg"
+                            />
+                          </div>
+                          <p className="text-[10px] text-gray-400 -mt-1">
+                            讯飞语音听写为流式接口，每段录音会建立一次连接；请在开放平台创建「语音听写（流式版）」应用后填写以上三项
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          {asrProvider === "custom" && (
+                            <div>
+                              <label className="text-xs font-medium text-gray-700">API 地址</label>
+                              <input type="text"
+                                value={agentSettings["asr_online_url"] || ""}
+                                onChange={(e) => updateAgentSetting("asr_online_url", e.target.value)}
+                                placeholder="https://api.example.com/v1" className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg"
+                              />
+                            </div>
+                          )}
+                          <div>
+                            <label className="text-xs font-medium text-gray-700">API Key</label>
+                            <input type="password"
+                              value={agentSettings["asr_online_key"] || ""}
+                              onChange={(e) => updateAgentSetting("asr_online_key", e.target.value)}
+                              placeholder="sk-..." className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-gray-700">模型名称</label>
+                            <input type="text"
+                              value={agentSettings["asr_online_model"] || ""}
+                              onChange={(e) => updateAgentSetting("asr_online_model", e.target.value)}
+                              placeholder="例如 qwen3-asr-flash / whisper-1" className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg"
+                            />
+                          </div>
+                          <p className="text-[10px] text-gray-400 -mt-1">
+                            选择服务商会自动填入兼容地址与推荐模型；「其他」需填写兼容 /v1/audio/transcriptions 的地址
+                          </p>
+                        </>
+                      )}
+
+                      <p className="text-[10px] text-gray-400">
+                        实时录音的音频会发送至所选服务商；识别失败时自动回退本地模型（需已下载）。保存后下次开始录音生效，导入音频仍使用本地模型
+                      </p>
+                      {!asrOnlineConfigured && (
+                        <p className="text-[10px] text-amber-600">
+                          配置未填写完整，保存后仍会使用本地模型
+                        </p>
+                      )}
+                    </>
                   )}
-                  {!speech.loading && speech.models.map((m) => (
-                    <ModelCard
-                      key={m.kind + ":" + m.name}
-                      displayName={m.displayName}
-                      sizeDisplay={m.size_display}
-                      downloaded={m.downloaded}
-                      isRecommended={m.is_recommended}
-                      isDownloading={speech.downloading === m.name}
-                      downloadProgress={speech.progress}
-                      downloadedBytes={speech.downloadedBytes}
-                      totalBytes={speech.totalBytes}
-                      speed={speech.speed}
-                      disabled={speech.downloading !== null || sessionBusy}
-                      deleteDisabled={sessionBusy}
-                      onDownload={() => speech.startDownload(m.name)}
-                      onCancel={speech.cancelDownload}
-                      onDelete={() => speech.setDeleteTarget(m)}
-                    />
-                  ))}
                 </div>
               </div>
 

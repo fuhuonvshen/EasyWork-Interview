@@ -1,5 +1,7 @@
 // EasyWork - Unified ASR (Automatic Speech Recognition) commands
-// 自动选择可用引擎：优先 SenseVoice，回退到 Whisper。
+// 自动选择可用引擎：优先 SenseVoice，回退到 Whisper；设置中可切换在线识别。
+
+pub mod online;
 
 use tauri::State;
 use crate::state::{SenseVoiceState, WhisperState};
