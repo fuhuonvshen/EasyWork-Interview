@@ -187,6 +187,7 @@ pub async fn start_capture(
                               app_handle: tauri::AppHandle,
                               diarize: Option<Arc<DiarizationEngine>>,
                               vad_threshold: f32,
+                              min_silence_secs: f32,
                               min_segment_secs: f32| {
         let buf_clone = buf.clone();
         let w_engine = whisper_engine.clone();
@@ -208,7 +209,7 @@ pub async fn start_capture(
                     // environment sounds (keyboard, coughs) don't trigger
                     // transcription as "我".
                     threshold: vad_threshold,
-                    min_silence_duration: 0.4,
+                    min_silence_duration: min_silence_secs,
                     min_speech_duration: 0.5,
                     max_speech_duration: 15.0,
                     ..Default::default()
@@ -350,10 +351,10 @@ pub async fn start_capture(
         })
     };
 
-    // Loopback stream: standard VAD sensitivity (0.5) + short segments ok.
-    let handle1 = spawn_transcriber(audio_rx, "发言人", app_for_task.clone(), diarize_engine, 0.5, 0.5);
-    // Mic stream: stricter — only speech-like, longer sounds get labeled "我".
-    let handle2 = spawn_transcriber(mic_audio_rx, "我", app_for_task, None, 0.7, 1.0);
+    // Loopback stream: 面试官换气/短暂停顿不切句，静音 0.8s 才断段。
+    let handle1 = spawn_transcriber(audio_rx, "发言人", app_for_task.clone(), diarize_engine, 0.5, 0.8, 0.5);
+    // Mic stream: stricter — only speech-like, longer sounds get labeled "我"。
+    let handle2 = spawn_transcriber(mic_audio_rx, "我", app_for_task, None, 0.7, 0.4, 1.0);
 
     {
         let mut tg = task_state.0.lock().map_err(|e| format!("状态锁失败: {}", e))?;

@@ -76,9 +76,14 @@ def test_prompt():
     check("XX科技前端工程师岗位的面试" in both, "公司 + 岗位")
     check(ia.build_system_prompt("XX科技", None).startswith("你正在参加XX科技的面试。"), "仅公司")
     check("前端工程师岗位" in ia.build_system_prompt(None, "前端工程师"), "仅岗位")
+    fallback = ia.build_system_prompt(None, None)
     check(
-        ia.build_system_prompt(None, None) == "你正在参加面试。请直接回答面试官的问题。",
+        fallback.startswith("你正在参加面试。请直接回答面试官的问题。"),
         "公司/岗位都缺省",
+    )
+    check(
+        "【内容边界】" in fallback and "【回答底线】" in fallback,
+        "无简历时也附加兜底规则",
     )
     check(
         "XX科技前端工程师岗位" in ia.build_system_prompt("  XX科技  ", "  前端工程师  "),
@@ -123,6 +128,18 @@ def test_prompt():
     check(
         "先列出 2~3 个回答关键词" in prompt and "不绕圈子" in prompt,
         "包含作答要求",
+    )
+    check(
+        "【内容边界】" in prompt and "【回答底线】" in prompt,
+        "包含内容边界与回答底线",
+    )
+    check(
+        "不能用“不知道/别问了/不想回答”代替回答" in prompt,
+        "禁止用拒绝代替回答",
+    )
+    check(
+        "不要照抄其中的口语、脏话、情绪或拒绝" in prompt,
+        "历史候选人回答只作参考",
     )
 
     check(ia.compact_resume_fields("not-json") is None, "非法 JSON 回退")
