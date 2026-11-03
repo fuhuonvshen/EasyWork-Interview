@@ -50,6 +50,116 @@ pub async fn update_setting(
         .map_err(|e| format!("保存设置失败: {}", e))
 }
 
+fn error_snippet(text: &str) -> String {
+    let trimmed = text.trim();
+    let mut out: String = trimmed.chars().take(300).collect();
+    if trimmed.chars().count() > 300 {
+        out.push('…');
+    }
+    out
+}
+
+/// 在线语言模型连通性测试：用当前表单值发一次最小请求，不保存设置。
+#[tauri::command]
+pub async fn llm_test_online(
+    url: String,
+    key: String,
+    model: String,
+) -> Result<String, String> {
+    let url = url.trim();
+    let key = key.trim();
+    let model = model.trim();
+    if url.is_empty() {
+        return Err("请填写 API 地址".into());
+    }
+    if key.is_empty() {
+        return Err("请填写 API Key".into());
+    }
+    if model.is_empty() {
+        return Err("请填写模型名称".into());
+    }
+
+    // 与真实调用路径保持一致：去掉末尾 /v1 后统一拼 /v1/chat/completions
+    let base = url.trim_end_matches('/');
+    let base = base.strip_suffix("/v1").unwrap_or(base);
+    let endpoint = format!("{}/v1/chat/completions", base.trim_end_matches('/'));
+
+    let body = serde_json::json!({
+        "model": model,
+        "messages": [{"role": "user", "content": "ping"}],
+        "stream": false,
+        "max_tokens": 16,
+    });
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+    let resp = client
+        .post(&endpoint)
+        .bearer_auth(key)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("连接在线模型失败: {}", e))?;
+    let status = resp.status();
+    let text = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        let snippet = error_snippet(&text);
+        if status.as_u16() == 401 || status.as_u16() == 403 {
+            return Err(format!("API Key 无效（HTTP {}）: {}", status.as_u16(), snippet));
+        }
+        return Err(format!("在线模型返回 HTTP {}: {}", status.as_u16(), snippet));
+    }
+    let value: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| format!("在线模型响应不是合法 JSON: {}", e))?;
+    if let Some(message) = value["error"]["message"].as_str() {
+        return Err(format!("在线模型返回错误: {}", message));
+    }
+    if value["choices"]
+        .as_array()
+        .map(|items| items.is_empty())
+        .unwrap_or(true)
+    {
+        return Err(format!(
+            "在线模型响应缺少 choices: {}",
+            error_snippet(&text)
+        ));
+    }
+    Ok(format!("连接成功（模型 {}）", model))
+}
+
+/// 在线语音识别连通性测试：用当前表单值发送一段静音，不保存设置。
+#[tauri::command]
+pub async fn asr_test_online(
+    provider: String,
+    url: String,
+    model: String,
+    key: String,
+    app_id: Option<String>,
+    secret: Option<String>,
+) -> Result<String, String> {
+    let missing_hint = if provider.trim() == "xfyun" {
+        "请检查 APPID / APIKey / APISecret"
+    } else {
+        "请检查 API 地址、模型名称和 Key"
+    };
+    let mut settings = HashMap::new();
+    settings.insert("asr_backend".to_string(), "online".to_string());
+    settings.insert("asr_online_provider".to_string(), provider);
+    settings.insert("asr_online_url".to_string(), url);
+    settings.insert("asr_online_model".to_string(), model);
+    settings.insert("asr_online_key".to_string(), key);
+    settings.insert("asr_online_app_id".to_string(), app_id.unwrap_or_default());
+    settings.insert("asr_online_secret".to_string(), secret.unwrap_or_default());
+
+    let config = crate::asr::online::OnlineAsrConfig::from_settings(&settings)
+        .ok_or_else(|| format!("在线识别配置不完整，{}", missing_hint))?;
+    crate::asr::online::test_connection(&config)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn pick_audio_file(
     app: tauri::AppHandle,

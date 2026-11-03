@@ -65,12 +65,15 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
   const [resume, setResume] = useState<Resume | null>(null);
   const [loadingResume, setLoadingResume] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 字段表单：当前编辑中的字段 / AI 提取状态 / OCR 状态
   const [fields, setFields] = useState<ResumeFields | null>(null);
+  const [fieldsDirty, setFieldsDirty] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [ocring, setOcring] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const [pendingContent, setPendingContent] = useState<string | null>(null);
   const [pendingFileName, setPendingFileName] = useState<string | null>(null);
 
@@ -119,18 +122,19 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
 
   const doSaveResume = async (fileName: string, content: string, fieldsObj: ResumeFields | null) => {
     if (!content.trim()) { showToast("简历内容为空", "error"); return; }
-    setUploading(true);
+    setSaving(true);
     try {
       const fieldsJson = fieldsObj ? JSON.stringify(fieldsObj) : null;
       await invoke("save_resume", { fileName, content, fields: fieldsJson });
       setResume({ id: "", file_name: fileName, content, fields: fieldsJson, created_at: new Date().toISOString() });
       setPendingContent(null);
       setPendingFileName(null);
+      setFieldsDirty(false);
       showToast("已保存", "success");
     } catch {
       showToast("保存简历失败", "error");
     }
-    setUploading(false);
+    setSaving(false);
   };
 
   // 删除最新简历（真正落库删除）
@@ -140,6 +144,7 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
       await invoke("delete_resume");
       setResume(null);
       setFields(null);
+      setFieldsDirty(false);
       setPendingContent(null);
       setPendingFileName(null);
       showToast("已删除", "success");
@@ -155,6 +160,7 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
       const fieldsJson = await invoke<string>("extract_resume_fields", { content: rawContent });
       const parsed = JSON.parse(fieldsJson) as ResumeFields;
       setFields(parsed);
+      setFieldsDirty(false);
       setPendingContent(rawContent);
       setPendingFileName(fileName);
       // 首次上传（resume 为空）时也要展示表单，pending 状态不落库
@@ -168,9 +174,17 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
     setExtracting(false);
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processFile = async (file: File) => {
+    if (uploading || extracting || saving) return;
+    if (resume && (pendingContent || fieldsDirty)) {
+      const ok = window.confirm(
+        pendingContent
+          ? "当前简历的 AI 提取结果尚未保存，重新上传会丢弃它，确定继续？"
+          : "当前简历有未保存的表单修改，重新上传会丢弃这些修改，确定继续？"
+      );
+      if (!ok) return;
+    }
+    setDragActive(false);
     setUploading(true);
     try {
       const content = await extractText(file, () => setOcring(true));
@@ -181,7 +195,43 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
     }
     setUploading(false);
     setOcring(false);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     e.target.value = "";
+    if (file) void processFile(file);
+  };
+
+  const openFilePicker = () => {
+    if (uploading || extracting || saving) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (!uploading && !extracting && !saving) setDragActive(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    const related = e.relatedTarget;
+    if (related instanceof Node && e.currentTarget.contains(related)) return;
+    setDragActive(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragActive(false);
+    if (uploading || extracting || saving) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) void processFile(file);
+  };
+
+  const handleUploadKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openFilePicker();
+    }
   };
 
   return (
@@ -217,96 +267,161 @@ export default function ResumeView({ onBack, onExpand }: { onBack: () => void; o
                   <div className="flex items-center gap-2 text-xs text-gray-400 py-4">
                     <Loader size={14} className="animate-spin" /> 加载中...
                   </div>
-                ) : resume ? (
-                  <div className="rounded-2xl border border-amber-100 bg-amber-50/50 overflow-hidden mb-3">
-                    <div className="flex items-center gap-3 px-4 py-3">
-                      <div className="w-9 h-9 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
-                        <FileText size={16} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{resume.file_name || "我的简历"}</p>
-                        <p className="text-[11px] text-gray-400">
-                          {resume.content.length} 字 · 更新于 {resume.created_at.slice(0, 10)}
-                        </p>
-                      </div>
-                      {pendingContent ? (
-                        <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 flex-shrink-0">
-                          <Loader size={10} /> 待确认
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 flex-shrink-0">
-                          <Check size={10} /> 已保存
-                        </span>
-                      )}
-                    </div>
-                    <div className="px-4 pb-4">
-                      {fields ? (
-                        <>
-                          <ResumeFieldsForm
-                            fields={fields}
-                            onChange={setFields}
-                            extracting={extracting}
-                            onReExtract={() => doExtractAndShow(pendingFileName || resume.file_name, pendingContent || resume.content)}
-                          />
-                          <div className="flex justify-end mt-3">
-                            <button
-                              onClick={() => doSaveResume(pendingFileName || resume.file_name, pendingContent || resume.content, fields)}
-                              disabled={uploading || extracting}
-                              className="px-5 py-2 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-md shadow-amber-500/25 hover:opacity-90 disabled:opacity-50 transition-all"
-                            >
-                              {uploading ? <Loader size={13} className="animate-spin" /> : null}
-                              保存简历
-                            </button>
+                ) : (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".txt,.md,.pdf,.docx"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      aria-label={resume ? "更换简历" : "上传简历"}
+                      onClick={openFilePicker}
+                      onKeyDown={handleUploadKeyDown}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      className={`min-h-[150px] flex items-center justify-center px-6 py-6 rounded-2xl border-2 border-dashed transition-colors select-none ${
+                        uploading || extracting || saving
+                          ? "border-amber-200 bg-amber-50/40 cursor-wait"
+                          : dragActive
+                            ? "border-amber-400 bg-amber-50 cursor-copy"
+                            : resume
+                              ? "border-amber-200 bg-amber-50/40 cursor-pointer hover:border-amber-300 hover:bg-amber-50/70"
+                              : "border-gray-200 bg-gray-50/40 cursor-pointer hover:border-amber-300 hover:bg-amber-50/30"
+                      }`}
+                    >
+                      {uploading || extracting || saving ? (
+                        <div className="flex flex-col items-center gap-2 text-center">
+                          <Loader size={22} className="text-amber-500 animate-spin" />
+                          <p className="text-sm font-medium text-gray-600">
+                            {ocring
+                              ? "扫描件识别中（OCR）..."
+                              : extracting
+                                ? "AI 提取字段中..."
+                                : uploading
+                                  ? "正在解析简历..."
+                                  : "正在保存..."}
+                          </p>
+                          <p className="text-[11px] text-gray-400">请稍候</p>
+                        </div>
+                      ) : resume ? (
+                        <div className="w-full flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center flex-shrink-0">
+                            <FileText size={22} />
                           </div>
-                        </>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">
+                              {pendingFileName || resume.file_name || "我的简历"}
+                            </p>
+                            <p className="text-[11px] text-gray-400 mt-0.5">
+                              {(pendingContent ?? resume.content).length} 字
+                              {pendingContent
+                                ? " · 待保存"
+                                : resume.created_at
+                                  ? ` · 更新于 ${resume.created_at.slice(0, 10)}`
+                                  : ""}
+                            </p>
+                            <p className="text-[11px] text-amber-600/80 mt-1">
+                              点击更换简历，或将新文件拖到这里
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {pendingContent ? (
+                              <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                                <Loader size={10} /> 待确认
+                              </span>
+                            ) : fieldsDirty ? (
+                              <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                未保存
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                                <Check size={10} /> 已保存
+                              </span>
+                            )}
+                            {!pendingContent && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void doDeleteResume();
+                                }}
+                                className="p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                title="删除简历"
+                                aria-label="删除简历"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       ) : (
-                        <div className="flex flex-col items-center gap-2 py-4">
-                          <p className="text-[11px] text-gray-400">暂无结构化字段，可让 AI 从简历原文中提取</p>
-                          <button
-                            onClick={() => doExtractAndShow(resume.file_name, resume.content)}
-                            disabled={extracting}
-                            className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-medium text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 disabled:opacity-50 transition-colors"
-                          >
-                            {extracting ? <Loader size={11} className="animate-spin" /> : <Sparkles size={11} />}
-                            {extracting ? "AI 正在提取字段..." : "AI 提取字段"}
-                          </button>
+                        <div className="flex flex-col items-center gap-2 text-center">
+                          <Upload size={26} className="text-gray-300" />
+                          <p className="text-sm font-medium text-gray-500">点击或拖拽上传简历</p>
+                          <p className="text-[11px] text-gray-400">AI 会自动提取字段，填充下方表单</p>
                         </div>
                       )}
                     </div>
-                  </div>
-                ) : (
-                  <div className="px-4 py-10 rounded-2xl border border-dashed border-gray-200 text-center mb-3">
-                    <p className="text-sm text-gray-400">还没有上传简历</p>
-                    <p className="text-xs text-gray-300 mt-1">上传后 AI 顾问才能结合你的经历给出针对性建议</p>
-                  </div>
-                )}
 
-                <div className="flex items-center gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".txt,.md,.pdf,.docx"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading || extracting}
-                    className="px-4 py-2 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-md shadow-amber-500/25 hover:opacity-90 disabled:opacity-50 transition-all flex items-center gap-1.5"
-                  >
-                    {uploading || extracting ? <Loader size={13} className="animate-spin" /> : <Upload size={13} />}
-                    {ocring ? "扫描件识别中（OCR）..." : extracting ? "AI 提取字段中..." : resume ? "更新简历" : "上传简历"}
-                  </button>
-                  {resume && !pendingContent && (
-                    <button
-                      onClick={doDeleteResume}
-                      className="p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                      title="删除简历"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
+                    {resume ? (
+                      <div className="mt-3">
+                        {fields ? (
+                          <>
+                            <ResumeFieldsForm
+                              fields={fields}
+                              onChange={(next) => {
+                                setFields(next);
+                                setFieldsDirty(true);
+                              }}
+                              extracting={extracting}
+                              onReExtract={() => {
+                                if (uploading || saving) return;
+                                if (fieldsDirty && !window.confirm("重新提取会覆盖当前未保存的表单修改，确定继续？")) return;
+                                void doExtractAndShow(
+                                  pendingFileName || resume.file_name,
+                                  pendingContent || resume.content
+                                );
+                              }}
+                            />
+                            <div className="flex justify-end mt-3">
+                              <button
+                                onClick={() =>
+                                  void doSaveResume(
+                                    pendingFileName || resume.file_name,
+                                    pendingContent || resume.content,
+                                    fields
+                                  )
+                                }
+                                disabled={saving || uploading || extracting}
+                                className="px-5 py-2 text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl shadow-md shadow-amber-500/25 hover:opacity-90 disabled:opacity-50 transition-all"
+                              >
+                                {saving ? <Loader size={13} className="animate-spin" /> : null}
+                                保存简历
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center gap-2 py-4 rounded-2xl border border-gray-100 bg-white">
+                            <p className="text-[11px] text-gray-400">暂无结构化字段，可让 AI 从简历原文中提取</p>
+                            <button
+                              onClick={() => void doExtractAndShow(resume.file_name, resume.content)}
+                              disabled={extracting || saving || uploading}
+                              className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-medium text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 disabled:opacity-50 transition-colors"
+                            >
+                              {extracting ? <Loader size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                              {extracting ? "AI 正在提取字段..." : "AI 提取字段"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </section>
 
               <section className="rounded-2xl border border-amber-100 bg-amber-50/40 p-4">

@@ -110,7 +110,7 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
     .await
     .context("创建 interview_assessments 表失败")?;
 
-    // 我的简历（全局资产，最新一条为当前简历）
+    // 我的简历（全局唯一一份）
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS resumes (
             id          TEXT PRIMARY KEY,
@@ -128,6 +128,13 @@ pub async fn init_db(pool: &SqlitePool) -> Result<()> {
         .execute(pool)
         .await
         .ok();
+    // Migration: 简历改为全局唯一，清理旧版本（保留最新一份）
+    sqlx::query(
+        "DELETE FROM resumes WHERE id NOT IN (SELECT id FROM resumes ORDER BY created_at DESC LIMIT 1)",
+    )
+    .execute(pool)
+    .await
+    .ok();
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS transcripts (
@@ -1519,9 +1526,14 @@ pub async fn update_interview_question(
 
 use super::models::Resume;
 
-/// 保存一份新简历（追加一行，get_resume 取最新）
+/// 保存简历（全局唯一：覆盖旧简历）
 pub async fn save_resume(pool: &SqlitePool, file_name: &str, content: &str, fields: Option<&str>) -> Result<String> {
     let id = uuid::Uuid::new_v4().to_string();
+    let mut tx = pool.begin().await.context("开始保存简历事务失败")?;
+    sqlx::query("DELETE FROM resumes")
+        .execute(&mut *tx)
+        .await
+        .context("清理旧简历失败")?;
     sqlx::query(
         "INSERT INTO resumes (id, file_name, content, created_at, fields) VALUES (?, ?, ?, ?, ?)",
     )
@@ -1530,31 +1542,28 @@ pub async fn save_resume(pool: &SqlitePool, file_name: &str, content: &str, fiel
     .bind(content)
     .bind(chrono::Local::now().to_rfc3339())
     .bind(fields)
-    .execute(pool)
+    .execute(&mut *tx)
     .await
     .context("保存简历失败")?;
+    tx.commit().await.context("提交保存简历事务失败")?;
     Ok(id)
 }
 
-/// 取最新一份简历
+/// 取当前简历
 pub async fn get_resume(pool: &SqlitePool) -> Result<Option<Resume>> {
-    let row = sqlx::query_as::<_, Resume>(
-        "SELECT * FROM resumes ORDER BY created_at DESC LIMIT 1",
-    )
-    .fetch_optional(pool)
-    .await
-    .context("查询简历失败")?;
+    let row = sqlx::query_as::<_, Resume>("SELECT * FROM resumes LIMIT 1")
+        .fetch_optional(pool)
+        .await
+        .context("查询简历失败")?;
     Ok(row)
 }
 
-/// 删除最新一份简历
+/// 删除当前简历
 pub async fn delete_resume(pool: &SqlitePool) -> Result<()> {
-    sqlx::query(
-        "DELETE FROM resumes WHERE id IN (SELECT id FROM resumes ORDER BY created_at DESC LIMIT 1)",
-    )
-    .execute(pool)
-    .await
-    .context("删除简历失败")?;
+    sqlx::query("DELETE FROM resumes")
+        .execute(pool)
+        .await
+        .context("删除简历失败")?;
     Ok(())
 }
 

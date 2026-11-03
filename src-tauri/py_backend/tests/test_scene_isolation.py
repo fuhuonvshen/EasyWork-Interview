@@ -168,6 +168,18 @@ async def main():
     check("面试回答教练" in turn2["sys_prompt"], "追问轮仍有教练角色提示词")
     check("简历开始" in turn2["context_block"], "追问轮仍注入简历")
 
+    # 结构化字段优先：有 fields 时回答教练也读 fields，不再读旧原文
+    await db.conn.execute(
+        "UPDATE resumes SET fields = ? WHERE id = 'r-test'",
+        ('{"name":"测试用户","projects":[{"name":"字段项目B","description":"来自结构化字段的量化成果"}]}',),
+    )
+    await db.conn.commit()
+    turn_fields = await _prepare_turn(conv1, "再帮我提炼成 STAR")
+    check("字段项目B" in turn_fields["context_block"], "answer 场景优先注入结构化字段")
+    check("JEV 决策模型推理优化" not in turn_fields["context_block"], "有字段时不再注入原文")
+    await db.conn.execute("UPDATE resumes SET fields = NULL WHERE id = 'r-test'")
+    await db.conn.commit()
+
     conv2 = await db.create_conversation("review", ref_id="m-1")
     turn3 = await _prepare_turn(conv2, "[回答面试题] 不应改变复盘场景")
     check(turn3["scene"] == "review", "review 会话收到标记消息不改场景")

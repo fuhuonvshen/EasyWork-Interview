@@ -111,14 +111,37 @@ pub async fn transcribe(config: &OnlineAsrConfig, samples: &[f32]) -> Result<Str
 
     let fut = async {
         match config.provider.as_str() {
-            "xfyun" => transcribe_xfyun(config, samples).await,
-            "dashscope" => transcribe_dashscope(config, samples).await,
-            _ => transcribe_openai_compat(config, samples).await,
+            "xfyun" => transcribe_xfyun(config, samples, true).await,
+            "dashscope" => transcribe_dashscope(config, samples, true).await,
+            _ => transcribe_openai_compat(config, samples, true).await,
         }
     };
     tokio::time::timeout(Duration::from_secs(TIMEOUT_SECS), fut)
         .await
         .map_err(|_| anyhow!("在线语音识别超时（{}s）", TIMEOUT_SECS))?
+}
+
+/// 设置页「测试连接」：发送一段静音验证地址/密钥/模型是否可用。
+/// 不要求返回文本；服务正常响应即视为连接成功。
+pub async fn test_connection(config: &OnlineAsrConfig) -> Result<String> {
+    let samples = vec![0.0f32; 24000]; // 1.5s 静音
+    let _permit = semaphore()
+        .acquire()
+        .await
+        .map_err(|e| anyhow!("在线识别任务队列不可用: {}", e))?;
+
+    let fut = async {
+        match config.provider.as_str() {
+            "xfyun" => transcribe_xfyun(config, &samples, false).await,
+            "dashscope" => transcribe_dashscope(config, &samples, false).await,
+            _ => transcribe_openai_compat(config, &samples, false).await,
+        }
+    };
+    let result = tokio::time::timeout(Duration::from_secs(TIMEOUT_SECS), fut)
+        .await
+        .map_err(|_| anyhow!("在线语音识别连接超时（{}s）", TIMEOUT_SECS))?;
+    result?;
+    Ok("连接成功，语音识别服务可用".to_string())
 }
 
 fn semaphore() -> &'static Semaphore {
@@ -202,6 +225,7 @@ fn pcm16_bytes(samples: &[f32]) -> Vec<u8> {
 async fn transcribe_openai_compat(
     config: &OnlineAsrConfig,
     samples: &[f32],
+    require_text: bool,
 ) -> Result<String> {
     let wav = encode_wav(samples)?;
     let part = reqwest::multipart::Part::bytes(wav)
@@ -234,18 +258,26 @@ async fn transcribe_openai_compat(
     let value: Value = serde_json::from_str(&body).context("解析在线识别响应失败")?;
     let text = value["text"].as_str().unwrap_or("").trim();
     if text.is_empty() {
-        let message = value["error"]["message"]
+        if let Some(message) = value["error"]["message"]
             .as_str()
             .or_else(|| value["message"].as_str())
-            .unwrap_or("未返回文本");
-        return Err(anyhow!("在线识别未返回文本: {}", message));
+        {
+            return Err(anyhow!("在线识别未返回文本: {}", message));
+        }
+        if require_text {
+            return Err(anyhow!("在线识别未返回文本: 服务返回空结果"));
+        }
     }
     Ok(text.to_string())
 }
 
 // ── 阿里云百炼 Qwen3-ASR（OpenAI 兼容 chat + input_audio）──────
 
-async fn transcribe_dashscope(config: &OnlineAsrConfig, samples: &[f32]) -> Result<String> {
+async fn transcribe_dashscope(
+    config: &OnlineAsrConfig,
+    samples: &[f32],
+    require_text: bool,
+) -> Result<String> {
     let wav = encode_wav(samples)?;
     let data_uri = format!("data:audio/wav;base64,{}", BASE64.encode(&wav));
     let body = json!({
@@ -286,11 +318,16 @@ async fn transcribe_dashscope(config: &OnlineAsrConfig, samples: &[f32]) -> Resu
             return Ok(text.to_string());
         }
     }
-    let message = value["error"]["message"]
+    if let Some(message) = value["error"]["message"]
         .as_str()
         .or_else(|| value["message"].as_str())
-        .unwrap_or("未返回文本");
-    Err(anyhow!("百炼语音识别未返回文本: {}", message))
+    {
+        return Err(anyhow!("百炼语音识别未返回文本: {}", message));
+    }
+    if require_text {
+        return Err(anyhow!("百炼语音识别未返回文本: 服务返回空结果"));
+    }
+    Ok(String::new())
 }
 
 fn extract_content(content: &Value) -> Option<String> {
@@ -313,7 +350,11 @@ fn extract_content(content: &Value) -> Option<String> {
 
 // ── 科大讯飞语音听写（流式 WebSocket）─────────────────────────
 
-async fn transcribe_xfyun(config: &OnlineAsrConfig, samples: &[f32]) -> Result<String> {
+async fn transcribe_xfyun(
+    config: &OnlineAsrConfig,
+    samples: &[f32],
+    require_text: bool,
+) -> Result<String> {
     let url = build_xfyun_url(config)?;
     let (mut ws, _) = tokio_tungstenite::connect_async(url.as_str())
         .await
@@ -372,6 +413,7 @@ async fn transcribe_xfyun(config: &OnlineAsrConfig, samples: &[f32]) -> Result<S
 
     let mut pieces: BTreeMap<i64, String> = BTreeMap::new();
     let mut next_sn = 0i64;
+    let mut saw_response = false;
     while let Some(message) = ws.next().await {
         let message = message.context("读取讯飞语音识别响应失败")?;
         let text = match message {
@@ -379,6 +421,7 @@ async fn transcribe_xfyun(config: &OnlineAsrConfig, samples: &[f32]) -> Result<S
             Message::Close(_) => break,
             _ => continue,
         };
+        saw_response = true;
         let value: Value =
             serde_json::from_str(&text).context("解析讯飞语音识别响应失败")?;
         let code = value["code"].as_i64().unwrap_or(0);
@@ -417,8 +460,11 @@ async fn transcribe_xfyun(config: &OnlineAsrConfig, samples: &[f32]) -> Result<S
     }
     let _ = ws.close(None).await;
 
+    if !require_text && !saw_response {
+        return Err(anyhow!("讯飞语音识别未收到响应"));
+    }
     let text = pieces.values().cloned().collect::<String>();
-    if text.trim().is_empty() {
+    if text.trim().is_empty() && require_text {
         return Err(anyhow!("讯飞语音识别未返回文本"));
     }
     Ok(text.trim().to_string())

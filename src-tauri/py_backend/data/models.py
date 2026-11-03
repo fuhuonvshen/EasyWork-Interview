@@ -22,6 +22,7 @@ class InterviewAssistMessage(BaseModel):
 class InterviewAssistRequest(BaseModel):
     question: str
     history: list[InterviewAssistMessage] = Field(default_factory=list)
+    resume_fields: str | None = None
     company: str | None = None
     position: str | None = None
 

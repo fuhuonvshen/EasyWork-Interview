@@ -130,7 +130,7 @@ class Database:
             "  created_at TEXT NOT NULL"
             ")"
         )
-        # 简历表（全局资产，最新一条为当前简历）
+        # 简历表（全局唯一一份）
         await self._conn.execute(
             "CREATE TABLE IF NOT EXISTS resumes ("
             "  id TEXT PRIMARY KEY,"
@@ -144,6 +144,14 @@ class Database:
             await self._conn.execute("ALTER TABLE resumes ADD COLUMN fields TEXT")
         except Exception:
             pass  # Column already exists
+        # 迁移：简历改为全局唯一，清理旧版本（保留最新一份）
+        try:
+            await self._conn.execute(
+                "DELETE FROM resumes WHERE id NOT IN "
+                "(SELECT id FROM resumes ORDER BY created_at DESC LIMIT 1)"
+            )
+        except Exception:
+            pass
         # 迁移：来源面试 + 是否已入题库（0=待确认，1=已入题库）
         try:
             await self._conn.execute(
@@ -602,11 +610,13 @@ class Database:
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
 
-    # ── 简历（全局资产）─────────────────────────────────────────
+    # ── 简历（全局唯一）─────────────────────────────────────────
 
     async def save_resume(self, file_name: str, content: str) -> str:
         resume_id = uuid.uuid4().hex
         now = datetime.now(timezone.utc).isoformat()
+        # 全局唯一：覆盖旧简历
+        await self.conn.execute("DELETE FROM resumes")
         await self.conn.execute(
             "INSERT INTO resumes (id, file_name, content, created_at) "
             "VALUES (?, ?, ?, ?)",
@@ -616,9 +626,7 @@ class Database:
         return resume_id
 
     async def get_resume(self) -> dict | None:
-        cursor = await self.conn.execute(
-            "SELECT * FROM resumes ORDER BY created_at DESC LIMIT 1"
-        )
+        cursor = await self.conn.execute("SELECT * FROM resumes LIMIT 1")
         row = await cursor.fetchone()
         return dict(row) if row else None
 

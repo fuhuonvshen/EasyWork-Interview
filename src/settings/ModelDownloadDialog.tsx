@@ -107,6 +107,12 @@ export default function ModelDownloadDialog({
   const [defaultRoot, setDefaultRoot] = useState("");
   const [autoStart, setAutoStart] = useState(false);
 
+  // ── 在线模型测试连接 ──
+  const [llmTesting, setLlmTesting] = useState(false);
+  const [llmTestMsg, setLlmTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [asrTesting, setAsrTesting] = useState(false);
+  const [asrTestMsg, setAsrTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
   // ── 邮箱账号（求职邮件监控）──
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
   const [showEmailForm, setShowEmailForm] = useState(false);
@@ -324,6 +330,8 @@ export default function ModelDownloadDialog({
 
   const updateAgentSetting = (key: string, value: string) => {
     setAgentSettings((prev) => ({ ...prev, [key]: value }));
+    if (key === "agent_llm_backend" || key.startsWith("agent_online_")) setLlmTestMsg(null);
+    if (key === "asr_backend" || key.startsWith("asr_online_")) setAsrTestMsg(null);
   };
 
   const handleOnlineProviderChange = (value: string) => {
@@ -348,6 +356,49 @@ export default function ModelDownloadDialog({
     const preset = ASR_ONLINE_PROVIDERS.find((p) => p.value === value);
     if (preset?.url) updateAgentSetting("asr_online_url", preset.url);
     if (preset?.model) updateAgentSetting("asr_online_model", preset.model);
+  };
+
+  const handleLlmTest = async () => {
+    setLlmTesting(true);
+    setLlmTestMsg(null);
+    try {
+      const text = await invoke<string>("llm_test_online", {
+        url: agentSettings["agent_online_url"] || "",
+        key: agentSettings["agent_online_key"] || "",
+        model: agentSettings["agent_online_model"] || "",
+      });
+      setLlmTestMsg({ ok: true, text });
+    } catch (e) {
+      setLlmTestMsg({
+        ok: false,
+        text: typeof e === "string" && e.trim() ? e : "测试连接失败",
+      });
+    } finally {
+      setLlmTesting(false);
+    }
+  };
+
+  const handleAsrTest = async () => {
+    setAsrTesting(true);
+    setAsrTestMsg(null);
+    try {
+      const text = await invoke<string>("asr_test_online", {
+        provider: asrProvider,
+        url: agentSettings["asr_online_url"] || "",
+        model: agentSettings["asr_online_model"] || "",
+        key: agentSettings["asr_online_key"] || "",
+        appId: agentSettings["asr_online_app_id"] || "",
+        secret: agentSettings["asr_online_secret"] || "",
+      });
+      setAsrTestMsg({ ok: true, text });
+    } catch (e) {
+      setAsrTestMsg({
+        ok: false,
+        text: typeof e === "string" && e.trim() ? e : "测试连接失败",
+      });
+    } finally {
+      setAsrTesting(false);
+    }
   };
 
   const handleSave = async () => {
@@ -395,8 +446,14 @@ export default function ModelDownloadDialog({
     : Boolean(
         agentSettings["asr_online_key"]?.trim() &&
         agentSettings["asr_online_model"]?.trim() &&
-        (asrProvider !== "custom" || agentSettings["asr_online_url"]?.trim())
+        agentSettings["asr_online_url"]?.trim()
       );
+
+  const llmOnlineConfigured = Boolean(
+    agentSettings["agent_online_url"]?.trim() &&
+    agentSettings["agent_online_key"]?.trim() &&
+    agentSettings["agent_online_model"]?.trim()
+  );
 
   const tabs = [
     { key: "general" as const, label: "通用设置", icon: Settings },
@@ -737,6 +794,22 @@ export default function ModelDownloadDialog({
                           配置未填写完整，保存后仍会使用本地模型
                         </p>
                       )}
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={handleAsrTest}
+                          disabled={asrTesting || !asrOnlineConfigured}
+                          className="px-3 py-1.5 text-[11px] font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {asrTesting ? <Loader size={12} className="inline animate-spin mr-1" /> : null}
+                          {asrTesting ? "测试中..." : "测试连接"}
+                        </button>
+                        {asrTestMsg && (
+                          <span className={`text-[11px] break-words ${asrTestMsg.ok ? "text-emerald-600" : "text-red-500"}`}>
+                            {asrTestMsg.text}
+                          </span>
+                        )}
+                      </div>
                     </>
                   )}
                 </div>
@@ -831,6 +904,22 @@ export default function ModelDownloadDialog({
                         onChange={(e) => updateAgentSetting("agent_online_model", e.target.value)}
                         placeholder="例如 qwen-plus / gpt-4o / deepseek-chat" className="mt-1 w-full px-3 py-2 text-xs text-gray-600 bg-white border border-gray-200 rounded-lg"
                       />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleLlmTest}
+                        disabled={llmTesting || !llmOnlineConfigured}
+                        className="px-3 py-1.5 text-[11px] font-medium text-violet-600 bg-violet-50 border border-violet-200 rounded-lg hover:bg-violet-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {llmTesting ? <Loader size={12} className="inline animate-spin mr-1" /> : null}
+                        {llmTesting ? "测试中..." : "测试连接"}
+                      </button>
+                      {llmTestMsg && (
+                        <span className={`text-[11px] break-words ${llmTestMsg.ok ? "text-emerald-600" : "text-red-500"}`}>
+                          {llmTestMsg.text}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center justify-between border-t border-gray-50 pt-3">
                       <div>

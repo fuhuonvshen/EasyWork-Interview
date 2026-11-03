@@ -293,6 +293,8 @@ pub fn run() {
             // ── Settings ──
             settings::commands::get_settings,
             settings::commands::update_setting,
+            settings::commands::llm_test_online,
+            settings::commands::asr_test_online,
             settings::commands::select_folder,
             settings::commands::get_default_paths,
             settings::commands::pick_audio_file,

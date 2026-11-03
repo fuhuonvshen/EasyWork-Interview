@@ -21,6 +21,7 @@ pub fn interview_assist_start(
     request_id: String,
     question: String,
     history: Vec<AssistMessage>,
+    resume_fields: Option<String>,
     company: Option<String>,
     position: Option<String>,
     app: tauri::AppHandle,
@@ -38,8 +39,17 @@ pub fn interview_assist_start(
     let sidecar = sidecar.0.clone();
     let rid = request_id.clone();
     let handle = tauri::async_runtime::spawn(async move {
-        if let Err(e) =
-            stream_assist(sidecar, app.clone(), &rid, question, history, company, position).await
+        if let Err(e) = stream_assist(
+            sidecar,
+            app.clone(),
+            &rid,
+            question,
+            history,
+            resume_fields,
+            company,
+            position,
+        )
+        .await
         {
             let _ = app.emit(
                 EVENT_NAME,
@@ -82,12 +92,14 @@ async fn stream_assist(
     request_id: &str,
     question: String,
     history: Vec<AssistMessage>,
+    resume_fields: Option<String>,
     company: Option<String>,
     position: Option<String>,
 ) -> Result<(), String> {
     let body = serde_json::json!({
         "question": question,
         "history": history,
+        "resume_fields": resume_fields,
         "company": company,
         "position": position,
     });

@@ -164,7 +164,7 @@ pub struct InterviewAssessment {
     pub created_at: String,
 }
 
-/// 我的简历（resumes 表）— 全局资产，最新一条为当前简历
+/// 我的简历（resumes 表）— 全局唯一一份
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Resume {
     pub id: String,

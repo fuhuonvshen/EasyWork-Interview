@@ -1,14 +1,16 @@
 // EasyWork - 面试实时辅助答题的会话状态。
-// 挂在 App 层跟随录音会话：切页不丢；每段系统音频转写立即请求在线模型，
+// 挂在 App 层跟随录音会话：切页不丢；录音开始时快照简历，每段系统音频
+// （面试官）触发请求，间隙内的麦克风转写作为候选人实际回答进入 history。
 // 新段取消上一条回答流。不进数据库、不进面试记录。
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type Event, type UnlistenFn } from "@tauri-apps/api/event";
 import { useRecordingSession } from "./RecordingSession";
+import { buildHistory, type AssistChunk } from "./assistHistory";
 import { showToast } from "../../components/Toast";
 import { ERRORS } from "../../errors";
-import type { InterviewAssistStreamEvent, TranscriptChunkEvent } from "../../types";
+import type { InterviewAssistStreamEvent, Resume, TranscriptChunkEvent } from "../../types";
 
 export type AssistTurnStatus = "streaming" | "done" | "interrupted" | "error";
 
@@ -18,11 +20,6 @@ export interface AssistTurn {
   answer: string;
   status: AssistTurnStatus;
   error?: string;
-}
-
-interface AssistHistoryMessage {
-  role: "user" | "assistant";
-  content: string;
 }
 
 interface InterviewAssistValue {
@@ -37,26 +34,12 @@ interface InterviewAssistValue {
 
 const InterviewAssistContext = createContext<InterviewAssistValue | null>(null);
 
-const HISTORY_TURNS = 8;
 const ASSIST_ERROR = ERRORS.INTERVIEW_ASSIST;
 
 let requestSeq = 0;
 function createRequestId(): string {
   requestSeq += 1;
   return `${Date.now()}-${requestSeq}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function buildHistory(turns: AssistTurn[]): AssistHistoryMessage[] {
-  const messages: AssistHistoryMessage[] = [];
-  for (const turn of turns) {
-    const question = turn.question.trim();
-    const answer = turn.answer.trim();
-    // 没有回答的中断轮不进入上下文，避免出现连续 user 消息
-    if (!question || !answer) continue;
-    messages.push({ role: "user", content: question });
-    messages.push({ role: "assistant", content: answer });
-  }
-  return messages.slice(-HISTORY_TURNS * 2);
 }
 
 function hasContent(text: string): boolean {
@@ -75,6 +58,9 @@ export function InterviewAssistProvider({ children }: { children: ReactNode }) {
   const activeRequestIdRef = useRef<string | null>(null);
   const sessionKeyRef = useRef<number | null>(null);
   const toastShownRef = useRef(false);
+  const chunksRef = useRef<AssistChunk[]>([]);
+  const chunkSeqRef = useRef(0);
+  const resumePromiseRef = useRef<Promise<string | null> | null>(null);
 
   const updateTurns = useCallback(
     (next: AssistTurn[] | ((prev: AssistTurn[]) => AssistTurn[])) => {
@@ -84,6 +70,19 @@ export function InterviewAssistProvider({ children }: { children: ReactNode }) {
     },
     []
   );
+
+  // 一场录音只读一次简历：系统提示词整场使用同一份快照
+  const ensureResumeFields = useCallback(async (): Promise<string | null> => {
+    if (resumePromiseRef.current) return resumePromiseRef.current;
+    const promise = invoke<Resume | null>("get_resume")
+      .then((resume) => (resume?.fields?.trim() ? resume.fields : null))
+      .catch((e) => {
+        console.warn("[interview-assist] load resume failed", e);
+        return null;
+      });
+    resumePromiseRef.current = promise;
+    return promise;
+  }, []);
 
   useEffect(() => {
     configRef.current = config;
@@ -105,19 +104,26 @@ export function InterviewAssistProvider({ children }: { children: ReactNode }) {
     }
     if (phase !== "recording") {
       toastShownRef.current = false;
+      chunksRef.current = [];
+      chunkSeqRef.current = 0;
+      resumePromiseRef.current = null;
       updateTurns([]);
     }
   }, [active, phase, updateTurns]);
 
-  // 新一场录音：重置问答与面板显示
+  // 新一场录音：清空对话缓冲，并在开始时快照当前简历
   useEffect(() => {
     if (phase !== "recording" || !startedAt || sessionKeyRef.current === startedAt) return;
     sessionKeyRef.current = startedAt;
     activeRequestIdRef.current = null;
     toastShownRef.current = false;
+    chunksRef.current = [];
+    chunkSeqRef.current = 0;
+    resumePromiseRef.current = null;
     updateTurns([]);
     setVisible(true);
-  }, [phase, startedAt, updateTurns]);
+    void ensureResumeFields();
+  }, [phase, startedAt, ensureResumeFields, updateTurns]);
 
   useEffect(() => {
     let disposed = false;
@@ -128,7 +134,23 @@ export function InterviewAssistProvider({ children }: { children: ReactNode }) {
       if (!activeRef.current) return;
       const chunk = event.payload;
       const text = (chunk?.text ?? "").trim();
-      if (!chunk || chunk.speaker === "我" || !text || !hasContent(text)) return;
+      if (!chunk || !text || !hasContent(text)) return;
+
+      const previous = chunksRef.current[chunksRef.current.length - 1];
+      const start =
+        typeof chunk.start === "number" && Number.isFinite(chunk.start)
+          ? chunk.start
+          : previous
+            ? previous.start + 0.001
+            : 0;
+      const seq = chunkSeqRef.current++;
+
+      // 麦克风（候选人实际回答）只入对话缓冲，不触发新请求
+      if (chunk.speaker === "我") {
+        chunksRef.current.push({ seq, role: "assistant", text, start });
+        return;
+      }
+
       const cfg = configRef.current;
       if (!cfg) return;
 
@@ -143,7 +165,10 @@ export function InterviewAssistProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      const history = buildHistory(turnsRef.current);
+      // 以系统音频（面试官）为边界：只取当前问题开始之前的转写作为历史
+      const history = buildHistory(chunksRef.current, start);
+      chunksRef.current.push({ seq, role: "user", text, start });
+
       const requestId = createRequestId();
       activeRequestIdRef.current = requestId;
       updateTurns((prev) => [
@@ -151,25 +176,33 @@ export function InterviewAssistProvider({ children }: { children: ReactNode }) {
         { id: requestId, question: text, answer: "", status: "streaming" },
       ]);
 
-      invoke("interview_assist_start", {
-        requestId,
-        question: text,
-        history,
-        company: cfg.company ?? null,
-        position: cfg.position ?? null,
-      }).catch((e) => {
-        console.warn("[interview-assist] start failed", e);
-        if (activeRequestIdRef.current === requestId) activeRequestIdRef.current = null;
-        updateTurns((prev) =>
-          prev.map((turn) =>
-            turn.id === requestId ? { ...turn, status: "error", error: ASSIST_ERROR } : turn
-          )
-        );
-        if (!toastShownRef.current) {
-          toastShownRef.current = true;
-          showToast(ASSIST_ERROR, "error");
+      void (async () => {
+        const resumeFields = await ensureResumeFields();
+        if (!activeRef.current || activeRequestIdRef.current !== requestId) return;
+        try {
+          await invoke("interview_assist_start", {
+            requestId,
+            question: text,
+            history,
+            resumeFields,
+            company: cfg.company ?? null,
+            position: cfg.position ?? null,
+          });
+        } catch (e) {
+          console.warn("[interview-assist] start failed", e);
+          if (activeRequestIdRef.current !== requestId) return;
+          activeRequestIdRef.current = null;
+          updateTurns((prev) =>
+            prev.map((turn) =>
+              turn.id === requestId ? { ...turn, status: "error", error: ASSIST_ERROR } : turn
+            )
+          );
+          if (!toastShownRef.current) {
+            toastShownRef.current = true;
+            showToast(ASSIST_ERROR, "error");
+          }
         }
-      });
+      })();
     };
 
     const onStream = (event: Event<InterviewAssistStreamEvent>) => {
@@ -235,7 +268,7 @@ export function InterviewAssistProvider({ children }: { children: ReactNode }) {
       unlistenChunk?.();
       unlistenStream?.();
     };
-  }, [updateTurns]);
+  }, [ensureResumeFields, updateTurns]);
 
   const toggleVisible = useCallback(() => setVisible((v) => !v), []);
   const setPanePercent = useCallback((value: number) => {

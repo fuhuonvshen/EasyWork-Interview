@@ -568,7 +568,7 @@ pub async fn add_questions_to_bank(
         .map_err(|e| format!("加入题库失败: {}", e))
 }
 
-/// 保存我的简历（全局资产，最新一条生效）
+/// 保存我的简历（全局唯一：覆盖旧简历）
 #[tauri::command]
 pub async fn save_resume(
     file_name: String,
@@ -584,7 +584,7 @@ pub async fn save_resume(
         .map_err(|e| format!("保存简历失败: {}", e))
 }
 
-/// 获取最新简历
+/// 获取当前简历
 #[tauri::command]
 pub async fn get_resume(
     db: State<'_, DbState>,
@@ -594,7 +594,7 @@ pub async fn get_resume(
         .map_err(|e| format!("查询简历失败: {}", e))
 }
 
-/// 删除最新一份简历
+/// 删除当前简历
 #[tauri::command]
 pub async fn delete_resume(
     db: State<'_, DbState>,
