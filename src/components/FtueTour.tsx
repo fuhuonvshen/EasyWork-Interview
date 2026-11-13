@@ -1,6 +1,6 @@
 // EasyWork - 漫游式引导（Tour）：遮罩 + 高亮目标 + 紧贴气泡
 // 步骤配置驱动：target 为元素选择器，rAF 跟随目标位置（工作台卡片会漂移）
-// storageKey：关闭/完成后写设置标记，保证只展示一次
+// storageKey：展示一次后立即写设置标记，保证只展示一次
 
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -20,6 +20,35 @@ interface Props {
 const SPACING = 14;
 const BUBBLE_W = 300;
 
+// 本进程内已展示过的引导。设置写库是异步的，若用户展示后立刻进入模块、
+// 再快速返回，重新挂载时可能读到旧值而重复弹出；这里先做同步兜底。
+const completedGuides = new Set<string>();
+
+async function persistGuideDone(storageKey: string) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await invoke("update_setting", { key: storageKey, value: "1" });
+      return;
+    } catch (e) {
+      if (attempt === 2) {
+        console.error("[guide] 保存引导标记失败", storageKey, e);
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+    }
+  }
+}
+
+function markGuideCompleted(storageKey: string) {
+  if (completedGuides.has(storageKey)) return;
+  completedGuides.add(storageKey);
+  // localStorage 同步写入：即使数据库写失败，重启后也不会再弹
+  try {
+    localStorage.setItem(`guide_done:${storageKey}`, "1");
+  } catch {}
+  void persistGuideDone(storageKey);
+}
+
 export default function FtueTour({ steps, storageKey, onDone }: Props) {
   const [stepIdx, setStepIdx] = useState(0);
   const [show, setShow] = useState(false);
@@ -28,23 +57,45 @@ export default function FtueTour({ steps, storageKey, onDone }: Props) {
   const bubbleRef = useRef<HTMLDivElement>(null);
   const arrowRef = useRef<HTMLDivElement>(null);
 
-  // 首次展示（设置无标记）
+  // 是否已展示过：进程内 → localStorage → 数据库
   useEffect(() => {
+    if (completedGuides.has(storageKey)) return;
+    try {
+      if (localStorage.getItem(`guide_done:${storageKey}`) === "1") {
+        completedGuides.add(storageKey);
+        return;
+      }
+    } catch {}
+    let cancelled = false;
     invoke<Record<string, string>>("get_settings")
       .then((s) => {
-        if (s[storageKey] !== "1") setShow(true);
+        if (cancelled || completedGuides.has(storageKey)) return;
+        if (s[storageKey] === "1") {
+          completedGuides.add(storageKey);
+          return;
+        }
+        setShow(true);
       })
       .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [storageKey]);
 
+  // 展示即视为完成：中途直接进入模块也算展示过，不再重复弹
+  useEffect(() => {
+    if (show) markGuideCompleted(storageKey);
+  }, [show, storageKey]);
+
   const finish = () => {
+    markGuideCompleted(storageKey);
     setShow(false);
-    invoke("update_setting", { key: storageKey, value: "1" }).catch(() => {});
     onDone?.();
   };
 
   // 当前步骤：高亮目标 + 更新遮罩/高亮框/气泡位置（rAF 跟随漂移卡片）
   useEffect(() => {
+    if (!show) return;
     const step = steps[stepIdx];
     const el = document.querySelector(step.target);
     if (!el) {
@@ -126,7 +177,7 @@ export default function FtueTour({ steps, storageKey, onDone }: Props) {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [stepIdx, steps, onDone]);
+  }, [show, stepIdx, steps, onDone]);
 
   const next = () => {
     if (stepIdx >= steps.length - 1) {
